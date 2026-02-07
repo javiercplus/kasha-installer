@@ -1,5 +1,60 @@
 /*
  * installer.c
+ * Installation Logic Module. Reads values from UI and executes commands.
+ */
+#include "neko_installer.h"
+#include <sys/mount.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdarg.h> 
+
+gboolean update_log_ui(gpointer data) {
+    LogMessage *msg = (LogMessage *)data;
+    AppData *app = msg->app;
+    
+    GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->console_text));
+    GtkTextIter end;
+    gtk_text_buffer_get_end_iter(buffer, &end);
+    gtk_text_buffer_insert(buffer, &end, msg->message, -1);
+    
+    GtkTextMark *mark = gtk_text_buffer_get_insert(buffer);
+    gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(app->console_text), mark);
+    
+    if (msg->fraction >= 0) {
+        gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(app->progress_bar), msg->fraction);
+    }
+    
+    g_free(msg->message);
+    g_free(msg);
+    return FALSE;
+}
+
+void log_to_ui(AppData *app, const char *msg, gdouble fraction) {
+    LogMessage *log_msg = g_new(LogMessage, 1);
+    log_msg->message = g_strdup_printf("%s\n", msg);
+    log_msg->fraction = fraction;
+    log_msg->app = app; 
+    g_idle_add(update_log_ui, log_msg);
+}
+
+// Helper to run sync commands and return exit code
+int run_sync(AppData *app, const char *fmt, ...) {
+    char cmd[1024];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(cmd, sizeof(cmd), fmt, args);
+    va_end(args);
+    
+    log_to_ui(app, cmd, -1.0);
+    int status = system(cmd);
+    return WEXITSTATUS(status);
+}
+
+/*
+ * installer.c
  * CORRECTED LOGIC FOR NVME DISKS
  */
 gpointer install_thread(gpointer data) {
@@ -118,4 +173,14 @@ gpointer install_thread(gpointer data) {
     
     app->installing = FALSE;
     return NULL;
+}
+
+void start_installation(GtkWidget *widget, AppData *app) {
+    if (app->installing) return;
+    app->installing = TRUE;
+    gtk_widget_set_sensitive(widget, FALSE);
+    
+    GError *error = NULL;
+    g_thread_try_new("installer", install_thread, app, &error);
+    if (error) g_printerr("Error creating thread: %s\n", error->message);
 }

@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdarg.h> 
 
 gboolean update_log_ui(gpointer data) {
     LogMessage *msg = (LogMessage *)data;

@@ -57,7 +57,7 @@ GtkWidget* create_form_row(const gchar *label_text, GtkWidget **entry_ptr) {
 
 void build_ui(AppData *app) {
     app->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(app->window), "Neko Void Installer");
+    gtk_window_set_title(GTK_WINDOW(app->window), "Kasha Installer - Neko Void");
     gtk_window_set_default_size(GTK_WINDOW(app->window), 800, 600);
     g_signal_connect(app->window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 

@@ -15,6 +15,7 @@ typedef struct {
     
     // Tab 2: Bootloader
     GtkWidget *grub_disk_combo;
+    GtkWidget *label_boot_status; // NEW: Para mostrar 32/64 bits dinámicamente
     
     // Tab 3: System
     GtkWidget *hostname_entry;
@@ -40,7 +41,7 @@ typedef struct {
     // Others
     GtkWidget *mount_list; 
     gboolean is_efi;
-    gchar *efi_target; // NEW: "i386-efi" or "x86_64-efi"
+    gchar *efi_target; 
     gchar *selected_disk;       
     gboolean installing;
 } AppData;

@@ -1,6 +1,6 @@
 /*
  * ui.c
- * Dynamic EFI Status Label.
+ * POPUP DIALOG IMPLEMENTATION FOR REBOOT
  */
 #include "neko_installer.h"
 #include <stdio.h>
@@ -36,27 +36,40 @@ void on_back_clicked(GtkWidget *widget, AppData *app) {
     gtk_notebook_prev_page(GTK_NOTEBOOK(app->notebook));
 }
 
-void on_reboot_clicked(GtkWidget *widget, AppData *app) {
-    system("reboot");
+// LOGIC: Handle the Reboot Dialog Button Click
+void on_reboot_dialog_response(GtkDialog *dialog, gint response_id, gpointer user_data) {
+    if (response_id == GTK_RESPONSE_ACCEPT) {
+        system("reboot");
+    }
+    gtk_widget_destroy(GTK_WIDGET(dialog));
 }
 
-// LOGIC: Update UI when finished (change button to Reboot)
+// LOGIC: Show Reboot Dialog when finished
 gboolean set_ui_finished_safe(gpointer data) {
     AppData *app = (AppData *)data;
     
-    // Disable navigation
+    // Keep UI locked (Navigation disabled, Notebook locked)
     gtk_widget_set_sensitive(app->btn_back, FALSE);
     gtk_widget_set_sensitive(app->btn_next, FALSE);
-    gtk_widget_set_sensitive(app->notebook, FALSE); // Lock tabs
+    gtk_widget_set_sensitive(app->notebook, FALSE);
     
-    // Change Install button to Reboot
-    gtk_button_set_label(GTK_BUTTON(app->btn_install), "Reboot System");
+    // Create Popup Dialog
+    GtkWidget *dialog = gtk_message_dialog_new(
+        GTK_WINDOW(app->window),
+        GTK_DIALOG_MODAL,            // Bloquea la ventana principal
+        GTK_MESSAGE_INFO,             // Icono de información
+        GTK_BUTTONS_NONE,             // Sin botones estándar, añadiremos uno custom
+        "NEKO-VOID is READY!!!"
+    );
     
-    // Disconnect old signal and connect new one
-    g_signal_handlers_disconnect_by_func(app->btn_install, G_CALLBACK(start_installation), app);
-    g_signal_connect(app->btn_install, "clicked", G_CALLBACK(on_reboot_clicked), app);
+    // Add the Reboot button
+    gtk_dialog_add_button(GTK_DIALOG(dialog), "Reboot System", GTK_RESPONSE_ACCEPT);
     
-    gtk_widget_set_sensitive(app->btn_install, TRUE); 
+    // Connect the button click event
+    g_signal_connect(dialog, "response", G_CALLBACK(on_reboot_dialog_response), NULL);
+    
+    // Show the dialog
+    gtk_widget_show_all(dialog);
     
     return FALSE;
 }
@@ -137,7 +150,6 @@ void build_ui(AppData *app) {
     gtk_box_pack_start(GTK_BOX(page_boot), gtk_label_new("Select MBR/EFI disk for Bootloader:"), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(page_boot), app->grub_disk_combo, FALSE, FALSE, 0);
     
-    // LABEL DINÁMICO PARA EFI (Se actualizará desde utils.c)
     app->label_boot_status = gtk_label_new("Detecting firmware...");
     gtk_widget_set_margin_top(app->label_boot_status, 10);
     gtk_box_pack_start(GTK_BOX(page_boot), app->label_boot_status, FALSE, FALSE, 0);

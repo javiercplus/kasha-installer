@@ -1,6 +1,6 @@
 /*
  * utils.c
- * Utilities Module: Hardware Detection and Command Execution.
+ * IMPROVED EFI DETECTION (matches void-installer logic)
  */
 #include "neko_installer.h"
 #include <sys/stat.h>
@@ -9,10 +9,44 @@
 #include <string.h>
 #include <unistd.h>
 
+// 1. DETECCIÓN EFI MEJORADA
 gboolean check_efi() {
-    gboolean result = (access("/sys/firmware/efi/systab", F_OK) == 0);
-    g_print("[INFO] EFI System detected: %s\n", result ? "YES" : "NO");
-    return result;
+    // Usamos /sys/firmware/efi/efivars porque es más fiable que systab
+    if (access("/sys/firmware/efi/efivars", F_OK) == 0) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+// 2. LECTURA DE BITS (32 vs 64)
+void read_efi_bits(AppData *app) {
+    if (!app->is_efi) {
+        app->efi_target = NULL;
+        return;
+    }
+
+    char fw_size_str[16];
+    FILE *f = fopen("/sys/firmware/efi/fw_platform_size", "r");
+    
+    if (f) {
+        if (fgets(fw_size_str, sizeof(fw_size_str), f) != NULL) {
+            // Limpiar saltos de línea
+            fw_size_str[strcspn(fw_size_str, "\n")] = 0;
+            
+            if (strcmp(fw_size_str, "32") == 0) {
+                app->efi_target = "i386-efi";
+                g_print("[INFO] EFI System detected: 32-bit\n");
+            } else {
+                app->efi_target = "x86_64-efi";
+                g_print("[INFO] EFI System detected: 64-bit\n");
+            }
+        }
+        fclose(f);
+    } else {
+        // Fallback: si no podemos leer, asumimos x86_64 (estándar moderno)
+        app->efi_target = "x86_64-efi";
+        g_print("[INFO] EFI System detected: Unknown bits (defaulting to x86_64)\n");
+    }
 }
 
 void scan_disks(AppData *app) {
@@ -25,7 +59,6 @@ void scan_disks(AppData *app) {
     gtk_list_store_clear(store);
 
     while ((entry = readdir(dp)) != NULL) {
-        // Common disk filters: sd, vd, nvme, hd, mmcblk
         if (strncmp(entry->d_name, "sd", 2) == 0 || 
             strncmp(entry->d_name, "vd", 2) == 0 ||
             strncmp(entry->d_name, "nvme", 4) == 0 ||
@@ -36,7 +69,6 @@ void scan_disks(AppData *app) {
             char size_str[64];
             unsigned long long size_bytes = 0;
             
-            // Read size
             snprintf(path, sizeof(path), "/sys/block/%s/size", entry->d_name);
             FILE *f = fopen(path, "r");
             if (f) {
@@ -58,12 +90,9 @@ void scan_disks(AppData *app) {
     closedir(dp);
 }
 
-// NEW FUNCTION: Copies disks from main list to GRUB list
 void sync_grub_list(AppData *app) {
-    // Clear GRUB list
     gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(app->grub_disk_combo));
 
-    // Get main list model
     GtkTreeModel *model = gtk_combo_box_get_model(GTK_COMBO_BOX(app->disk_combo));
     GtkTreeIter iter;
     
@@ -73,13 +102,10 @@ void sync_grub_list(AppData *app) {
         gchar *disk_name;
         gchar *disk_size;
         
-        // Read disk name
         gtk_tree_model_get(model, &iter, 0, &disk_name, 1, &disk_size, -1);
         
-        // Create nice label for GRUB (e.g., "sda (500GB)")
         gchar *label = g_strdup_printf("/dev/%s (%s)", disk_name, disk_size);
         
-        // Add to GRUB list
         gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->grub_disk_combo), label);
         
         g_free(disk_name);
@@ -89,14 +115,14 @@ void sync_grub_list(AppData *app) {
         valid = gtk_tree_model_iter_next(model, &iter);
     }
     
-    // Select first by default
     if (gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->grub_disk_combo))) {
         gtk_combo_box_set_active(GTK_COMBO_BOX(app->grub_disk_combo), 0);
     }
 }
 
 void init_utils(AppData *app) {
+    app->is_efi = check_efi();
+    read_efi_bits(app); // NUEVO: Leer bits 32/64
     scan_disks(app);
-    // Sync bootloader list after scanning
     sync_grub_list(app); 
 }

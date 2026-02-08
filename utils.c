@@ -1,6 +1,5 @@
 /*
  * utils.c
- * ACTUALIZA LA ETIQUETA DE LA UI CON EL RESULTADO EFI
  */
 #include "neko_installer.h"
 #include <sys/stat.h>

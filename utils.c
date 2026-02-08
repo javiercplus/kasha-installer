@@ -1,6 +1,6 @@
 /*
  * utils.c
- * IMPROVED EFI DETECTION (matches void-installer logic)
+ * ACTUALIZA LA ETIQUETA DE LA UI CON EL RESULTADO EFI
  */
 #include "neko_installer.h"
 #include <sys/stat.h>
@@ -9,19 +9,19 @@
 #include <string.h>
 #include <unistd.h>
 
-// 1. DETECCIÓN EFI MEJORADA
 gboolean check_efi() {
-    // Usamos /sys/firmware/efi/efivars porque es más fiable que systab
     if (access("/sys/firmware/efi/efivars", F_OK) == 0) {
         return TRUE;
     }
     return FALSE;
 }
 
-// 2. LECTURA DE BITS (32 vs 64)
 void read_efi_bits(AppData *app) {
     if (!app->is_efi) {
         app->efi_target = NULL;
+        // ACTUALIZAR UI
+        if (app->label_boot_status)
+            gtk_label_set_text(GTK_LABEL(app->label_boot_status), "BIOS/Legacy System Detected.");
         return;
     }
 
@@ -30,22 +30,28 @@ void read_efi_bits(AppData *app) {
     
     if (f) {
         if (fgets(fw_size_str, sizeof(fw_size_str), f) != NULL) {
-            // Limpiar saltos de línea
             fw_size_str[strcspn(fw_size_str, "\n")] = 0;
             
+            gchar *ui_text;
             if (strcmp(fw_size_str, "32") == 0) {
                 app->efi_target = "i386-efi";
-                g_print("[INFO] EFI System detected: 32-bit\n");
+                ui_text = g_strdup("EFI System Detected (32-bit).");
             } else {
                 app->efi_target = "x86_64-efi";
-                g_print("[INFO] EFI System detected: 64-bit\n");
+                ui_text = g_strdup("EFI System Detected (64-bit).");
             }
+            
+            // ACTUALIZAR UI
+            if (app->label_boot_status)
+                gtk_label_set_text(GTK_LABEL(app->label_boot_status), ui_text);
+                
+            g_free(ui_text);
         }
         fclose(f);
     } else {
-        // Fallback: si no podemos leer, asumimos x86_64 (estándar moderno)
         app->efi_target = "x86_64-efi";
-        g_print("[INFO] EFI System detected: Unknown bits (defaulting to x86_64)\n");
+        if (app->label_boot_status)
+            gtk_label_set_text(GTK_LABEL(app->label_boot_status), "EFI System Detected (Assuming 64-bit).");
     }
 }
 
@@ -122,7 +128,7 @@ void sync_grub_list(AppData *app) {
 
 void init_utils(AppData *app) {
     app->is_efi = check_efi();
-    read_efi_bits(app); // NUEVO: Leer bits 32/64
+    read_efi_bits(app); 
     scan_disks(app);
     sync_grub_list(app); 
 }

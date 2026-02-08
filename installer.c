@@ -228,12 +228,15 @@ gpointer install_thread(gpointer data) {
     run_sync(app, "chroot %s grub-mkconfig -o /boot/grub/grub.cfg", TARGETDIR);
 
     // 11. SYNC AND UNMOUNT
-    log_to_ui(app, "Syncing filesystems...", 0.95);
-    system("sync"); // Force writes to disk
+     log_to_ui(app, "Syncing filesystems...", 0.95);
+    system("sync");
     run_sync(app, "umount -R %s", TARGETDIR);
     
     log_to_ui(app, "--- INSTALLATION COMPLETED ---", 1.0);
     app->installing = FALSE;
+    
+    // NEW: Update UI to show Reboot button
+    set_ui_finished(app); // Call this function from ui.c
     return NULL;
 }
 

@@ -40,6 +40,7 @@ typedef struct {
     // Others
     GtkWidget *mount_list; 
     gboolean is_efi;
+    gchar *efi_target; // NEW: "i386-efi" or "x86_64-efi"
     gchar *selected_disk;       
     gboolean installing;
 } AppData;
@@ -60,7 +61,7 @@ void build_ui(AppData *app);
 void on_next_clicked(GtkWidget *widget, AppData *app);
 void on_back_clicked(GtkWidget *widget, AppData *app);
 void on_page_changed(GtkNotebook *notebook, GtkWidget *page, guint page_num, AppData *app);
-void set_ui_finished(AppData *app); // NEW: Changes button to Reboot
+void set_ui_finished(AppData *app);
 void on_reboot_clicked(GtkWidget *widget, AppData *app);
 
 // Installation

@@ -1,6 +1,6 @@
 /*
  * installer.c
- * LOCAL/LIVE INSTALLATION MODE (copy_rootfs + cleanup)
+ * LOCAL INSTALLATION + CUSTOM NANO VOID CONFIGS (Anon/Flatpak/LightDM)
  */
 #include "neko_installer.h"
 #include <sys/mount.h>
@@ -101,11 +101,8 @@ gpointer install_thread(gpointer data) {
         run_sync(app, "mount %s %s/boot/efi", efi_part, TARGETDIR);
     }
 
-    // 3. COPY ROOTFS (The missing step)
-    log_to_ui(app, "Copying Live Image to Target (this will take time)...", 0.3);
-    // Using system() for the complex tar pipe. 
-    // Note: --one-file-system ensures we don't copy /mnt/target itself recursively.
-    // Note: 2>/dev/null is used to silence errors about changing permissions on special files which are expected.
+    // 3. COPY ROOTFS
+    log_to_ui(app, "Copying Live Image to Target...", 0.3);
     int ret = system("tar -cf - --one-file-system --xattrs / 2>/dev/null | tar --extract --xattrs --xattrs-include='*' --preserve-permissions -f - -C /mnt/target");
     
     if (WEXITSTATUS(ret) != 0) {
@@ -113,41 +110,31 @@ gpointer install_thread(gpointer data) {
         app->installing = FALSE; return NULL;
     }
 
-    // 4. CLEANUP LIVE FILES (Remove installer traces)
+    // 4. CLEANUP LIVE FILES
     log_to_ui(app, "Cleaning up live image files...", 0.4);
-    // Remove messages
     run_sync(app, "rm -f %s/etc/motd", TARGETDIR);
     run_sync(app, "rm -f %s/etc/issue", TARGETDIR);
-    // Remove installer binary (assuming standard path or self-cleaning)
     run_sync(app, "rm -f %s/usr/sbin/void-installer", TARGETDIR);
-    // Remove SDDM config if live had autologin
     run_sync(app, "rm -f %s/etc/sddm.conf", TARGETDIR);
-    
-    // Remove Live User (Assuming live user is 'void' based on original script, or read /etc/passwd)
-    // For simplicity, we just remove the live user logic if it exists. 
-    // In a real scenario we would check /etc/default/live.conf
     run_sync(app, "sed -i 's|GETTY_ARGS=\"--noclear -a void\"|GETTY_ARGS=\"--noclear\"|g' %s/etc/sv/agetty-tty1/conf", TARGETDIR);
 
-    // 5. MOUNT DEV/PROC/SYS FOR CHROOT
+    // 5. MOUNT DEV/PROC/SYS
     log_to_ui(app, "Mounting virtual filesystems for configuration...", 0.5);
     run_sync(app, "mount --rbind /dev %s/dev", TARGETDIR);
     run_sync(app, "mount --rbind /proc %s/proc", TARGETDIR);
     run_sync(app, "mount --rbind /sys %s/sys", TARGETDIR);
 
-    // 6. REBUILD INITRAMFS (Important for copy_rootfs flow)
+    // 6. REBUILD INITRAMFS
     log_to_ui(app, "Rebuilding initramfs...", 0.6);
-    // Dracut requires /etc/vconsole.conf or host keys sometimes, we rely on base-system config
     run_sync(app, "chroot %s dracut --force --no-hostonly-cmdline", TARGETDIR);
 
     // 7. REMOVE TEMPORARY PACKAGES
     log_to_ui(app, "Removing temporary live packages...", 0.7);
     run_sync(app, "chroot %s xbps-remove -Ry dialog xtools-minimal xmirror espeakup brltty 2>/dev/null", TARGETDIR);
 
-    // 8. CONFIGURATION (Hostname, Locale, Users)
+    // 8. CONFIGURATION (Hostname, Locale)
     log_to_ui(app, "Applying System Configuration...", 0.8);
     run_sync(app, "echo %s > %s/etc/hostname", hostname, TARGETDIR);
-    
-    // Enable Locale
     run_sync(app, "sed -i 's/#%s/%s/' %s/etc/default/libc-locales", locale, locale, TARGETDIR);
     run_sync(app, "echo LANG=%s > %s/etc/locale.conf", locale, TARGETDIR);
     run_sync(app, "chroot %s xbps-reconfigure -f glibc-locales", TARGETDIR);
@@ -157,32 +144,58 @@ gpointer install_thread(gpointer data) {
     system(cmd_root);
     g_free(cmd_root);
 
-    // User
+    // 9. USER CREATION & NEKO VOID CUSTOMIZATIONS (The "Anon" copy logic)
     if (strlen(user_login) > 0) {
         run_sync(app, "chroot %s useradd -m -G wheel,audio,video -s /bin/bash %s", TARGETDIR, user_login);
         gchar *cmd_user = g_strdup_printf("echo '%s:%s' | chroot %s chpasswd", user_login, user_pass, TARGETDIR);
         system(cmd_user);
         g_free(cmd_user);
         
-        // Sudo setup
-        run_sync(app, "echo '%%wheel ALL=(ALL:ALL) ALL' > %s/etc/sudoers.d/10-wheel", TARGETDIR);
-        run_sync(app, "chmod 0440 %s/etc/sudoers.d/10-wheel", TARGETDIR);
+        log_to_ui(app, "Applying Neko Void customizations (Flatpak, Themes)...", 0.82);
+
+        // Copy Flatpak Data
+        run_sync(app, "cp -rf /var/lib/flatpak %s/var/lib/", TARGETDIR);
+
+        // Copy XBPS Repos
+        mkdir -p("/etc/xbps.d"); // Ensure source exists if needed
+        run_sync(app, "cp -f /etc/xbps.d/* %s/etc/xbps.d/ 2>/dev/null", TARGETDIR);
+
+        // Copy User Profile & Themes from 'anon'
+        run_sync(app, "cp -f /home/.profile %s/home/%s/", TARGETDIR, user_login);
+        // run_sync(app, "cp -rf /home/anon/.icons %s/home/%s/", TARGETDIR, user_login); // Commented as in script
+        run_sync(app, "cp -rf /home/anon/.themes %s/home/%s/", TARGETDIR, user_login);
+        
+        // Fix Ownership of copied files
+        run_sync(app, "chown -R %s:users %s/home/%s", user_login, TARGETDIR, user_login);
+
+        // AUTOLOGIN (LightDM)
+        // Check if line exists, replace. If not, append. 
+        // For simplicity in C, we try to replace or append blindly (assuming lightdm.conf exists)
+        run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
+        // If you want the strict logic (if not exists add after [Seat:*]), it requires a bash subshell, simpler to just ensure file has it or let default live config handle it.
+        // Replicating the append logic:
+        run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf", TARGETDIR, user_login, TARGETDIR);
+
+        // SUDOERS
+        // Default: user is in wheel group (from useradd command above)
+        run_sync(app, "echo '%%wheel ALL=(ALL:ALL) ALL' > %s/etc/sudoers.d/wheel", TARGETDIR);
+        run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
     }
 
-    // 9. BOOTLOADER (set_bootloader logic)
+    // Clean up Polkit rules (Live only)
+    run_sync(app, "rm -f %s/etc/polkit-1/rules.d/void-live.rules", TARGETDIR);
+
+    // 10. BOOTLOADER
     log_to_ui(app, "Installing GRUB Bootloader...", 0.9);
     if (app->is_efi) {
-        // EFI Install
         run_sync(app, "chroot %s grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=void_grub --recheck %s", TARGETDIR, disk_path);
     } else {
-        // MBR Install
         run_sync(app, "chroot %s grub-install --recheck %s", TARGETDIR, disk_path);
     }
     
-    // Generate Config
     run_sync(app, "chroot %s grub-mkconfig -o /boot/grub/grub.cfg", TARGETDIR);
 
-    // 10. UNMOUNT & FINALIZE
+    // 11. UNMOUNT & FINALIZE
     log_to_ui(app, "Unmounting filesystems...", 0.95);
     run_sync(app, "umount -R %s", TARGETDIR);
     

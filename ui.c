@@ -1,6 +1,6 @@
 /*
  * ui.c
- * Improved aesthetics and logic.
+ * Dynamic EFI Status Label.
  */
 #include "neko_installer.h"
 #include <stdio.h>
@@ -23,12 +23,8 @@ void launch_gparted(GtkWidget *widget, AppData *app) {
     g_free(cmd);
 }
 
-// LOGIC: Handle page switching (Back/Next buttons)
 void on_page_changed(GtkNotebook *notebook, GtkWidget *page, guint page_num, AppData *app) {
-    // Disable Back if first page
     gtk_widget_set_sensitive(app->btn_back, (page_num > 0));
-    
-    // Disable Next if last page (Install tab)
     gtk_widget_set_sensitive(app->btn_next, (page_num < 4));
 }
 
@@ -40,26 +36,19 @@ void on_back_clicked(GtkWidget *widget, AppData *app) {
     gtk_notebook_prev_page(GTK_NOTEBOOK(app->notebook));
 }
 
-// LOGIC: Reboot callback
 void on_reboot_clicked(GtkWidget *widget, AppData *app) {
     system("reboot");
 }
 
-// LOGIC: Update UI when finished (change button to Reboot)
 gboolean set_ui_finished_safe(gpointer data) {
     AppData *app = (AppData *)data;
-    
-    // Disable navigation
     gtk_widget_set_sensitive(app->btn_back, FALSE);
     gtk_widget_set_sensitive(app->btn_next, FALSE);
-    gtk_widget_set_sensitive(app->notebook, FALSE); // Lock tabs
+    gtk_widget_set_sensitive(app->notebook, FALSE); 
     
-    // Change Install button to Reboot
     gtk_button_set_label(GTK_BUTTON(app->btn_install), "Reboot System");
     g_signal_handlers_disconnect_by_func(app->btn_install, G_CALLBACK(start_installation), app);
     g_signal_connect(app->btn_install, "clicked", G_CALLBACK(on_reboot_clicked), app);
-    
-    // Make it visually distinct (Green button style hint via label is simplest without CSS)
     return FALSE;
 }
 
@@ -67,14 +56,13 @@ void set_ui_finished(AppData *app) {
     g_idle_add(set_ui_finished_safe, app);
 }
 
-// AESTHETIC: Better looking form rows
 GtkWidget* create_form_row(const gchar *label_text, GtkWidget **entry_ptr) {
     GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_widget_set_margin_bottom(hbox, 5); // Space between rows
+    gtk_widget_set_margin_bottom(hbox, 5); 
     
     GtkWidget *label = gtk_label_new(label_text);
     gtk_label_set_xalign(GTK_LABEL(label), 1.0); 
-    gtk_widget_set_size_request(label, 180, -1); // Fixed width for alignment
+    gtk_widget_set_size_request(label, 180, -1); 
     
     *entry_ptr = gtk_entry_new();
     gtk_widget_set_hexpand(*entry_ptr, TRUE);
@@ -90,18 +78,15 @@ void build_ui(AppData *app) {
     gtk_window_set_default_size(GTK_WINDOW(app->window), 850, 600);
     g_signal_connect(app->window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
-    // Main Container
-    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0); // No padding here
+    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0); 
     gtk_container_add(GTK_CONTAINER(app->window), vbox);
 
-    // Notebook
     app->notebook = gtk_notebook_new();
     gtk_widget_set_margin_start(app->notebook, 10);
     gtk_widget_set_margin_end(app->notebook, 10);
     gtk_widget_set_margin_top(app->notebook, 10);
     gtk_box_pack_start(GTK_BOX(vbox), app->notebook, TRUE, TRUE, 0);
 
-    // Connect Page Changed signal for button logic
     g_signal_connect(app->notebook, "switch-page", G_CALLBACK(on_page_changed), app);
 
     // --- TAB 1: DISKS ---
@@ -143,11 +128,11 @@ void build_ui(AppData *app) {
     gtk_box_pack_start(GTK_BOX(page_boot), gtk_label_new("Select MBR/EFI disk for Bootloader:"), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(page_boot), app->grub_disk_combo, FALSE, FALSE, 0);
     
-    if (app->is_efi) {
-        gtk_box_pack_start(GTK_BOX(page_boot), gtk_label_new("EFI System Detected."), FALSE, FALSE, 0);
-    } else {
-        gtk_box_pack_start(GTK_BOX(page_boot), gtk_label_new("BIOS/Legacy System Detected."), FALSE, FALSE, 0);
-    }
+    // LABEL DINÁMICO PARA EFI (Se actualizará desde utils.c)
+    app->label_boot_status = gtk_label_new("Detecting firmware...");
+    gtk_widget_set_margin_top(app->label_boot_status, 10);
+    gtk_box_pack_start(GTK_BOX(page_boot), app->label_boot_status, FALSE, FALSE, 0);
+
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_boot, gtk_label_new("2. Bootloader"));
 
     // --- TAB 3: SYSTEM ---
@@ -202,7 +187,6 @@ void build_ui(AppData *app) {
     GtkWidget *page_install = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(page_install), 10);
     
-    // AESTHETIC: Monospaced font for log
     PangoFontDescription *font_desc = pango_font_description_from_string("Monospace 10");
     
     GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
@@ -234,7 +218,6 @@ void build_ui(AppData *app) {
     gtk_widget_set_margin_start(hbox_nav, 20);
     gtk_widget_set_margin_end(hbox_nav, 20);
     
-    // Separator line above buttons
     GtkWidget *sep = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
     gtk_box_pack_start(GTK_BOX(vbox), sep, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), hbox_nav, FALSE, FALSE, 0);

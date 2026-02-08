@@ -1,6 +1,5 @@
 /*
  * neko_installer.h
- * Global definitions and shared structures.
  */
 #ifndef NEKO_INSTALLER_H
 #define NEKO_INSTALLER_H
@@ -12,14 +11,14 @@ typedef struct {
     GtkWidget *notebook;
     
     // Tab 1: Disks
-    GtkWidget *disk_combo;      // Physical disk (e.g., sda)
+    GtkWidget *disk_combo;     
     
     // Tab 2: Bootloader
     GtkWidget *grub_disk_combo;
     
-    // Tab 3: System (NEW)
+    // Tab 3: System
     GtkWidget *hostname_entry;
-    GtkWidget *locale_combo;    // Language (e.g., es_ES.UTF-8)
+    GtkWidget *locale_combo;    
     
     // Tab 4: Users
     GtkWidget *root_pass_entry;
@@ -41,7 +40,7 @@ typedef struct {
     // Others
     GtkWidget *mount_list; 
     gboolean is_efi;
-    gchar *selected_disk;       // Disk name (e.g., sda)
+    gchar *selected_disk;       
     gboolean installing;
 } AppData;
 
@@ -57,9 +56,12 @@ void init_utils(AppData *app);
 void sync_grub_list(AppData *app);
 void build_ui(AppData *app);
 
-// Navigation
+// Navigation & UI Updates
 void on_next_clicked(GtkWidget *widget, AppData *app);
 void on_back_clicked(GtkWidget *widget, AppData *app);
+void on_page_changed(GtkNotebook *notebook, GtkWidget *page, guint page_num, AppData *app);
+void set_ui_finished(AppData *app); // NEW: Changes button to Reboot
+void on_reboot_clicked(GtkWidget *widget, AppData *app);
 
 // Installation
 void start_installation(GtkWidget *widget, AppData *app); 

@@ -220,7 +220,7 @@ gpointer install_thread(gpointer data) {
     // 10. BOOTLOADER
     log_to_ui(app, "Installing GRUB Bootloader...", 0.9);
     if (app->is_efi) {
-        run_sync(app, "chroot %s grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=void_grub --recheck %s", TARGETDIR, disk_path);
+        run_sync(app, "chroot %s grub-install --target=%s --efi-directory=/boot/efi --bootloader-id=void_grub --recheck %s", TARGETDIR, app->efi_target, disk_path);
     } else {
         run_sync(app, "chroot %s grub-install --recheck %s", TARGETDIR, disk_path);
     }

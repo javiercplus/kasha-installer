@@ -1,6 +1,6 @@
 /*
  * installer.c
- * PASSWORD FIX: Added -c SHA512 flag and sync command.
+ * FINAL VERSION: Includes Passwords (SHA512), EFI, Reboot logic, and UI Locking.
  */
 #include "neko_installer.h"
 #include <sys/mount.h>
@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+// --- UI HELPER ---
 gboolean update_log_ui(gpointer data) {
     LogMessage *msg = (LogMessage *)data;
     AppData *app = msg->app;
@@ -53,41 +54,38 @@ int run_sync(AppData *app, const char *fmt, ...) {
     return system(cmd);
 }
 
-// SAFE PASSWORD HELPER WITH SHA512 (Reproduciendo exactamente el script bash)
+// --- PASSWORD HELPER ---
 void set_safe_password(AppData *app, const gchar *username, const gchar *password, const gchar *target_dir) {
     char live_tmp[256];
     char chroot_tmp[256];
     
-    // 1. Create path strings
     snprintf(live_tmp, sizeof(live_tmp), "/tmp/.kasha_%s", username);
     snprintf(chroot_tmp, sizeof(chroot_tmp), "%s/tmp/.kasha_%s", target_dir, username);
     
-    // 2. Write password to file on Live System (Using C fwrite, safe for special chars)
     FILE *fp = fopen(live_tmp, "w");
     if (fp) {
         fprintf(fp, "%s:%s\n", username, password);
         fclose(fp);
-        chmod(live_tmp, 0600); // Secure permissions
+        chmod(live_tmp, 0600); 
     } else {
         log_to_ui(app, "ERROR: Cannot create temp password file.", 0.0);
         return;
     }
 
-    // 3. Copy file into chroot
     char cmd_cp[512];
     snprintf(cmd_cp, sizeof(cmd_cp), "cp %s %s", live_tmp, chroot_tmp);
     system(cmd_cp);
 
-    // 4. Run chpasswd reading from file with -c SHA512 (Mandatory for Void)
     char cmd_chroot[512];
+    // IMPORTANT: -c SHA512 flag added here
     snprintf(cmd_chroot, sizeof(cmd_chroot), "chroot %s chpasswd -c SHA512 < /tmp/.kasha_%s", target_dir, username);
     system(cmd_chroot);
 
-    // 5. Cleanup
     remove(live_tmp);
     remove(chroot_tmp);
 }
 
+// --- INSTALLATION THREAD ---
 gpointer install_thread(gpointer data) {
     AppData *app = (AppData *)data;
     char disk_path[64];
@@ -177,15 +175,14 @@ gpointer install_thread(gpointer data) {
     run_sync(app, "chroot %s xbps-reconfigure -f glibc-locales", TARGETDIR);
 
     // 9. USER & PASSWORD CREATION
-    // Root Password using SAFE method with SHA512
+    // Root Password
     log_to_ui(app, "Setting Root Password (SHA512)...", 0.82);
     set_safe_password(app, "root", root_pass, TARGETDIR);
 
-    // User Creation & Customizations
+    // User Creation
     if (strlen(user_login) > 0) {
         run_sync(app, "chroot %s useradd -m -G wheel,audio,video -s /bin/bash %s", TARGETDIR, user_login);
         
-        // User Password using SAFE method with SHA512
         log_to_ui(app, "Setting User Password (SHA512)...", 0.84);
         set_safe_password(app, user_login, user_pass, TARGETDIR);
         
@@ -220,6 +217,7 @@ gpointer install_thread(gpointer data) {
     // 10. BOOTLOADER
     log_to_ui(app, "Installing GRUB Bootloader...", 0.9);
     if (app->is_efi) {
+        // Use dynamic efi_target from utils.c
         run_sync(app, "chroot %s grub-install --target=%s --efi-directory=/boot/efi --bootloader-id=void_grub --recheck %s", TARGETDIR, app->efi_target, disk_path);
     } else {
         run_sync(app, "chroot %s grub-install --recheck %s", TARGETDIR, disk_path);
@@ -227,39 +225,41 @@ gpointer install_thread(gpointer data) {
     
     run_sync(app, "chroot %s grub-mkconfig -o /boot/grub/grub.cfg", TARGETDIR);
 
-    // 11. SYNC AND UNMOUNT
-     log_to_ui(app, "Syncing filesystems...", 0.95);
+    // 11. UNMOUNT & FINALIZE
+    log_to_ui(app, "Syncing filesystems...", 0.95);
     system("sync");
+    
+    log_to_ui(app, "Unmounting...", 0.96);
     run_sync(app, "umount -R %s", TARGETDIR);
     
+    // --- MENS FINAL ---
     log_to_ui(app, "--- INSTALLATION COMPLETED ---", 1.0);
     app->installing = FALSE;
     
-    // NEW: Update UI to show Reboot button
-    set_ui_finished(app); // Call this function from ui.c
+    // LLAMADA A LA INTERFAZ PARA CAMBIAR EL BOTÓN
+    set_ui_finished(app);
+    
     return NULL;
 }
 
 void start_installation(GtkWidget *widget, AppData *app) {
     if (app->installing) return;
     app->installing = TRUE;
-    
-    // BLOCK INTERFACE ON STARTUP
-    // 1. Disable navigation buttons
+
     gtk_widget_set_sensitive(app->btn_back, FALSE);
     gtk_widget_set_sensitive(app->btn_next, FALSE);
     
-    // 2. Lock tabs (Notebook) to prevent screen switching
     gtk_widget_set_sensitive(app->notebook, FALSE);
     
-    // 3. Disable the installation button itself to prevent double-clicking
     gtk_widget_set_sensitive(widget, FALSE);
     
-    // 4. Create the installation thread
     GError *error = NULL;
     g_thread_try_new("installer", install_thread, app, &error);
-    
     if (error) {
         g_printerr("Error creating thread: %s\n", error->message);
+        gtk_widget_set_sensitive(app->btn_back, TRUE);
+        gtk_widget_set_sensitive(app->btn_next, TRUE);
+        gtk_widget_set_sensitive(app->notebook, TRUE);
+        gtk_widget_set_sensitive(widget, TRUE);
     }
 }

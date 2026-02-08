@@ -1,6 +1,6 @@
 /*
  * installer.c
- * PASSWORD FIX: Uses temporary files to handle special characters safely.
+ * PASSWORD FIX: Added -c SHA512 flag and sync command.
  */
 #include "neko_installer.h"
 #include <sys/mount.h>
@@ -53,7 +53,7 @@ int run_sync(AppData *app, const char *fmt, ...) {
     return system(cmd);
 }
 
-// SAFE PASSWORD HELPER: Bypasses shell escaping issues
+// SAFE PASSWORD HELPER WITH SHA512 (Reproduciendo exactamente el script bash)
 void set_safe_password(AppData *app, const gchar *username, const gchar *password, const gchar *target_dir) {
     char live_tmp[256];
     char chroot_tmp[256];
@@ -62,7 +62,7 @@ void set_safe_password(AppData *app, const gchar *username, const gchar *passwor
     snprintf(live_tmp, sizeof(live_tmp), "/tmp/.kasha_%s", username);
     snprintf(chroot_tmp, sizeof(chroot_tmp), "%s/tmp/.kasha_%s", target_dir, username);
     
-    // 2. Write password to file on Live System (Using C fwrite, not shell echo)
+    // 2. Write password to file on Live System (Using C fwrite, safe for special chars)
     FILE *fp = fopen(live_tmp, "w");
     if (fp) {
         fprintf(fp, "%s:%s\n", username, password);
@@ -73,14 +73,14 @@ void set_safe_password(AppData *app, const gchar *username, const gchar *passwor
         return;
     }
 
-    // 3. Copy file into the chroot
+    // 3. Copy file into chroot
     char cmd_cp[512];
     snprintf(cmd_cp, sizeof(cmd_cp), "cp %s %s", live_tmp, chroot_tmp);
     system(cmd_cp);
 
-    // 4. Run chpasswd reading from file
+    // 4. Run chpasswd reading from file with -c SHA512 (Mandatory for Void)
     char cmd_chroot[512];
-    snprintf(cmd_chroot, sizeof(cmd_chroot), "chroot %s chpasswd < /tmp/.kasha_%s", target_dir, username);
+    snprintf(cmd_chroot, sizeof(cmd_chroot), "chroot %s chpasswd -c SHA512 < /tmp/.kasha_%s", target_dir, username);
     system(cmd_chroot);
 
     // 5. Cleanup
@@ -177,16 +177,16 @@ gpointer install_thread(gpointer data) {
     run_sync(app, "chroot %s xbps-reconfigure -f glibc-locales", TARGETDIR);
 
     // 9. USER & PASSWORD CREATION
-    // Root Password using SAFE method
-    log_to_ui(app, "Setting Root Password...", 0.82);
+    // Root Password using SAFE method with SHA512
+    log_to_ui(app, "Setting Root Password (SHA512)...", 0.82);
     set_safe_password(app, "root", root_pass, TARGETDIR);
 
     // User Creation & Customizations
     if (strlen(user_login) > 0) {
         run_sync(app, "chroot %s useradd -m -G wheel,audio,video -s /bin/bash %s", TARGETDIR, user_login);
         
-        // User Password using SAFE method
-        log_to_ui(app, "Setting User Password...", 0.84);
+        // User Password using SAFE method with SHA512
+        log_to_ui(app, "Setting User Password (SHA512)...", 0.84);
         set_safe_password(app, user_login, user_pass, TARGETDIR);
         
         log_to_ui(app, "Applying Neko Void customizations...", 0.85);
@@ -227,8 +227,9 @@ gpointer install_thread(gpointer data) {
     
     run_sync(app, "chroot %s grub-mkconfig -o /boot/grub/grub.cfg", TARGETDIR);
 
-    // 11. UNMOUNT & FINALIZE
-    log_to_ui(app, "Unmounting filesystems...", 0.95);
+    // 11. SYNC AND UNMOUNT
+    log_to_ui(app, "Syncing filesystems...", 0.95);
+    system("sync"); // Force writes to disk
     run_sync(app, "umount -R %s", TARGETDIR);
     
     log_to_ui(app, "--- INSTALLATION COMPLETED ---", 1.0);

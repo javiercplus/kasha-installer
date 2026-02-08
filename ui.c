@@ -40,15 +40,24 @@ void on_reboot_clicked(GtkWidget *widget, AppData *app) {
     system("reboot");
 }
 
+// LOGIC: Update UI when finished (change button to Reboot)
 gboolean set_ui_finished_safe(gpointer data) {
     AppData *app = (AppData *)data;
+    
+    // Disable navigation
     gtk_widget_set_sensitive(app->btn_back, FALSE);
     gtk_widget_set_sensitive(app->btn_next, FALSE);
-    gtk_widget_set_sensitive(app->notebook, FALSE); 
+    gtk_widget_set_sensitive(app->notebook, FALSE); // Lock tabs
     
+    // Change Install button to Reboot
     gtk_button_set_label(GTK_BUTTON(app->btn_install), "Reboot System");
+    
+    // Disconnect old signal and connect new one
     g_signal_handlers_disconnect_by_func(app->btn_install, G_CALLBACK(start_installation), app);
     g_signal_connect(app->btn_install, "clicked", G_CALLBACK(on_reboot_clicked), app);
+    
+    gtk_widget_set_sensitive(app->btn_install, TRUE); 
+    
     return FALSE;
 }
 

@@ -243,9 +243,23 @@ gpointer install_thread(gpointer data) {
 void start_installation(GtkWidget *widget, AppData *app) {
     if (app->installing) return;
     app->installing = TRUE;
+    
+    // BLOCK INTERFACE ON STARTUP
+    // 1. Disable navigation buttons
+    gtk_widget_set_sensitive(app->btn_back, FALSE);
+    gtk_widget_set_sensitive(app->btn_next, FALSE);
+    
+    // 2. Lock tabs (Notebook) to prevent screen switching
+    gtk_widget_set_sensitive(app->notebook, FALSE);
+    
+    // 3. Disable the installation button itself to prevent double-clicking
     gtk_widget_set_sensitive(widget, FALSE);
     
+    // 4. Create the installation thread
     GError *error = NULL;
     g_thread_try_new("installer", install_thread, app, &error);
-    if (error) g_printerr("Error creating thread: %s\n", error->message);
+    
+    if (error) {
+        g_printerr("Error creating thread: %s\n", error->message);
+    }
 }

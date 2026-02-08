@@ -4,6 +4,8 @@
  */
 #include "neko_installer.h"
 #include <sys/mount.h>
+#include <sys/stat.h> // Needed for mkdir flags if used directly
+#include <sys/types.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/wait.h>
@@ -144,7 +146,7 @@ gpointer install_thread(gpointer data) {
     system(cmd_root);
     g_free(cmd_root);
 
-    // 9. USER CREATION & NEKO VOID CUSTOMIZATIONS (The "Anon" copy logic)
+    // 9. USER CREATION & NEKO VOID CUSTOMIZATIONS
     if (strlen(user_login) > 0) {
         run_sync(app, "chroot %s useradd -m -G wheel,audio,video -s /bin/bash %s", TARGETDIR, user_login);
         gchar *cmd_user = g_strdup_printf("echo '%s:%s' | chroot %s chpasswd", user_login, user_pass, TARGETDIR);
@@ -157,27 +159,24 @@ gpointer install_thread(gpointer data) {
         run_sync(app, "cp -rf /var/lib/flatpak %s/var/lib/", TARGETDIR);
 
         // Copy XBPS Repos
-        mkdir -p("/etc/xbps.d"); // Ensure source exists if needed
+        // FIXED: Use run_sync to create directory in TARGETDIR
+        run_sync(app, "mkdir -p %s/etc/xbps.d", TARGETDIR);
         run_sync(app, "cp -f /etc/xbps.d/* %s/etc/xbps.d/ 2>/dev/null", TARGETDIR);
 
         // Copy User Profile & Themes from 'anon'
         run_sync(app, "cp -f /home/.profile %s/home/%s/", TARGETDIR, user_login);
-        // run_sync(app, "cp -rf /home/anon/.icons %s/home/%s/", TARGETDIR, user_login); // Commented as in script
+        // run_sync(app, "cp -rf /home/anon/.icons %s/home/%s/", TARGETDIR, user_login); // Commented
         run_sync(app, "cp -rf /home/anon/.themes %s/home/%s/", TARGETDIR, user_login);
         
         // Fix Ownership of copied files
         run_sync(app, "chown -R %s:users %s/home/%s", user_login, TARGETDIR, user_login);
 
         // AUTOLOGIN (LightDM)
-        // Check if line exists, replace. If not, append. 
-        // For simplicity in C, we try to replace or append blindly (assuming lightdm.conf exists)
         run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
-        // If you want the strict logic (if not exists add after [Seat:*]), it requires a bash subshell, simpler to just ensure file has it or let default live config handle it.
-        // Replicating the append logic:
+        // Append if not exists
         run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf", TARGETDIR, user_login, TARGETDIR);
 
         // SUDOERS
-        // Default: user is in wheel group (from useradd command above)
         run_sync(app, "echo '%%wheel ALL=(ALL:ALL) ALL' > %s/etc/sudoers.d/wheel", TARGETDIR);
         run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
     }

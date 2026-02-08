@@ -1,10 +1,10 @@
 /*
  * installer.c
- * LOCAL INSTALLATION + CUSTOM NANO VOID CONFIGS (Anon/Flatpak/LightDM)
+ * PASSWORD FIX: Uses temporary files to handle special characters safely.
  */
 #include "neko_installer.h"
 #include <sys/mount.h>
-#include <sys/stat.h> // Needed for mkdir flags if used directly
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -53,6 +53,41 @@ int run_sync(AppData *app, const char *fmt, ...) {
     return system(cmd);
 }
 
+// SAFE PASSWORD HELPER: Bypasses shell escaping issues
+void set_safe_password(AppData *app, const gchar *username, const gchar *password, const gchar *target_dir) {
+    char live_tmp[256];
+    char chroot_tmp[256];
+    
+    // 1. Create path strings
+    snprintf(live_tmp, sizeof(live_tmp), "/tmp/.kasha_%s", username);
+    snprintf(chroot_tmp, sizeof(chroot_tmp), "%s/tmp/.kasha_%s", target_dir, username);
+    
+    // 2. Write password to file on Live System (Using C fwrite, not shell echo)
+    FILE *fp = fopen(live_tmp, "w");
+    if (fp) {
+        fprintf(fp, "%s:%s\n", username, password);
+        fclose(fp);
+        chmod(live_tmp, 0600); // Secure permissions
+    } else {
+        log_to_ui(app, "ERROR: Cannot create temp password file.", 0.0);
+        return;
+    }
+
+    // 3. Copy file into the chroot
+    char cmd_cp[512];
+    snprintf(cmd_cp, sizeof(cmd_cp), "cp %s %s", live_tmp, chroot_tmp);
+    system(cmd_cp);
+
+    // 4. Run chpasswd reading from file
+    char cmd_chroot[512];
+    snprintf(cmd_chroot, sizeof(cmd_chroot), "chroot %s chpasswd < /tmp/.kasha_%s", target_dir, username);
+    system(cmd_chroot);
+
+    // 5. Cleanup
+    remove(live_tmp);
+    remove(chroot_tmp);
+}
+
 gpointer install_thread(gpointer data) {
     AppData *app = (AppData *)data;
     char disk_path[64];
@@ -90,7 +125,7 @@ gpointer install_thread(gpointer data) {
 
     if (!root_pass || strlen(root_pass) < 1) { log_to_ui(app, "Error: Root password missing.", 0.0); app->installing = FALSE; return NULL; }
     
-    log_to_ui(app, "--- STARTING LOCAL INSTALLATION (Live Copy) ---", 0.1);
+    log_to_ui(app, "--- STARTING LOCAL INSTALLATION ---", 0.1);
 
     // 2. Mount Target
     log_to_ui(app, "Formatting and mounting target partitions...", 0.2);
@@ -141,39 +176,37 @@ gpointer install_thread(gpointer data) {
     run_sync(app, "echo LANG=%s > %s/etc/locale.conf", locale, TARGETDIR);
     run_sync(app, "chroot %s xbps-reconfigure -f glibc-locales", TARGETDIR);
 
-    // Root Password
-    gchar *cmd_root = g_strdup_printf("echo 'root:%s' | chroot %s chpasswd", root_pass, TARGETDIR);
-    system(cmd_root);
-    g_free(cmd_root);
+    // 9. USER & PASSWORD CREATION
+    // Root Password using SAFE method
+    log_to_ui(app, "Setting Root Password...", 0.82);
+    set_safe_password(app, "root", root_pass, TARGETDIR);
 
-    // 9. USER CREATION & NEKO VOID CUSTOMIZATIONS
+    // User Creation & Customizations
     if (strlen(user_login) > 0) {
         run_sync(app, "chroot %s useradd -m -G wheel,audio,video -s /bin/bash %s", TARGETDIR, user_login);
-        gchar *cmd_user = g_strdup_printf("echo '%s:%s' | chroot %s chpasswd", user_login, user_pass, TARGETDIR);
-        system(cmd_user);
-        g_free(cmd_user);
         
-        log_to_ui(app, "Applying Neko Void customizations (Flatpak, Themes)...", 0.82);
+        // User Password using SAFE method
+        log_to_ui(app, "Setting User Password...", 0.84);
+        set_safe_password(app, user_login, user_pass, TARGETDIR);
+        
+        log_to_ui(app, "Applying Neko Void customizations...", 0.85);
 
         // Copy Flatpak Data
         run_sync(app, "cp -rf /var/lib/flatpak %s/var/lib/", TARGETDIR);
 
         // Copy XBPS Repos
-        // FIXED: Use run_sync to create directory in TARGETDIR
         run_sync(app, "mkdir -p %s/etc/xbps.d", TARGETDIR);
         run_sync(app, "cp -f /etc/xbps.d/* %s/etc/xbps.d/ 2>/dev/null", TARGETDIR);
 
         // Copy User Profile & Themes from 'anon'
         run_sync(app, "cp -f /home/.profile %s/home/%s/", TARGETDIR, user_login);
-        // run_sync(app, "cp -rf /home/anon/.icons %s/home/%s/", TARGETDIR, user_login); // Commented
         run_sync(app, "cp -rf /home/anon/.themes %s/home/%s/", TARGETDIR, user_login);
         
-        // Fix Ownership of copied files
+        // Fix Ownership
         run_sync(app, "chown -R %s:users %s/home/%s", user_login, TARGETDIR, user_login);
 
         // AUTOLOGIN (LightDM)
         run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
-        // Append if not exists
         run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf", TARGETDIR, user_login, TARGETDIR);
 
         // SUDOERS
@@ -181,7 +214,7 @@ gpointer install_thread(gpointer data) {
         run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
     }
 
-    // Clean up Polkit rules (Live only)
+    // Clean up Polkit
     run_sync(app, "rm -f %s/etc/polkit-1/rules.d/void-live.rules", TARGETDIR);
 
     // 10. BOOTLOADER

@@ -90,6 +90,9 @@ void on_next_clicked(GtkWidget *widget, AppData *app) { gtk_notebook_next_page(G
 void on_back_clicked(GtkWidget *widget, AppData *app) { gtk_notebook_prev_page(GTK_NOTEBOOK(app->notebook)); }
 void on_reboot_clicked(GtkWidget *widget, AppData *app) { system("reboot"); }
 
+void on_popup_reboot(GtkDialog *dialog, gint response_id, gpointer user_data) {
+    system("reboot");
+
 // ui.c - Modificado para lanzar Popup
 gboolean set_ui_finished_safe(gpointer data) {
     AppData *app = (AppData *)data;
@@ -193,8 +196,6 @@ void populate_partitions_combo(GtkComboBoxText *combo, const char *disk_name) {
     closedir(d);
 }
 
-void on_popup_reboot(GtkDialog *dialog, gint response_id, gpointer user_data) {
-    system("reboot");
 
 void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
     AppData *app = (AppData *)user_data;

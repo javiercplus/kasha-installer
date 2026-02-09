@@ -285,7 +285,28 @@ void open_partition_manager(GtkWidget *widget, AppData *app) {
     gtk_tree_view_append_column(GTK_TREE_VIEW(app->mount_list), col);
 }
 
+//custom themes
+void load_custom_css() {
+    GtkCssProvider *provider = gtk_css_provider_new();
+    const gchar *css_data = 
+        "progressbar trough { min-height: 20px; border-radius: 3px; background-color: #2e3436; }"
+        "progressbar progress { background-color: #33d17a; border-radius: 3px; }"; 
+
+    GError *error = NULL;
+    gtk_css_provider_load_from_data(provider, css_data, -1, &error);
+    if (error) {
+        g_printerr("Error loading CSS: %s\n", error->message);
+        g_error_free(error);
+    } else {
+        gtk_style_context_add_provider_for_screen(gdk_screen_get_default(),
+                                                  GTK_STYLE_PROVIDER(provider),
+                                                  GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    }
+    g_object_unref(provider);
+}
+
 void build_ui(AppData *app) {
+    load_custom_css();
     app->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(app->window), "Kasha Installer - Neko Void");
     gtk_window_set_default_size(GTK_WINDOW(app->window), 850, 600);

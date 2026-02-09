@@ -382,7 +382,7 @@ void build_ui(AppData *app) {
     load_custom_css();
     app->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(app->window), "Kasha Installer - Neko Void");
-    gtk_window_set_default_size(GTK_WINDOW(app->window), 850, 600);
+    gtk_window_set_default_size(GTK_WINDOW(app->window), 850, 500);
     g_signal_connect(app->window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
 
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0); 

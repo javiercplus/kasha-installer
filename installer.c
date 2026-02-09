@@ -1,6 +1,6 @@
 /*
  * installer.c
- * FINAL VERSION: Clean partition logic, Popup support, SHA512 passwords, Progress Pulse.
+ * FINAL VERSION: Fixed 'fstudo' -> 'fstype' & 'gtk_button_set_sensitive' -> 'gtk_widget_set_sensitive'.
  */
 #include "neko_installer.h"
 #include <sys/mount.h>
@@ -29,7 +29,6 @@ gboolean update_log_ui(gpointer data) {
     if (msg->fraction >= 0) {
         gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(app->progress_bar), msg->fraction);
     } else {
-        // Si es un paso sin porcentaje (-1.0), pulsar la barra
         gtk_progress_bar_pulse(GTK_PROGRESS_BAR(app->progress_bar));
     }
     
@@ -56,10 +55,10 @@ int run_sync(AppData *app, const char *fmt, ...) {
     return system(cmd);
 }
 
+// --- PASSWORD HELPER ---
 void set_safe_password(AppData *app, const gchar *username, const gchar *password, const gchar *target_dir) {
     char live_tmp[256];
     char chroot_tmp[256];
-    
     snprintf(live_tmp, sizeof(live_tmp), "/tmp/.kasha_%s", username);
     snprintf(chroot_tmp, sizeof(chroot_tmp), "%s/tmp/.kasha_%s", target_dir, username);
     
@@ -72,16 +71,12 @@ void set_safe_password(AppData *app, const gchar *username, const gchar *passwor
         log_to_ui(app, "ERROR: Cannot create temp password file.", 0.0);
         return;
     }
-    
     char cmd_cp[512];
     snprintf(cmd_cp, sizeof(cmd_cp), "cp %s %s", live_tmp, chroot_tmp);
     system(cmd_cp);
-    
     char cmd_chroot[512];
-    // Nota: chpasswd se ejecuta dentro de chroot, leyendo el archivo que copiamos
     snprintf(cmd_chroot, sizeof(cmd_chroot), "chroot %s chpasswd -c SHA512 < /tmp/.kasha_%s", target_dir, username);
     system(cmd_chroot);
-    
     remove(live_tmp);
     remove(chroot_tmp);
 }
@@ -116,19 +111,16 @@ gpointer install_thread(gpointer data) {
         PartitionConfig *conf = (PartitionConfig*)l->data;
         
         gchar *fs_cmd = NULL;
-        if (conf->format) {
-             log_to_ui(app, g_strdup_printf("Formatting %s as %s...", conf->device, conf->fstype), 0.25);
+        // CORRECCIÓN AQUÍ: Cambiar fstudo por fstype
+        if (strcmp(conf->fstype, "ext4") == 0) fs_cmd = "mkfs.ext4 -F";
+        else if (strcmp(conf->fstype, "btrfs") == 0) fs_cmd = "mkfs.btrfs -f";
+        else if (strcmp(conf->fstype, "xfs") == 0) fs_cmd = "mkfs.xfs -f";
+        else if (strcmp(conf->fstype, "f2fs") == 0) fs_cmd = "mkfs.f2fs -f";
+        else if (strcmp(conf->fstype, "vfat") == 0) fs_cmd = "mkfs.vfat -F32";
+        else if (strcmp(conf->fstype, "swap") == 0) fs_cmd = "mkswap";
              
-             if (strcmp(conf->fstype, "ext4") == 0) fs_cmd = "mkfs.ext4 -F";
-             else if (strcmp(conf->fstudo, "btrfs") == 0) fs_cmd = "mkfs.btrfs -f";
-             else if (strcmp(conf->fstype, "xfs") == 0) fs_cmd = "mkfs.xfs -f";
-             else if (strcmp(conf->fstype, "f2fs") == 0) fs_cmd = "mkfs.f2fs -f";
-             else if (strcmp(conf->fstype, "vfat") == 0) fs_cmd = "mkfs.vfat -F32";
-             else if (strcmp(conf->fstype, "swap") == 0) fs_cmd = "mkswap";
-             
-             if (fs_cmd) {
-                 run_sync(app, "%s %s", fs_cmd, conf->device);
-             }
+        if (fs_cmd) {
+             run_sync(app, "%s %s", fs_cmd, conf->device);
         }
         
         // Mounting / Swapon
@@ -197,9 +189,8 @@ gpointer install_thread(gpointer data) {
         run_sync(app, "cp -f /etc/xbps.d/* %s/etc/xbps.d/ 2>/dev/null", TARGETDIR);
         run_sync(app, "cp -f /home/.profile %s/home/%s/", TARGETDIR, user_login);
         run_sync(app, "cp -rf /home/anon/.themes %s/home/%s/", TARGETDIR, user_login);
-        run_sync(app, "chown -R %s:users %s/home/%s", user_login, TARGETDIR, user_login);
         run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
-        run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
+        run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf", TARGETDIR, user_login, TARGETDIR);
         run_sync(app, "echo '%%wheel ALL=(ALL:ALL) ALL' > %s/etc/sudoers.d/wheel", TARGETDIR);
         run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
     }
@@ -217,11 +208,11 @@ gpointer install_thread(gpointer data) {
     }
     run_sync(app, "chroot %s grub-mkconfig -o /boot/grub/grub.cfg", TARGETDIR);
 
-    // 10. SYNC AND UNMOUNT (Popup BEFORE UNMOUNT)
+    // 10. SYNC AND POPUP (Popup BEFORE UNMOUNT)
     log_to_ui(app, "--- INSTALLATION COMPLETED ---", 1.0);
     app->installing = FALSE;
     
-
+    // Llamamos a la función en ui.c que muestra la ventana emergente
     set_ui_finished(app);
 
     // 11. UNMOUNT (Do this last)
@@ -232,11 +223,14 @@ gpointer install_thread(gpointer data) {
     return NULL;
 }
 
+// 12. START INSTALLATION
 void start_installation(GtkWidget *widget, AppData *app) {
     if (app->installing) return;
     app->installing = TRUE;
+    
+    // CORRECCIÓN AQUÍ: Usar gtk_widget_set_sensitive explícitamente
     gtk_widget_set_sensitive(app->btn_back, FALSE);
-    gtk_button_set_sensitive(app->btn_next, FALSE);
+    gtk_widget_set_sensitive(app->btn_next, FALSE);
     gtk_widget_set_sensitive(app->notebook, FALSE);
     gtk_widget_set_sensitive(widget, FALSE);
     

@@ -221,7 +221,8 @@ void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
     gtk_combo_box_text_append_text(combo_fs, "btrfs");
     gtk_combo_box_text_append_text(combo_fs, "xfs");
     gtk_combo_box_text_append_text(combo_fs, "f2fs");
-    gtk_combo_box_text_append_text(combo_fs, "swap"); // Swap añadido
+    gtk_combo_box_text_append_text(combo_fs, "vfat");
+    gtk_combo_box_text_append_text(combo_fs, "swap"); 
     gtk_combo_box_set_active(GTK_COMBO_BOX(combo_fs), 0);
     gtk_box_pack_start(GTK_BOX(h_fs), GTK_WIDGET(combo_fs), TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), h_fs, FALSE, FALSE, 0);

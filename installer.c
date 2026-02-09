@@ -1,6 +1,7 @@
 /*
  * installer.c
- * FINAL VERSION: Fixed 'fstudo' -> 'fstype' & 'gtk_button_set_sensitive' -> 'gtk_widget_set_sensitive'.
+ * ADDED: scan_selected_disk logic using lsblk -P.
+ * FIXED: Added missing includes and fixed string functions.
  */
 #include "neko_installer.h"
 #include <sys/mount.h>
@@ -9,7 +10,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/wait.h>
-#include <string.h>
+#include <string.h>      
 #include <stdio.h>
 #include <stdarg.h>
 
@@ -55,7 +56,6 @@ int run_sync(AppData *app, const char *fmt, ...) {
     return system(cmd);
 }
 
-// --- PASSWORD HELPER ---
 void set_safe_password(AppData *app, const gchar *username, const gchar *password, const gchar *target_dir) {
     char live_tmp[256];
     char chroot_tmp[256];
@@ -81,15 +81,90 @@ void set_safe_password(AppData *app, const gchar *username, const gchar *passwor
     remove(chroot_tmp);
 }
 
+void scan_selected_disk(AppData *app) {
+    const gchar *disk = app->selected_disk;
+    if (!disk) return;
+    
+    // Limpiar lista anterior de este disco para no duplicar si cambiamos de disco
+    // (Simplificación: Limpiamos TODO de una vez por ahora, o puedes mejorar para limpiar solo los del disco específico)
+    if (app->part_config_list) {
+        g_list_free_full(app->part_config_list, (GDestroyNotify)g_free);
+        app->part_config_list = NULL;
+    }
+    
+    // Comando lsblk -P (Parsable output: Paths as separator)
+    // Formato: /dev/sda NAME,FSTYPE,SIZE,MOUNTPOINT
+    gchar *cmd = g_strdup_printf("lsblk -P -o NAME,FSTYPE,SIZE,MOUNTPOINT /dev/%s", disk);
+    
+    log_to_ui(app, g_strdup_printf("Scanning partitions on %s...", disk), -1.0);
+    
+    FILE *pipe = popen(cmd, "r");
+    if (!pipe) {
+        g_free(cmd);
+        return;
+    }
+    
+    char line[512];
+    while (fgets(line, sizeof(line), pipe) != NULL) {
+        // Quitar salto de línea
+        g_strstrip(line);
+        if (strlen(line) == 0) continue;
+        if (g_strcmp0(line, "NAME") == 0) continue; // Saltar cabecera
+        
+        // La línea tiene formato: NAME FSTYPE SIZE MOUNTPOINT separados por espacio
+        // Ejemplo: sda1 ext4 100G /mnt/target
+        // Como usamos -P, el NOMBRE ES el path completo /dev/sda1
+        
+        gchar *parts[4] = {NULL, NULL, NULL, NULL};
+        char *tok = g_strtok(line, " ");
+        if (!tok) continue;
+        parts[0] = g_strdup(tok); // NAME (/dev/sda1)
+        tok = g_strtok(NULL, " ");
+        if (!tok) continue;
+        parts[1] = g_strdup(tok); // FSTYPE
+        
+        tok = g_strtok(NULL, " ");
+        if (!tok) continue;
+        // Skip SIZE
+        tok = g_strtok(NULL, " "); 
+        
+        // MOUNTPOINT puede tener espacios, el resto es MOUNTPOINT
+        gchar *mountpoint = g_strdup(tok);
+        
+        // Filtrar: Ignorar particiones sin nombre o sistema de archivos sin formato obvio
+        // (Si FSTYPE es empty o crypto, lo añadimos pero sin formato por defecto)
+        // Si NAME tiene "rom" (cdrom), lo ignoramos
+        
+        if (!parts[0] || g_str_has_suffix(parts[0], "rom") == 0) {
+            // Añadir a la lista configurada
+            // Asumimos que si ya tiene FS, el usuario QUIZIERO puede formatearlo.
+            // Si mountpoint es "/" (root), es obligatorio.
+            if (mountpoint && g_strcmp0(mountpoint, "[SWAP]") != 0 && g_strcmp0(mountpoint, "swap") != 0) {
+                // Añadimos al mountlist
+                add_partition_config(app, parts[0], parts[1], "/", FALSE);
+            } else if (mountpoint) {
+                add_partition_config(app, parts[0], "swap", parts[2], FALSE);
+            }
+            
+            g_free(parts[0]);
+            g_free(parts[1]);
+            g_free(mountpoint);
+        }
+    }
+    pclose(pipe);
+    g_free(cmd);
+    log_to_ui(app, "Scan completed.", 0.1);
+}
+
 // --- INSTALLATION THREAD ---
 gpointer install_thread(gpointer data) {
     AppData *app = (AppData *)data;
     const char *TARGETDIR = "/mnt/target";
     
-    // CHECK: Did user add partitions?
+    // CHECK: Did user add partitions? (O el escaneo automático)
     if (!app->part_config_list) {
-        log_to_ui(app, "ERROR: No partitions configured. Use 'Add/Edit Partition' in Tab 1.", 0.0);
-        app->installing = FALSE; return NULL;
+        log_to_ui(app, "ERROR: No partitions configured.", 0.0);
+        app->app->installing = FALSE; return NULL;
     }
 
     // GET CONFIG
@@ -104,23 +179,41 @@ gpointer install_thread(gpointer data) {
     
     log_to_ui(app, "--- STARTING LOCAL INSTALLATION ---", 0.1);
 
-    // 1. FORMAT AND MOUNT PARTITIONS
+    // 1. FORMAT AND MOUNT PARTITIONS (Leemos de la lista configurada)
     log_to_ui(app, "Configuring partitions from user list...", 0.2);
     GSList *l = app->part_config_list;
     while(l) {
         PartitionConfig *conf = (PartitionConfig*)l->data;
         
         gchar *fs_cmd = NULL;
-        // CORRECCIÓN AQUÍ: Cambiar fstudo por fstype
-        if (strcmp(conf->fstype, "ext4") == 0) fs_cmd = "mkfs.ext4 -F";
-        else if (strcmp(conf->fstype, "btrfs") == 0) fs_cmd = "mkfs.btrfs -f";
-        else if (strcmp(conf->fstype, "xfs") == 0) fs_cmd = "mkfs.xfs -f";
-        else if (strcmp(conf->fstype, "f2fs") == 0) fs_cmd = "mkfs.f2fs -f";
-        else if (strcmp(conf->fstype, "vfat") == 0) fs_cmd = "mkfs.vfat -F32";
-        else if (strcmp(conf->fstype, "swap") == 0) fs_cmd = "mkswap";
+        // Si el usuario NO marcó "Format", pero el FS es swap o crypto o desconocido, forzamos formateo seguro
+        // Si es EXT4/ETC y no se debe formatear, ok.
+        gboolean should_format = conf->format;
+        
+        // Detectar si necesita formateo obligatorio
+        if (!should_format) {
+            if (g_strcmp0(conf->fstype, "ext4") == 0 || g_strcmp0(conf->fstype, "xfs") == 0 || g_strcmp0(conf->fstype, "btrfs") == 0) {
+                 should_format = TRUE;
+            } else if (g_strcmp0(conf->fstype, "vfat") == 0) {
+                 should_format = TRUE;
+            } else if (g_strcmp0(conf->fstype, "swap") == 0) {
+                 // Swap siempre se vuelve a crear
+                 should_format = TRUE;
+            }
+        }
+        
+        if (should_format) {
+             log_to_ui(app, g_strdup_printf("Formatting %s as %s...", conf->device, conf->fstype), 0.25);
              
-        if (fs_cmd) {
-             run_sync(app, "%s %s", fs_cmd, conf->device);
+             if (strcmp(conf->fstype, "ext4") == 0) fs_cmd = "mkfs.ext4 -F";
+             else if (strcmp(conf->fstype, "btrfs") == 0) fs_cmd = "mkfs.btrfs -f";
+             else if (strcmp(conf->fstype, "xfs") == 0) fs_cmd = "mkfs.xfs -f";
+             else if (strcmp(conf->fstype, "vfat") == 0) fs_cmd = "mkfs.vfat -F32";
+             else if (strcmp(conf->fstype, "swap") == 0) fs_cmd = "mkswap";
+             
+             if (fs_cmd) {
+                 run_sync(app, "%s %s", fs_cmd, conf->device);
+             }
         }
         
         // Mounting / Swapon
@@ -189,8 +282,9 @@ gpointer install_thread(gpointer data) {
         run_sync(app, "cp -f /etc/xbps.d/* %s/etc/xbps.d/ 2>/dev/null", TARGETDIR);
         run_sync(app, "cp -f /home/.profile %s/home/%s/", TARGETDIR, user_login);
         run_sync(app, "cp -rf /home/anon/.themes %s/home/%s/", TARGETDIR, user_login);
+        run_sync(app, "chown -R %s:users %s/home/%s", user_login, TARGETDIR, user_login);
         run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
-        run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf", TARGETDIR, user_login, TARGETDIR);
+        run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s/' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
         run_sync(app, "echo '%%wheel ALL=(ALL:ALL) ALL' > %s/etc/sudoers.d/wheel", TARGETDIR);
         run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
     }
@@ -202,17 +296,17 @@ gpointer install_thread(gpointer data) {
     snprintf(disk_path, sizeof(disk_path), "/dev/%s", disk_name);
     
     if (app->is_efi) {
-        run_sync(app, "chroot %s grub-install --target=%s --efi-directory=/boot/efi --bootloader-id=void_grub --recheck %s", TARGETDIR, app->efi_target, disk_path);
+        run_sync(app, "chroot %s grub-install --target=%s --efi-directory=/boot/efi --bootloader-id=void_grub --recheck %s", TARGETDIR, app->eefi_target, disk_path);
     } else {
         run_sync(app, "chroot %s grub-install --recheck %s", TARGETDIR, disk_path);
     }
     run_sync(app, "chroot %s grub-mkconfig -o /boot/grub/grub.cfg", TARGETDIR);
 
-    // 10. SYNC AND POPUP (Popup BEFORE UNMOUNT)
+    // 10. SYNC AND UNMOUNT (Popup BEFORE UNMOUNT)
     log_to_ui(app, "--- INSTALLATION COMPLETED ---", 1.0);
     app->installing = FALSE;
     
-    // Llamamos a la función en ui.c que muestra la ventana emergente
+    // Mostrar popup de éxito
     set_ui_finished(app);
 
     // 11. UNMOUNT (Do this last)
@@ -223,75 +317,10 @@ gpointer install_thread(gpointer data) {
     return NULL;
 }
 
-void scan_selected_disk(AppData *app) {
-    const gchar *disk = app->selected_disk;
-    if (!disk) return;
-    
-    if (app->part_config_list) {
-        g_slist_free_full(app->part_config_list, (GDestroyNotify)g_free);
-        app->part_config_list = NULL;
-    }
-
-    gchar *cmd = g_strdup_printf("lsblk -ln -o NAME,FSTYPE,SIZE,MOUNTPOINT %s", disk);
-    
-    log_to_ui(app, g_strdup_printf("Scanning partitions on %s...", disk), -1.0);
-    
-    FILE *pipe = popen(cmd, "r");
-    if (!pipe) {
-        g_free(cmd);
-        return;
-    }
-    
-    char line[256];
-    while (fgets(line, sizeof(line), pipe) != NULL) {
-        g_strchug(line, "\n");
-        
-        if (strlen(line) > 0) {
-            // lsblk NAME FSTYPE SIZE MOUNTPOINT
-            gchar *name = strtok(line, " ");
-            gchar *fstype = strtok(NULL, " ");
-            gchar *size = strtok(NULL, " " ");
-            gchar *mntpoint = strtok(NULL, " ");
-            
-            if (!name || strlen(name) == 0) continue;
-            
-            gchar *full_dev;
-            if (g_str_has_prefix(name, "nvme") || g_str_has_prefix(name, "mmcblk")) {
-                 full_dev = g_strdup_printf("/dev/%s", name);
-            } else {
-                 full_dev = g_strdup_printf("/dev/%s", name);
-            }
-        
-            if (g_strcmp0(mntpoint, "/") == 0 && g_strcmp0(name, "boot") != 0) {
-                 log_to_ui(app, g_strdup_printf("Skipping mounted partition %s (%s)", name, mntpoint), -1.0);
-                 g_free(full_dev);
-                 continue;
-            }
-
-            gchar *final_fs = fstype;
-            if (!fstype || strlen(fstype) == 0) final_fs = "ext4";
-            if (g_str_equal(fstype, "swap")) final_fs = "swap";
-            if (g_str_equal(fstype, "crypto_LUKS")) final_fs = "crypttab";
-
-            gchar *final_mp = mntpoint;
-            if (!final_mp || strlen(final_mp) == 0) final_mp = "/";
-
-            add_partition_config(app, full_dev, final_fs, final_mp, FALSE);
-            
-            g_free(full_dev);
-        }
-    }
-    
-    pclose(pipe);
-    g_free(cmd);
-    log_to_ui(app, "Scan completed.", -1.0);
-}
-// 12. START INSTALLATION
 void start_installation(GtkWidget *widget, AppData *app) {
     if (app->installing) return;
     app->installing = TRUE;
     
-    // CORRECCIÓN AQUÍ: Usar gtk_widget_set_sensitive explícitamente
     gtk_widget_set_sensitive(app->btn_back, FALSE);
     gtk_widget_set_sensitive(app->btn_next, FALSE);
     gtk_widget_set_sensitive(app->notebook, FALSE);

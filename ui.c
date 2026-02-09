@@ -286,61 +286,78 @@ void open_partition_manager(GtkWidget *widget, AppData *app) {
     gtk_tree_view_append_column(GTK_TREE_VIEW(app->mount_list), col);
 }
 
+// ui.c
 GtkWidget* create_welcome_page(AppData *app) {
-    GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
-    gtk_container_set_border_width(GTK_CONTAINER(hbox), 10);
+    GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 20); // 20px de espacio entre imagen y texto
+    gtk_container_set_border_width(GTK_CONTAINER(hbox), 20); // Margen alrededor de todo
 
+    // --- 1. IMAGEN (Izquierda) ---
     GdkPixbufLoader *loader = gdk_pixbuf_loader_new();
-    gdk_pixbuf_loader_write(loader, logo_png, logo_png_len, NULL); // logo_png_len  xxd 
-    gdk_pixbuf_loader_close(loader, NULL);
-    GdkPixbuf *pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
-   
-    GdkPixbuf *scaled_pixbuf = gdk_pixbuf_scale_simple(pixbuf, 200, 500, GDK_INTERP_BILINEAR);
-    
-    GtkWidget *image = gtk_image_new_from_pixbuf(scaled_pixbuf);
-    gtk_widget_set_valign(image, GTK_ALIGN_START); 
-    gtk_box_pack_start(GTK_BOX(hbox), image, FALSE, FALSE, 0);
-    g_object_unref(loader); 
-    GtkWidget *scrolled_window = gtk_scrolled_window_new(NULL, NULL);
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_window), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    // Asegúrate de que logo_png y logo_png_len existen (del archivo logo.h)
+    if (gdk_pixbuf_loader_write(loader, logo_png, logo_png_len, NULL)) {
+        gdk_pixbuf_loader_close(loader, NULL);
+        GdkPixbuf *pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
+        
+        if (pixbuf) {
+            // Escalamos la imagen un poco más pequeña por si acaso (180px ancho)
+            GdkPixbuf *scaled = gdk_pixbuf_scale_simple(pixbuf, 180, 450, GDK_INTERP_BILINEAR);
+            GtkWidget *image = gtk_image_new_from_pixbuf(scaled);
+            
+            // Alineamos la imagen arriba y a la izquierda
+            gtk_widget_set_valign(image, GTK_ALIGN_START); 
+            gtk_box_pack_start(GTK_BOX(hbox), image, FALSE, FALSE, 0); // FALSE = No estirar imagen
+            
+            // Liberamos memoria de la versión escalada (GTK ya tiene su copia interna)
+            g_object_unref(scaled); 
+        }
+    }
+    g_object_unref(loader);
+
+    // --- 2. TEXTO (Derecha) ---
+    // Usamos un VBox en lugar de ScrolledWindow para evitar que se oculte
+    GtkWidget *vbox_text = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     
     GtkWidget *label = gtk_label_new(NULL);
-    gtk_label_set_xalign(GTK_LABEL(label), 0.0); 
-    gtk_label_set_yalign(GTK_LABEL(label), 0.0); 
-    gtk_label_set_line_wrap(GTK_LABEL(label), TRUE);
-    gtk_label_set_max_width_chars(GTK_LABEL(label), 50); 
+    // Configuración crítica para que el texto se vea bien
+    gtk_label_set_xalign(GTK_LABEL(label), 0.0); // Alinear a la izquierda
+    gtk_label_set_yalign(GTK_LABEL(label), 0.0); // Alinear arriba
+    gtk_label_set_line_wrap(GTK_LABEL(label), TRUE); // Permitir salto de línea
+    gtk_label_set_max_width_chars(GTK_LABEL(label), 45); // Forzar ancho máximo para que haga wrap
+    gtk_label_set_selectable(GTK_LABEL(label), TRUE); // Permitir seleccionar texto (útil para debug)
 
+    // Texto corregido y simplificado para evitar errores de parseo
     const char *welcome_text = 
-        "<span size='xx-large' weight='bold' foreground='#33d17a'>🐱 What is Neko-Void?</span>\n\n"
+        "<span size='xx-large' weight='bold' foreground='#33d17a'>🐱 WELCOME TO NEKO VOID!!!</span>\n\n"
         "Neko-Void is an unofficial respin of Void Linux featuring a "
-        "preconfigured <span weight='bold'>MATE desktop environment</span> with carefully selected software "
-        "for a complete out-of-the-box experience.\n\n"
-        "Designed for users who want Void Linux's stability and minimalism with modern desktop functionality.\n\n"
+        "<span weight='bold'>MATE desktop environment</span> with carefully selected software.\n\n"
         
         "<span size='large' weight='bold' foreground='#3584e4'>🖥️ Core System</span>\n"
         "• Void Linux base (rolling release)\n"
-        "• MATE Desktop fully configured and optimized\n"
-        "• tinyfetch minimalist system information tool\n"
+        "• MATE Desktop optimized\n"
         "• UEFI and Legacy BIOS support\n\n"
 
         "<span size='large' weight='bold' foreground='#e01b24'>🎮 Gaming & Multimedia</span>\n"
-        "• Steam preinstalled and ready-to-use\n"
-        "• Intel & AMD GPU drivers with full Vulkan support\n\n"
+        "• Steam preinstalled\n"
+        "• Intel & AMD GPU drivers (Vulkan)\n\n"
 
         "<span size='large' weight='bold'>🚀 Features</span>\n"
-        "<tt> [Easy] [Gaming] [Music] [XLibre] </tt>\n"
-        "<tt> [Void Base] [Mate Desktop] [Pipewire] </tt>\n"
-        "<tt> [Non-Free Support included] </tt>";
+        "<span font_family='monospace'>[Easy] [Gaming] [Music]</span>\n"
+        "<span font_family='monospace'>[Void Base] [Mate Desktop]</span>";
 
     gtk_label_set_markup(GTK_LABEL(label), welcome_text);
     
-    gtk_container_add(GTK_CONTAINER(scrolled_window), label);
-    gtk_box_pack_start(GTK_BOX(hbox), scrolled_window, TRUE, TRUE, 10);
+    // Empaquetar el label
+    gtk_box_pack_start(GTK_BOX(vbox_text), label, FALSE, FALSE, 0);
+    
+    // Empaquetar el bloque de texto en el HBox principal
+    // TRUE, TRUE es importante aquí para que el texto ocupe todo el espacio sobrante
+    gtk_box_pack_start(GTK_BOX(hbox), vbox_text, TRUE, TRUE, 10);
 
+    // --- IMPORTANTE: Forzar que se muestre todo ---
     gtk_widget_show_all(hbox);
+    
     return hbox;
 }
-
 //custom themes
 void load_custom_css() {
     GtkCssProvider *provider = gtk_css_provider_new();

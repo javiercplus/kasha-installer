@@ -379,6 +379,27 @@ void load_custom_css() {
     g_object_unref(provider);
 }
 
+
+void on_reset_partitions_clicked(GtkWidget *widget, AppData *app) {
+    GtkListStore *store = GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW(app->mount_list)));
+    gtk_list_store_clear(store);
+    if (app->part_config_list) {
+        GSList *l = app->part_config_list;
+        while (l != NULL) {
+            PartitionConfig *conf = (PartitionConfig *)l->data;
+            g_free(conf->device);
+            g_free(conf->fstype);
+            g_free(conf->mountpoint);
+            g_free(conf);
+            l = l->next;
+        }
+        g_slist_free(app->part_config_list);
+        app->part_config_list = NULL;
+    }
+
+    g_print("[INFO] Partition list reset.\n");
+}
+
 void build_ui(AppData *app) {
     load_custom_css();
     app->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -432,7 +453,10 @@ void build_ui(AppData *app) {
     g_signal_connect(btn_add, "clicked", G_CALLBACK(on_add_partition_clicked), app);
     gtk_box_pack_start(GTK_BOX(hbox_pm), btn_add, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(page_disk), hbox_pm, FALSE, FALSE, 0);
-
+    GtkWidget *btn_reset = gtk_button_new_with_label("Reset");
+    g_signal_connect(btn_reset, "clicked", G_CALLBACK(on_reset_partitions_clicked), app);
+    gtk_box_pack_start(GTK_BOX(hbox_pm), btn_reset, FALSE, FALSE, 0);
+  
     app->mount_list = gtk_tree_view_new();
     open_partition_manager(NULL, app); 
     gtk_box_pack_start(GTK_BOX(page_disk), app->mount_list, TRUE, TRUE, 0);

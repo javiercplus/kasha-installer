@@ -1,19 +1,19 @@
 /*
  * ui.c
- * CORRECTED: Lowercase Username, Partition Manager, Safe TreeView, No deprecated functions.
+ * CORRECTED: Fixed 'g_ascii_strdown' and 'gtk_editable_insert_text' arguments.
  */
 #include "neko_installer.h"
 #include <stdio.h>
 
-
+// 1. FORZAR MINÚSCULAS EN USERNAME (CORREGIDO)
 void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data) {
-    gchar *result = g_ascii_strdown(new_text, -1); // -1 es la longitud automática
+    gchar *result = g_ascii_strdown(new_text, -1); // -1 es la longitud
     
-
+    // Borramos el texto que se iba a insertar
     g_signal_handlers_block_by_func(editable, on_insert_text_username, data);
     gtk_editable_delete_text(editable, *position, *position + new_text_length);
-
-    gtk_editable_insert_text(editable, result, *position, new_text_length);
+    // Insertamos la versión en minúsculas (Ponemos NULL en posición para evitar error de tipo)
+    gtk_editable_insert_text(editable, result, new_text_length, NULL);
     g_signal_handlers_unblock_by_func(editable, on_insert_text_username, data);
     
     g_signal_stop_emission_by_name(editable, "insert-text");
@@ -64,9 +64,11 @@ void set_ui_finished(AppData *app) { g_idle_add(set_ui_finished_safe, app); }
 GtkWidget* create_form_row(const gchar *label_text, GtkWidget **entry_ptr) {
     GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_widget_set_margin_bottom(hbox, 5); 
+    
     GtkWidget *label = gtk_label_new(label_text);
     gtk_label_set_xalign(GTK_LABEL(label), 1.0); 
     gtk_widget_set_size_request(label, 180, -1); 
+    
     *entry_ptr = gtk_entry_new();
     gtk_widget_set_hexpand(*entry_ptr, TRUE);
     gtk_box_pack_start(GTK_BOX(hbox), label, FALSE, FALSE, 0);
@@ -156,7 +158,7 @@ void open_partition_manager(GtkWidget *widget, AppData *app) {
     GtkListStore *store = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING); 
     gtk_tree_view_set_model(GTK_TREE_VIEW(app->mount_list), GTK_TREE_MODEL(store));
 
-    // Methodo manual de columnas (más seguro que insert_column_with_attributes)
+    // Safe column creation method
     GtkCellRenderer *renderer;
     GtkTreeViewColumn *col;
 
@@ -237,7 +239,6 @@ void build_ui(AppData *app) {
     // --- TAB 2: BOOTLOADER ---
     GtkWidget *page_boot = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
     gtk_container_set_border_width(GTK_CONTAINER(page_boot), 15);
-    
     app->grub_disk_combo = gtk_combo_box_text_new(); 
     gtk_box_pack_start(GTK_BOX(page_boot), gtk_label_new("Select MBR/EFI disk for Bootloader:"), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(page_boot), app->grub_disk_combo, FALSE, FALSE, 0);
@@ -270,7 +271,6 @@ void build_ui(AppData *app) {
     // --- TAB 4: USERS ---
     GtkWidget *page_user = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
     gtk_container_set_border_width(GTK_CONTAINER(page_user), 15);
-    
     GtkWidget *frame_root = gtk_frame_new("Superuser (root)");
     GtkWidget *vbox_root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(vbox_root), 15);
@@ -286,9 +286,8 @@ void build_ui(AppData *app) {
     gtk_container_set_border_width(GTK_CONTAINER(vbox_user), 15);
     gtk_container_add(GTK_CONTAINER(frame_user), vbox_user);
     
-    // CHANGE: Login -> Username
     gtk_box_pack_start(GTK_BOX(vbox_user), create_form_row("Username:", &app->user_login_entry), FALSE, FALSE, 0);
-    g_signal_connect(GTK_EDITABLE(app->user_login_entry), "insert-text", G_CALLBACK(on_insert_text_username), app); // Force Lowercase
+    g_signal_connect(GTK_EDITABLE(app->user_login_entry), "insert-text", G_CALLBACK(on_insert_text_username), app); 
     
     gtk_box_pack_start(GTK_BOX(vbox_user), create_form_row("Full Name:", &app->user_fullname_entry), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(vbox_user), create_form_row("Password:", &app->user_pass_entry), FALSE, FALSE, 0);
@@ -303,11 +302,9 @@ void build_ui(AppData *app) {
     GtkWidget *page_install = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(page_install), 10);
     
-    // NOTA: Eliminado gtk_widget_override_font para evitar warning de deprecado
-    
+    // NO override_font (deprecated)
     GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
-    
     app->console_text = gtk_text_view_new();
     gtk_text_view_set_editable(GTK_TEXT_VIEW(app->console_text), FALSE);
     gtk_container_add(GTK_CONTAINER(scroll), app->console_text);
@@ -331,7 +328,6 @@ void build_ui(AppData *app) {
     gtk_widget_set_margin_bottom(hbox_nav, 10);
     gtk_widget_set_margin_start(hbox_nav, 20);
     gtk_widget_set_margin_end(hbox_nav, 20);
-    
     GtkWidget *sep = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
     gtk_box_pack_start(GTK_BOX(vbox), sep, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), hbox_nav, FALSE, FALSE, 0);

@@ -336,9 +336,9 @@ GtkWidget* create_welcome_page(AppData *app) {
         "• MATE Desktop optimized\n"
         "• UEFI and Legacy BIOS support\n\n"
 
-        "<span size='large' weight='bold' foreground='#e01b24'>🎮 Gaming &amp Multimedia</span>\n"
+        "<span size='large' weight='bold' foreground='#e01b24'>🎮 Gaming and Multimedia</span>\n"
         "• Steam preinstalled\n"
-        "• Intel &amp AMD GPU drivers (Vulkan)\n\n"
+        "• Intel and AMD GPU drivers (Vulkan)\n\n"
 
         "<span size='large' weight='bold'>🚀 Features</span>\n"
         "<span font_family='monospace'>[Easy] [Gaming] [Music]</span>\n"

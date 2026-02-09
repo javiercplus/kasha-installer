@@ -336,7 +336,7 @@ GtkWidget* create_welcome_page(AppData *app) {
         "• MATE Desktop optimized\n"
         "• UEFI and Legacy BIOS support\n\n"
 
-        "<span size='large' weight='bold' foreground='#e01b24'>🎮 Gaming & Multimedia</span>\n"
+        "<span size='large' weight='bold' foreground='#e01b24'>🎮 Gaming &amp Multimedia</span>\n"
         "• Steam preinstalled\n"
         "• Intel & AMD GPU drivers (Vulkan)\n\n"
 
@@ -393,7 +393,7 @@ void build_ui(AppData *app) {
     gtk_widget_set_margin_end(app->notebook, 10);
     gtk_widget_set_margin_top(app->notebook, 10);
     gtk_box_pack_start(GTK_BOX(vbox), app->notebook, TRUE, TRUE, 0);
-    g_signal_connect(app->notebook, "switch-page", G_CALLBACK(on_page_changed), app);
+  
   //WELCOME
     GtkWidget *page_welcome = create_welcome_page(app);
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_welcome, gtk_label_new("Welcome"));
@@ -549,4 +549,5 @@ void build_ui(AppData *app) {
     gtk_box_pack_start(GTK_BOX(hbox_nav), app->btn_next, FALSE, FALSE, 0);
 
     gtk_widget_show_all(app->window);
+    g_signal_connect(app->notebook, "switch-page", G_CALLBACK(on_page_changed), app);
 }

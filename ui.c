@@ -338,7 +338,7 @@ GtkWidget* create_welcome_page(AppData *app) {
 
         "<span size='large' weight='bold' foreground='#e01b24'>🎮 Gaming &amp Multimedia</span>\n"
         "• Steam preinstalled\n"
-        "• Intel & AMD GPU drivers (Vulkan)\n\n"
+        "• Intel &amp AMD GPU drivers (Vulkan)\n\n"
 
         "<span size='large' weight='bold'>🚀 Features</span>\n"
         "<span font_family='monospace'>[Easy] [Gaming] [Music]</span>\n"

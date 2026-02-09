@@ -290,7 +290,7 @@ void load_custom_css() {
     GtkCssProvider *provider = gtk_css_provider_new();
     const gchar *css_data = 
         "progressbar trough { min-height: 20px; border-radius: 3px; }"
-        "progressbar progress { background-color: #33d17a; border-radius: 3px; }"; 
+        "progressbar progress { background-color: #33d17a; }"; 
 
     GError *error = NULL;
     gtk_css_provider_load_from_data(provider, css_data, -1, &error);

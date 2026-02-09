@@ -1,16 +1,66 @@
 /*
  * ui.c
- * CORRECTED: Fixed 'g_ascii_strdown' and 'gtk_editable_insert_text' arguments.
+ * ACTUALIZADO: Username (connect_after), Partition Manager (Safe), y Scanner de Particiones.
  */
 #include "neko_installer.h"
 #include <stdio.h>
+#include <dirent.h>      // Necesario para leer carpetas
+#include <sys/stat.h>   // Necesario para `access`
+#include <string.h>      // Necesario para `strncmp`
 
+// 1. FUNCIÓN PARA LEER PARTICIONES Y LLENAR EL COMBO
+void scan_partitions_for_dialog(GtkComboBoxText *combo) {
+    gtk_combo_box_text_remove_all(combo);
+    
+    DIR *d = opendir("/sys/block");
+    if (!d) return;
+    
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        char path[256];
+        
+        // Escaneo para discos SATA/VirtIO (ej: sda -> busca sda1, sda2...)
+        if (strncmp(ent->d_name, "sd", 2) == 0 || strncmp(ent->d_name, "vd", 2) == 0) {
+            int i = 1;
+            for(i=1; i<=4; i++) {
+                snprintf(path, sizeof(path), "/sys/block/%s/%s%d", ent->d_name, ent->d_name, i);
+                if (access(path, F_OK) == 0) {
+                     gchar *part_name = g_strdup_printf("/dev/%s%d", ent->d_name, i);
+                     gtk_combo_box_text_append_text(combo, part_name);
+                     g_free(part_name);
+                }
+            }
+        }
+        // Escaneo para NVMe (ej: nvme0n1 -> busca nvme0n1p1, nvme0n1p2...)
+        else if (strncmp(ent->d_name, "nvme", 4) == 0) {
+             int i = 1;
+             for(i=1; i<=4; i++) {
+                 snprintf(path, sizeof(path), "/sys/block/%s/%sp%d", ent->d_name, ent->d_name, i);
+                 if (access(path, F_OK) == 0) {
+                     gchar *part_name = g_strdup_printf("/dev/%sp%d", ent->d_name, i);
+                     gtk_combo_box_text_append_text(combo, part_name);
+                     g_free(part_name);
+                 }
+             }
+        }
+    }
+    closedir(d);
+}
 
+// 2. FORZAR MINÚSCULAS (Connect-After)
 void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data) {
     const gchar *current_text = gtk_entry_get_text(GTK_ENTRY(editable));
-    gchar *lower_text = g_ascii_strdown(current_text, -1);
-    gtk_entry_set_text(GTK_ENTRY(editable), lower_text);
-    g_free(lower_text);
+    
+    // Solo si hay texto, convertimos todo a minúsculas
+    if (strlen(current_text) > 0 || strlen(new_text) > 0) {
+        gchar *lower_text = g_ascii_strdown(current_text, -1);
+        
+        g_signal_handlers_block_by_func(editable, on_insert_text_username, data);
+        gtk_entry_set_text(GTK_ENTRY(editable), lower_text);
+        g_signal_handlers_unblock_by_func(editable, on_insert_text_username, data);
+        g_free(lower_text);
+    }
+    g_signal_stop_emission_by_name(editable, "insert-text");
 }
 
 void on_disk_changed(GtkComboBox *widget, AppData *app) {
@@ -64,27 +114,13 @@ GtkWidget* create_form_row(const gchar *label_text, GtkWidget **entry_ptr) {
     
     *entry_ptr = gtk_entry_new();
     gtk_widget_set_hexpand(*entry_ptr, TRUE);
+    
     gtk_box_pack_start(GTK_BOX(hbox), label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(hbox), *entry_ptr, TRUE, TRUE, 0);
     return hbox;
 }
 
-void add_partition_config(AppData *app, const gchar *dev, const gchar *fs, const gchar *mp, gboolean fmt) {
-    PartitionConfig *conf = g_new(PartitionConfig, 1);
-    conf->device = g_strdup(dev);
-    conf->fstype = g_strdup(fs);
-    conf->mountpoint = g_strdup(mp);
-    conf->format = fmt;
-    
-    app->part_config_list = g_slist_append(app->part_config_list, conf);
-    
-    GtkListStore *store = GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW(app->mount_list)));
-    GtkTreeIter iter;
-    gtk_list_store_append(store, &iter);
-    gchar *fmt_str = fmt ? "YES" : "NO";
-    gtk_list_store_set(store, &iter, 0, dev, 1, mp, 2, fs, 3, fmt_str, -1);
-}
-
+// 3. DIÁLOG DE AÑADIR PARTICIÓN (ACTUALIZADO)
 void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
     AppData *app = (AppData *)user_data;
     GtkWidget *dialog = gtk_dialog_new_with_buttons("Add Partition", GTK_WINDOW(app->window),
@@ -97,14 +133,17 @@ void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_add(GTK_CONTAINER(content), vbox);
 
-    // Inputs
+    // --- CAMBIO: Entrada de partición -> ComboBox desplegable ---
     GtkWidget *h_dev = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_box_pack_start(GTK_BOX(h_dev), gtk_label_new("Partition (e.g. sda1):"), FALSE, FALSE, 0);
-    GtkWidget *entry_dev_w = gtk_entry_new();
-    gtk_entry_set_text(GTK_ENTRY(entry_dev_w), "sda1");
-    gtk_box_pack_start(GTK_BOX(h_dev), entry_dev_w, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(h_dev), gtk_label_new("Partition:"), FALSE, FALSE, 0);
+    
+    // Creamos el combo y lo llenamos con particiones existentes
+    GtkComboBoxText *combo_dev = GTK_COMBO_BOX_TEXT(gtk_combo_box_text_new());
+    scan_partitions_for_dialog(combo_dev); // FUNCIÓN DE ESCANEO
+    gtk_box_pack_start(GTK_BOX(h_dev), GTK_WIDGET(combo_dev), TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), h_dev, FALSE, FALSE, 0);
 
+    // --- Resto de campos ---
     GtkWidget *h_fs = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(h_fs), gtk_label_new("Filesystem:"), FALSE, FALSE, 0);
     GtkComboBoxText *combo_fs = GTK_COMBO_BOX_TEXT(gtk_combo_box_text_new());
@@ -118,9 +157,9 @@ void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
 
     GtkWidget *h_mp = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(h_mp), gtk_label_new("Mount Point:"), FALSE, FALSE, 0);
-    GtkWidget *entry_mp_w = gtk_entry_new();
-    gtk_entry_set_text(GTK_ENTRY(entry_mp_w), "/");
-    gtk_box_pack_start(GTK_BOX(h_mp), entry_mp_w, TRUE, TRUE, 0);
+    GtkEntry *entry_mp = GTK_ENTRY(gtk_entry_new());
+    gtk_entry_set_text(entry_mp, "/");
+    gtk_box_pack_start(GTK_BOX(h_mp), GTK_WIDGET(entry_mp), TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), h_mp, FALSE, FALSE, 0);
 
     GtkCheckButton *chk_fmt = GTK_CHECK_BUTTON(gtk_check_button_new_with_label("Format (Create new filesystem)"));
@@ -131,15 +170,15 @@ void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
     gint result = gtk_dialog_run(GTK_DIALOG(dialog));
 
     if (result == GTK_RESPONSE_ACCEPT) {
-        const gchar *dev = gtk_entry_get_text(GTK_ENTRY(entry_dev_w));
+        // Obtenemos el texto seleccionado del combo en lugar de una entrada
+        const gchar *dev = gtk_combo_box_text_get_active_text(combo_dev);
         const gchar *fs = gtk_combo_box_text_get_active_text(combo_fs);
-        const gchar *mp = gtk_entry_get_text(GTK_ENTRY(entry_mp_w));
+        const gchar *mp = gtk_entry_get_text(entry_mp);
         gboolean fmt = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(chk_fmt));
         
-        if (strlen(dev) > 0 && strlen(mp) > 0) {
-            gchar *full_dev = g_strdup_printf("/dev/%s", dev);
-            add_partition_config(app, full_dev, fs, mp, fmt);
-            g_free(full_dev);
+        // Si el usuario no seleccionó nada (primer item vacío?) o borró el texto
+        if (dev && strlen(dev) > 0 && mp && strlen(mp) > 0) {
+            add_partition_config(app, dev, fs, mp, fmt);
         }
     }
     gtk_widget_destroy(dialog);
@@ -147,7 +186,6 @@ void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
 
 void open_partition_manager(GtkWidget *widget, AppData *app) {
     if (!app->mount_list) return;
-
     GtkListStore *store = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING); 
     gtk_tree_view_set_model(GTK_TREE_VIEW(app->mount_list), GTK_TREE_MODEL(store));
 
@@ -232,6 +270,7 @@ void build_ui(AppData *app) {
     // --- TAB 2: BOOTLOADER ---
     GtkWidget *page_boot = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
     gtk_container_set_border_width(GTK_CONTAINER(page_boot), 15);
+    
     app->grub_disk_combo = gtk_combo_box_text_new(); 
     gtk_box_pack_start(GTK_BOX(page_boot), gtk_label_new("Select MBR/EFI disk for Bootloader:"), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(page_boot), app->grub_disk_combo, FALSE, FALSE, 0);
@@ -264,6 +303,7 @@ void build_ui(AppData *app) {
     // --- TAB 4: USERS ---
     GtkWidget *page_user = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
     gtk_container_set_border_width(GTK_CONTAINER(page_user), 15);
+    
     GtkWidget *frame_root = gtk_frame_new("Superuser (root)");
     GtkWidget *vbox_root = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(vbox_root), 15);
@@ -280,8 +320,9 @@ void build_ui(AppData *app) {
     gtk_container_add(GTK_CONTAINER(frame_user), vbox_user);
     
     gtk_box_pack_start(GTK_BOX(vbox_user), create_form_row("Username:", &app->user_login_entry), FALSE, FALSE, 0);
+    // CAMBIO AQUÍ: connect_after
     g_signal_connect_after(GTK_EDITABLE(app->user_login_entry), "insert-text", G_CALLBACK(on_insert_text_username), app); 
-    
+
     gtk_box_pack_start(GTK_BOX(vbox_user), create_form_row("Full Name:", &app->user_fullname_entry), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(vbox_user), create_form_row("Password:", &app->user_pass_entry), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(vbox_user), create_form_row("Confirm Password:", &app->user_pass_confirm_entry), FALSE, FALSE, 0);
@@ -295,7 +336,7 @@ void build_ui(AppData *app) {
     GtkWidget *page_install = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(page_install), 10);
     
-    // NO override_font (deprecated)
+    // No override_font
     GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
     app->console_text = gtk_text_view_new();

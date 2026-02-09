@@ -453,7 +453,7 @@ void build_ui(AppData *app) {
     g_signal_connect(btn_add, "clicked", G_CALLBACK(on_add_partition_clicked), app);
     gtk_box_pack_start(GTK_BOX(hbox_pm), btn_add, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(page_disk), hbox_pm, FALSE, FALSE, 0);
-    GtkWidget *btn_reset = gtk_button_new_with_label("Reset");
+    GtkWidget *btn_reset = gtk_button_new_with_label("Clear");
     g_signal_connect(btn_reset, "clicked", G_CALLBACK(on_reset_partitions_clicked), app);
     gtk_box_pack_start(GTK_BOX(hbox_pm), btn_reset, FALSE, FALSE, 0);
   

@@ -8,30 +8,17 @@
 #include <sys/stat.h>
 #include <string.h>
 
-// 1. FUNCIÓN DE ESCANEO DE PARTICIONES (ITERACIÓN NÚMERICA ROBUSTA)
 void scan_partitions_for_dialog(GtkComboBoxText *combo) {
     gtk_combo_box_text_remove_all(combo);
-    
-    // No escaneamos /sys/block porque las particiones a veces no están ahí como entradas directas.
-    // En su lugar, iteramos sda1..sda15 / nvme0n1p1..nvme0n1p15 etc.
-    
-    // Escanear discos detectados en el combo principal para saber qué buscar
-    // Nota: Esto requiere que app->disk_combo esté poblado, pero como scan_partitions
-    // suele llamarse tras init_utils, debería estarlo. 
-    // Para simplificar, asumimos patrones comunes: sd[a-z], vd[a-z], nvme0n1...
-    
-    // Arrays de prefijos
     const char *prefixes[] = {"sd", "vd", "mmcblk", "nvme0n1", "nvme1n1"};
     int num_prefixes = 5;
     
     int i, j;
     for (i = 0; i < num_prefixes; i++) {
         const gchar *base = prefixes[i];
-        
-        // Para NVMe, el sufijo es 'p'. Para otros, es solo el número.
         const gchar *sep = (strstr(base, "nvme") != NULL) ? "p" : "";
         
-        // Probamos particiones del 1 al 15
+
         for (j = 1; j <= 15; j++) {
             gchar path[64];
             
@@ -41,21 +28,16 @@ void scan_partitions_for_dialog(GtkComboBoxText *combo) {
                 snprintf(path, sizeof(path), "/dev/%s%d", base, j);
             }
             
-            // Verificamos si existe el nodo de dispositivo
             if (access(path, F_OK) == 0) {
-                // Es una partición válida, la añadimos
                 gtk_combo_box_text_append_text(combo, path);
             }
         }
     }
 }
 
-// 2. FORZAR MINÚSCULAS EN USERNAME (Connect-After)
+
 void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data) {
-    // Obtenemos todo el texto actual (el nuevo ya está ahí porque usamos connect_after)
     const gchar *current_text = gtk_entry_get_text(GTK_ENTRY(editable));
-    
-    // Solo si hay texto, convertimos todo a minúsculas
     if (strlen(current_text) > 0 || strlen(new_text) > 0) {
         gchar *lower_text = g_ascii_strdown(current_text, -1);
         
@@ -75,6 +57,7 @@ void on_disk_changed(GtkComboBox *widget, AppData *app) {
         gtk_tree_model_get(model, &iter, 0, &disk_name, -1);
         app->selected_disk = disk_name; 
         g_print("Disk selected: %s\n", disk_name);
+        scan_selected_disk(app);
     }
 }
 

@@ -90,15 +90,43 @@ void on_next_clicked(GtkWidget *widget, AppData *app) { gtk_notebook_next_page(G
 void on_back_clicked(GtkWidget *widget, AppData *app) { gtk_notebook_prev_page(GTK_NOTEBOOK(app->notebook)); }
 void on_reboot_clicked(GtkWidget *widget, AppData *app) { system("reboot"); }
 
+// ui.c - Modificado para lanzar Popup
 gboolean set_ui_finished_safe(gpointer data) {
     AppData *app = (AppData *)data;
+    
     gtk_widget_set_sensitive(app->btn_back, FALSE);
     gtk_widget_set_sensitive(app->btn_next, FALSE);
-    gtk_widget_set_sensitive(app->notebook, FALSE); 
+    gtk_widget_set_sensitive(app->notebook, FALSE);
+    
+    // Cambiamos el botón principal por si acaso cierran el popup
     gtk_button_set_label(GTK_BUTTON(app->btn_install), "Reboot System");
     g_signal_handlers_disconnect_by_func(app->btn_install, G_CALLBACK(start_installation), app);
     g_signal_connect(app->btn_install, "clicked", G_CALLBACK(on_reboot_clicked), app);
-    gtk_widget_set_sensitive(app->btn_install, TRUE); 
+    gtk_widget_set_sensitive(app->btn_install, TRUE);
+
+    // --- AQUÍ ESTÁ LA MAGIA DEL POPUP ---
+    GtkWidget *success_dialog = gtk_message_dialog_new(GTK_WINDOW(app->window),
+        GTK_DIALOG_MODAL,
+        GTK_MESSAGE_INFO,
+        GTK_BUTTONS_NONE, // No usamos botones estándar
+        "NEKO-VOID is READY!!!");
+
+    gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(success_dialog), 
+        "Installation completed successfully.\nThe system is ready to restart.");
+
+    // Añadimos nuestro botón personalizado
+    GtkWidget *btn_reboot_popup = gtk_dialog_add_button(GTK_DIALOG(success_dialog), "REBOOT NOW", GTK_RESPONSE_ACCEPT);
+    
+    // Estilo sugerido para el botón (opcional, lo hace destacar)
+    GtkStyleContext *context = gtk_widget_get_style_context(btn_reboot_popup);
+    gtk_style_context_add_class(context, "suggested-action");
+
+    // Conectamos la señal para que al dar click o cerrar, reinicie
+    g_signal_connect(success_dialog, "response", G_CALLBACK(on_popup_reboot), NULL);
+    
+    gtk_widget_show_all(success_dialog);
+    // ------------------------------------
+
     return FALSE;
 }
 
@@ -136,29 +164,75 @@ void add_partition_config(AppData *app, const gchar *dev, const gchar *fs, const
     gtk_list_store_set(store, &iter, 0, dev, 1, mp, 2, fs, 3, fmt_str, -1);
 }
 
-// 4. DIÁLOGO DE AÑADIR PARTICIÓN (FIXED GtkEntry CASTING)
+void populate_partitions_combo(GtkComboBoxText *combo, const char *disk_name) {
+    char sys_path[256];
+    snprintf(sys_path, sizeof(sys_path), "/sys/block/%s", disk_name);
+    
+    DIR *d = opendir(sys_path);
+    if (!d) return;
+
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        // Filtramos: debe empezar por el nombre del disco (ej: sda -> sda1)
+        // y no ser el disco mismo (sda != sda)
+        if (strncmp(ent->d_name, disk_name, strlen(disk_name)) == 0 && 
+            strcmp(ent->d_name, disk_name) != 0) {
+            
+            // Verificamos que sea realmente una carpeta/dispositivo
+            char part_path[512];
+            snprintf(part_path, sizeof(part_path), "%s/%s", sys_path, ent->d_name);
+            
+            // Un chequeo simple: si tiene archivo "size", es partición
+            char size_path[550];
+            snprintf(size_path, sizeof(size_path), "%s/size", part_path);
+            if (access(size_path, F_OK) == 0) {
+                gtk_combo_box_text_append_text(combo, ent->d_name);
+            }
+        }
+    }
+    closedir(d);
+}
+
+void on_popup_reboot(GtkDialog *dialog, gint response_id, gpointer user_data) {
+    system("reboot");
+
 void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
     AppData *app = (AppData *)user_data;
+    
+    // Validación de seguridad
+    if (!app->selected_disk) {
+        GtkWidget *err = gtk_message_dialog_new(GTK_WINDOW(app->window),
+            GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_OK,
+            "Please select a disk in Tab 1 first!");
+        gtk_dialog_run(GTK_DIALOG(err));
+        gtk_widget_destroy(err);
+        return;
+    }
+
     GtkWidget *dialog = gtk_dialog_new_with_buttons("Add Partition", GTK_WINDOW(app->window),
-                                             GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-                                             "_Cancel", GTK_RESPONSE_CANCEL,
-                                             "_Add", GTK_RESPONSE_ACCEPT,
-                                             NULL);
+                                                 GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                                 "_Cancel", GTK_RESPONSE_CANCEL,
+                                                 "_Add", GTK_RESPONSE_ACCEPT,
+                                                 NULL);
     gtk_container_set_border_width(GTK_CONTAINER(dialog), 10);
     GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
-    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_add(GTK_CONTAINER(content), vbox);
 
-    // --- CAMBIO: Entrada de partición ---
+    // 1. SELECTOR DE PARTICIÓN (YA NO ES ENTRY MANUAL)
     GtkWidget *h_dev = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_box_pack_start(GTK_BOX(h_dev), gtk_label_new("Partition (e.g. sda1):"), FALSE, FALSE, 0);
-    // CORREGIDO: Usamos GtkWidget*, y casteamos con GTK_ENTRY solo al llamar funciones
-    GtkWidget *entry_dev_w = gtk_entry_new();
-    gtk_entry_set_text(GTK_ENTRY(entry_dev_w), "sda1");
-    gtk_box_pack_start(GTK_BOX(h_dev), entry_dev_w, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(h_dev), gtk_label_new("Select Partition:"), FALSE, FALSE, 0);
+    
+    GtkComboBoxText *combo_part = GTK_COMBO_BOX_TEXT(gtk_combo_box_text_new());
+    populate_partitions_combo(combo_part, app->selected_disk); // <--- AQUÍ LLENAMOS LA LISTA
+    
+    // Seleccionar el primero si existe
+    gtk_combo_box_set_active(GTK_COMBO_BOX(combo_part), 0);
+    
+    gtk_box_pack_start(GTK_BOX(h_dev), GTK_WIDGET(combo_part), TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), h_dev, FALSE, FALSE, 0);
 
-    // --- Resto de campos ---
+    // 2. SISTEMA DE ARCHIVOS
     GtkWidget *h_fs = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(h_fs), gtk_label_new("Filesystem:"), FALSE, FALSE, 0);
     GtkComboBoxText *combo_fs = GTK_COMBO_BOX_TEXT(gtk_combo_box_text_new());
@@ -166,43 +240,50 @@ void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
     gtk_combo_box_text_append_text(combo_fs, "btrfs");
     gtk_combo_box_text_append_text(combo_fs, "xfs");
     gtk_combo_box_text_append_text(combo_fs, "f2fs");
-    gtk_combo_box_text_append_text(combo_fs, "swap");
+    gtk_combo_box_text_append_text(combo_fs, "swap"); // Swap añadido
+    gtk_combo_box_set_active(GTK_COMBO_BOX(combo_fs), 0);
     gtk_box_pack_start(GTK_BOX(h_fs), GTK_WIDGET(combo_fs), TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), h_fs, FALSE, FALSE, 0);
 
+    // 3. PUNTO DE MONTAJE
     GtkWidget *h_mp = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(h_mp), gtk_label_new("Mount Point:"), FALSE, FALSE, 0);
-    // CORREGIDO: GtkWidget* entry_mp = GTK_ENTRY(...)
     GtkWidget *entry_mp_w = gtk_entry_new();
-    // CORREGIDO: Usamos el cast aquí dentro de set_text
     gtk_entry_set_text(GTK_ENTRY(entry_mp_w), "/");
     gtk_box_pack_start(GTK_BOX(h_mp), entry_mp_w, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), h_mp, FALSE, FALSE, 0);
 
-    GtkCheckButton *chk_fmt = GTK_CHECK_BUTTON(gtk_check_button_new_with_label("Format (Create new filesystem)"));
+    // 4. FORMAT CHECKBOX
+    GtkCheckButton *chk_fmt = GTK_CHECK_BUTTON(gtk_check_button_new_with_label("Format Partition?"));
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(chk_fmt), TRUE);
     gtk_box_pack_start(GTK_BOX(vbox), GTK_WIDGET(chk_fmt), FALSE, FALSE, 0);
 
     gtk_widget_show_all(dialog);
-    gint result = gtk_dialog_run(GTK_DIALOG(dialog));
-
-    if (result == GTK_RESPONSE_ACCEPT) {
-        // CORREGIDO: Usamos el cast aquí dentro de get_text
-        const gchar *dev = gtk_entry_get_text(GTK_ENTRY(entry_dev_w));
-        const gchar *fs = gtk_combo_box_text_get_active_text(combo_fs);
-        // CORREGIDO: Usamos el cast aquí dentro de get_text
+    
+    // LOOP DEL DIÁLOGO
+    if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
+        char *dev_short = gtk_combo_box_text_get_active_text(combo_part);
+        char *fs = gtk_combo_box_text_get_active_text(combo_fs);
         const gchar *mp = gtk_entry_get_text(GTK_ENTRY(entry_mp_w));
         gboolean fmt = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(chk_fmt));
         
-        if (strlen(dev) > 0 && strlen(mp) > 0) {
-            gchar *full_dev = g_strdup_printf("/dev/%s", dev);
-            add_partition_config(app, full_dev, fs, mp, fmt);
+        if (dev_short && mp && strlen(mp) > 0) {
+            // Construimos la ruta completa /dev/sda1
+            gchar *full_dev = g_strdup_printf("/dev/%s", dev_short);
+            
+            // Lógica especial para Swap (punto de montaje "none")
+            if (strcmp(fs, "swap") == 0) {
+                add_partition_config(app, full_dev, fs, "[SWAP]", fmt);
+            } else {
+                add_partition_config(app, full_dev, fs, mp, fmt);
+            }
             g_free(full_dev);
+            g_free(dev_short); // Importante liberar texto de combo
+            g_free(fs);
         }
     }
     gtk_widget_destroy(dialog);
 }
-
 void open_partition_manager(GtkWidget *widget, AppData *app) {
     if (!app->mount_list) return;
 

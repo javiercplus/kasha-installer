@@ -289,7 +289,7 @@ void open_partition_manager(GtkWidget *widget, AppData *app) {
 void load_custom_css() {
     GtkCssProvider *provider = gtk_css_provider_new();
     const gchar *css_data = 
-        "progressbar trough { min-height: 20px; border-radius: 3px; background-color: #2e3436; }"
+        "progressbar trough { min-height: 20px; border-radius: 3px; }"
         "progressbar progress { background-color: #33d17a; border-radius: 3px; }"; 
 
     GError *error = NULL;

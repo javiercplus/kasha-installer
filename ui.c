@@ -5,19 +5,12 @@
 #include "neko_installer.h"
 #include <stdio.h>
 
-// 1. FORZAR MINÚSCULAS EN USERNAME (CORREGIDO)
+
 void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data) {
-    gchar *result = g_ascii_strdown(new_text, -1); // -1 es la longitud
-    
-    // Borramos el texto que se iba a insertar
-    g_signal_handlers_block_by_func(editable, on_insert_text_username, data);
-    gtk_editable_delete_text(editable, *position, *position + new_text_length);
-    // Insertamos la versión en minúsculas (Ponemos NULL en posición para evitar error de tipo)
-    gtk_editable_insert_text(editable, result, new_text_length, NULL);
-    g_signal_handlers_unblock_by_func(editable, on_insert_text_username, data);
-    
-    g_signal_stop_emission_by_name(editable, "insert-text");
-    g_free(result);
+    const gchar *current_text = gtk_entry_get_text(GTK_ENTRY(editable));
+    gchar *lower_text = g_ascii_strdown(current_text, -1);
+    gtk_entry_set_text(GTK_ENTRY(editable), lower_text);
+    g_free(lower_text);
 }
 
 void on_disk_changed(GtkComboBox *widget, AppData *app) {
@@ -287,7 +280,7 @@ void build_ui(AppData *app) {
     gtk_container_add(GTK_CONTAINER(frame_user), vbox_user);
     
     gtk_box_pack_start(GTK_BOX(vbox_user), create_form_row("Username:", &app->user_login_entry), FALSE, FALSE, 0);
-    g_signal_connect(GTK_EDITABLE(app->user_login_entry), "insert-text", G_CALLBACK(on_insert_text_username), app); 
+    g_signal_connect_after(GTK_EDITABLE(app->user_login_entry), "insert-text", G_CALLBACK(on_insert_text_username), app); 
     
     gtk_box_pack_start(GTK_BOX(vbox_user), create_form_row("Full Name:", &app->user_fullname_entry), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(vbox_user), create_form_row("Password:", &app->user_pass_entry), FALSE, FALSE, 0);

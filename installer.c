@@ -16,14 +16,19 @@
 gboolean update_log_ui(gpointer data) {
     LogMessage *msg = (LogMessage *)data;
     AppData *app = msg->app;
+    
     GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->console_text));
     GtkTextIter end;
     gtk_text_buffer_get_end_iter(buffer, &end);
     gtk_text_buffer_insert(buffer, &end, msg->message, -1);
+    
     GtkTextMark *mark = gtk_text_buffer_get_insert(buffer);
     gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(app->console_text), mark);
+    
     if (msg->fraction >= 0) {
         gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(app->progress_bar), msg->fraction);
+    } else {
+        gtk_progress_bar_pulse(GTK_PROGRESS_BAR(app->progress_bar));
     }
     g_free(msg->message);
     g_free(msg);

@@ -7,6 +7,7 @@
 #include <dirent.h>      
 #include <sys/stat.h>   
 #include <string.h>      
+#include "logo.h"
 
 //read partitions
 void scan_partitions_for_dialog(GtkComboBoxText *combo) {
@@ -81,7 +82,7 @@ void launch_gparted(GtkWidget *widget, AppData *app) {
 
 void on_page_changed(GtkNotebook *notebook, GtkWidget *page, guint page_num, AppData *app) {
     gtk_widget_set_sensitive(app->btn_back, (page_num > 0));
-    gtk_widget_set_sensitive(app->btn_next, (page_num < 4));
+    gtk_widget_set_sensitive(app->btn_next, (page_num < 5));
 }
 
 void on_next_clicked(GtkWidget *widget, AppData *app) { gtk_notebook_next_page(GTK_NOTEBOOK(app->notebook)); }
@@ -285,6 +286,61 @@ void open_partition_manager(GtkWidget *widget, AppData *app) {
     gtk_tree_view_append_column(GTK_TREE_VIEW(app->mount_list), col);
 }
 
+GtkWidget* create_welcome_page(AppData *app) {
+    GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    gtk_container_set_border_width(GTK_CONTAINER(hbox), 10);
+
+    GdkPixbufLoader *loader = gdk_pixbuf_loader_new();
+    gdk_pixbuf_loader_write(loader, logo_png, logo_png_len, NULL); // logo_png_len  xxd 
+    gdk_pixbuf_loader_close(loader, NULL);
+    GdkPixbuf *pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
+   
+    GdkPixbuf *scaled_pixbuf = gdk_pixbuf_scale_simple(pixbuf, 200, 500, GDK_INTERP_BILINEAR);
+    
+    GtkWidget *image = gtk_image_new_from_pixbuf(scaled_pixbuf);
+    gtk_widget_set_valign(image, GTK_ALIGN_START); 
+    gtk_box_pack_start(GTK_BOX(hbox), image, FALSE, FALSE, 0);
+    g_object_unref(loader); 
+    GtkWidget *scrolled_window = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_window), GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
+    
+    GtkWidget *label = gtk_label_new(NULL);
+    gtk_label_set_xalign(GTK_LABEL(label), 0.0); 
+    gtk_label_set_yalign(GTK_LABEL(label), 0.0); 
+    gtk_label_set_line_wrap(GTK_LABEL(label), TRUE);
+    gtk_label_set_max_width_chars(GTK_LABEL(label), 50); 
+
+    const char *welcome_text = 
+        "<span size='xx-large' weight='bold' foreground='#33d17a'>🐱 What is Neko-Void?</span>\n\n"
+        "Neko-Void is an unofficial respin of Void Linux featuring a "
+        "preconfigured <span weight='bold'>MATE desktop environment</span> with carefully selected software "
+        "for a complete out-of-the-box experience.\n\n"
+        "Designed for users who want Void Linux's stability and minimalism with modern desktop functionality.\n\n"
+        
+        "<span size='large' weight='bold' foreground='#3584e4'>🖥️ Core System</span>\n"
+        "• Void Linux base (rolling release)\n"
+        "• MATE Desktop fully configured and optimized\n"
+        "• tinyfetch minimalist system information tool\n"
+        "• UEFI and Legacy BIOS support\n\n"
+
+        "<span size='large' weight='bold' foreground='#e01b24'>🎮 Gaming & Multimedia</span>\n"
+        "• Steam preinstalled and ready-to-use\n"
+        "• Intel & AMD GPU drivers with full Vulkan support\n\n"
+
+        "<span size='large' weight='bold'>🚀 Features</span>\n"
+        "<tt> [Easy] [Gaming] [Music] [XLibre] </tt>\n"
+        "<tt> [Void Base] [Mate Desktop] [Pipewire] </tt>\n"
+        "<tt> [Non-Free Support included] </tt>";
+
+    gtk_label_set_markup(GTK_LABEL(label), welcome_text);
+    
+    gtk_container_add(GTK_CONTAINER(scrolled_window), label);
+    gtk_box_pack_start(GTK_BOX(hbox), scrolled_window, TRUE, TRUE, 10);
+
+    gtk_widget_show_all(hbox);
+    return hbox;
+}
+
 //custom themes
 void load_custom_css() {
     GtkCssProvider *provider = gtk_css_provider_new();
@@ -321,7 +377,9 @@ void build_ui(AppData *app) {
     gtk_widget_set_margin_top(app->notebook, 10);
     gtk_box_pack_start(GTK_BOX(vbox), app->notebook, TRUE, TRUE, 0);
     g_signal_connect(app->notebook, "switch-page", G_CALLBACK(on_page_changed), app);
-
+  //WELCOME
+    GtkWidget *page_welcome = create_welcome_page(app);
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_welcome, gtk_label_new("Welcome"));
     // --- TAB 1: DISKS ---
     GtkWidget *page_disk = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
     gtk_container_set_border_width(GTK_CONTAINER(page_disk), 15);

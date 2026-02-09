@@ -223,6 +223,69 @@ gpointer install_thread(gpointer data) {
     return NULL;
 }
 
+void scan_selected_disk(AppData *app) {
+    const gchar *disk = app->selected_disk;
+    if (!disk) return;
+    
+    if (app->part_config_list) {
+        g_slist_free_full(app->part_config_list, (GDestroyNotify)g_free);
+        app->part_config_list = NULL;
+    }
+
+    gchar *cmd = g_strdup_printf("lsblk -ln -o NAME,FSTYPE,SIZE,MOUNTPOINT %s", disk);
+    
+    log_to_ui(app, g_strdup_printf("Scanning partitions on %s...", disk), -1.0);
+    
+    FILE *pipe = popen(cmd, "r");
+    if (!pipe) {
+        g_free(cmd);
+        return;
+    }
+    
+    char line[256];
+    while (fgets(line, sizeof(line), pipe) != NULL) {
+        g_strchug(line, "\n");
+        
+        if (strlen(line) > 0) {
+            // lsblk NAME FSTYPE SIZE MOUNTPOINT
+            gchar *name = strtok(line, " ");
+            gchar *fstype = strtok(NULL, " ");
+            gchar *size = strtok(NULL, " " ");
+            gchar *mntpoint = strtok(NULL, " ");
+            
+            if (!name || strlen(name) == 0) continue;
+            
+            gchar *full_dev;
+            if (g_str_has_prefix(name, "nvme") || g_str_has_prefix(name, "mmcblk")) {
+                 full_dev = g_strdup_printf("/dev/%s", name);
+            } else {
+                 full_dev = g_strdup_printf("/dev/%s", name);
+            }
+        
+            if (g_strcmp0(mntpoint, "/") == 0 && g_strcmp0(name, "boot") != 0) {
+                 log_to_ui(app, g_strdup_printf("Skipping mounted partition %s (%s)", name, mntpoint), -1.0);
+                 g_free(full_dev);
+                 continue;
+            }
+
+            gchar *final_fs = fstype;
+            if (!fstype || strlen(fstype) == 0) final_fs = "ext4";
+            if (g_str_equal(fstype, "swap")) final_fs = "swap";
+            if (g_str_equal(fstype, "crypto_LUKS")) final_fs = "crypttab";
+
+            gchar *final_mp = mntpoint;
+            if (!final_mp || strlen(final_mp) == 0) final_mp = "/";
+
+            add_partition_config(app, full_dev, final_fs, final_mp, FALSE);
+            
+            g_free(full_dev);
+        }
+    }
+    
+    pclose(pipe);
+    g_free(cmd);
+    log_to_ui(app, "Scan completed.", -1.0);
+}
 // 12. START INSTALLATION
 void start_installation(GtkWidget *widget, AppData *app) {
     if (app->installing) return;

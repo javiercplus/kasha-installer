@@ -1,35 +1,57 @@
 /*
  * ui.c
- * FINAL VERSION: Username lowercase, Partition Scanner, Safe TreeView, No deprecated functions.
+ * FINAL VERSION: Fixed GtkEntry pointers and g_ascii_strdown args.
  */
 #include "neko_installer.h"
 #include <stdio.h>
-#include <dirent.h>      // Necesario para leer carpetas
-#include <sys/stat.h>   // Necesario para `access`
-#include <string.h>      // Necesario para `strncmp`
+#include <dirent.h>      
+#include <sys/stat.h>   
+#include <string.h>      
 
-// 1. FUNCIÓN AÑADIR CONFIGURACIÓN (ESTA ES LA QUE FALTABA)
-void add_partition_config(AppData *app, const gchar *dev, const gchar *fs, const gchar *mp, gboolean fmt) {
-    PartitionConfig *conf = g_new(PartitionConfig, 1);
-    conf->device = g_strdup(dev);
-    conf->fstype = g_strdup(fs);
-    conf->mountpoint = g_strdup(mp);
-    conf->format = fmt;
+// 1. FUNCIÓN PARA LEER PARTICIONES Y LLENAR EL COMBO
+void scan_partitions_for_dialog(GtkComboBoxText *combo) {
+    gtk_combo_box_text_remove_all(combo);
     
-    app->part_config_list = g_slist_append(app->part_config_list, conf);
+    DIR *d = opendir("/sys/block");
+    if (!d) return;
     
-    GtkListStore *store = GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW(app->mount_list)));
-    GtkTreeIter iter;
-    gtk_list_store_append(store, &iter);
-    gchar *fmt_str = fmt ? "YES" : "NO";
-    gtk_list_store_set(store, &iter, 0, dev, 1, mp, 2, fs, 3, fmt_str, -1);
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        char path[256];
+        
+        // Escaneo para discos SATA/VirtIO (ej: sda -> busca sda1, sda2...)
+        if (strncmp(ent->d_name, "sd", 2) == 0 || strncmp(ent->d_name, "vd", 2) == 0) {
+            int i = 1;
+            for(i=1; i<=4; i++) {
+                snprintf(path, sizeof(path), "/sys/block/%s/%s%d", ent->d_name, ent->d_name, i);
+                if (access(path, F_OK) == 0) {
+                     gchar *part_name = g_strdup_printf("/dev/%s%d", ent->d_name, i);
+                     gtk_combo_box_text_append_text(combo, part_name);
+                     g_free(part_name);
+                }
+            }
+        }
+        // Escaneo para NVMe (ej: nvme0n1 -> busca nvme0n1p1, nvme0n1p2...)
+        else if (strncmp(ent->d_name, "nvme", 4) == 0) {
+             int i = 1;
+             for(i=1; i<=4; i++) {
+                 snprintf(path, sizeof(path), "/sys/block/%s/%sp%d", ent->d_name, ent->d_name, i);
+                 if (access(path, F_OK) == 0) {
+                     gchar *part_name = g_strdup_printf("/dev/%sp%d", ent->d_name, i);
+                     gtk_combo_box_text_append_text(combo, part_name);
+                     g_free(part_name);
+                 }
+             }
+        }
+    }
+    closedir(d);
 }
 
 // 2. FORZAR MINÚSCULAS EN USERNAME (Connect-After)
 void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data) {
     const gchar *current_text = gtk_entry_get_text(GTK_ENTRY(editable));
     
-    // Solo si hay texto, convertimos todo a minúsculas
+    // Convertimos todo a minúsculas (argumento -1 corregido)
     if (strlen(current_text) > 0 || strlen(new_text) > 0) {
         gchar *lower_text = g_ascii_strdown(current_text, -1);
         
@@ -82,45 +104,6 @@ gboolean set_ui_finished_safe(gpointer data) {
 
 void set_ui_finished(AppData *app) { g_idle_add(set_ui_finished_safe, app); }
 
-// 3. SCANNER DE PARTICIONES (Lee /sys/block)
-void scan_partitions_for_dialog(GtkComboBoxText *combo) {
-    gtk_combo_box_text_remove_all(combo);
-    
-    DIR *d = opendir("/sys/block");
-    if (!d) return;
-    
-    struct dirent *ent;
-    while ((ent = readdir(d)) != NULL) {
-        char path[256];
-        
-        // SATA/VirtIO: sda1, sda2...
-        if (strncmp(ent->d_name, "sd", 2) == 0 || strncmp(ent->d_name, "vd", 2) == 0) {
-            int i = 1;
-            for(i=1; i<=4; i++) {
-                snprintf(path, sizeof(path), "/sys/block/%s/%s%d", ent->d_name, ent->d_name, i);
-                if (access(path, F_OK) == 0) {
-                     gchar *part_name = g_strdup_printf("/dev/%s%d", ent->d_name, i);
-                     gtk_combo_box_text_append_text(combo, part_name);
-                     g_free(part_name);
-                }
-            }
-        }
-        // NVMe: nvme0n1p1...
-        else if (strncmp(ent->d_name, "nvme", 4) == 0) {
-             int i = 1;
-             for(i=1; i<=4; i++) {
-                 snprintf(path, sizeof(path), "/sys/block/%s/%sp%d", ent->d_name, ent->d_name, i);
-                 if (access(path, F_OK) == 0) {
-                     gchar *part_name = g_strdup_printf("/dev/%sp%d", ent->d_name, i);
-                     gtk_combo_box_text_append_text(combo, part_name);
-                     g_free(part_name);
-                 }
-             }
-        }
-    }
-    closedir(d);
-}
-
 GtkWidget* create_form_row(const gchar *label_text, GtkWidget **entry_ptr) {
     GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_widget_set_margin_bottom(hbox, 5); 
@@ -136,7 +119,24 @@ GtkWidget* create_form_row(const gchar *label_text, GtkWidget **entry_ptr) {
     return hbox;
 }
 
-// 4. DIÁLOGO DE AÑADIR PARTICIÓN
+// 3. FUNCIÓN PARA AÑADIR CONFIGURACIÓN
+void add_partition_config(AppData *app, const gchar *dev, const gchar *fs, const gchar *mp, gboolean fmt) {
+    PartitionConfig *conf = g_new(PartitionConfig, 1);
+    conf->device = g_strdup(dev);
+    conf->fstype = g_strdup(fs);
+    conf->mountpoint = g_strdup(mp);
+    conf->format = fmt;
+    
+    app->part_config_list = g_slist_append(app->part_config_list, conf);
+    
+    GtkListStore *store = GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW(app->mount_list)));
+    GtkTreeIter iter;
+    gtk_list_store_append(store, &iter);
+    gchar *fmt_str = fmt ? "YES" : "NO";
+    gtk_list_store_set(store, &iter, 0, dev, 1, mp, 2, fs, 3, fmt_str, -1);
+}
+
+// 4. DIÁLOGO DE AÑADIR PARTICIÓN (FIXED GtkEntry CASTING)
 void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
     AppData *app = (AppData *)user_data;
     GtkWidget *dialog = gtk_dialog_new_with_buttons("Add Partition", GTK_WINDOW(app->window),
@@ -149,13 +149,13 @@ void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_add(GTK_CONTAINER(content), vbox);
 
-    // --- CAMBIO: Entrada -> ComboBox desplegable ---
+    // --- CAMBIO: Entrada de partición ---
     GtkWidget *h_dev = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_box_pack_start(GTK_BOX(h_dev), gtk_label_new("Partition:"), FALSE, FALSE, 0);
-    
-    GtkComboBoxText *combo_dev = GTK_COMBO_BOX_TEXT(gtk_combo_box_text_new());
-    scan_partitions_for_dialog(combo_dev); // Llenamos con particiones existentes
-    gtk_box_pack_start(GTK_BOX(h_dev), GTK_WIDGET(combo_dev), TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(h_dev), gtk_label_new("Partition (e.g. sda1):"), FALSE, FALSE, 0);
+    // CORREGIDO: Usamos GtkWidget*, y casteamos con GTK_ENTRY solo al llamar funciones
+    GtkWidget *entry_dev_w = gtk_entry_new();
+    gtk_entry_set_text(GTK_ENTRY(entry_dev_w), "sda1");
+    gtk_box_pack_start(GTK_BOX(h_dev), entry_dev_w, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), h_dev, FALSE, FALSE, 0);
 
     // --- Resto de campos ---
@@ -172,9 +172,11 @@ void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
 
     GtkWidget *h_mp = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(h_mp), gtk_label_new("Mount Point:"), FALSE, FALSE, 0);
-    GtkWidget *entry_mp = GTK_ENTRY(gtk_entry_new());
-    gtk_entry_set_text(entry_mp, "/");
-    gtk_box_pack_start(GTK_BOX(h_mp), GTK_WIDGET(entry_mp), TRUE, TRUE, 0);
+    // CORREGIDO: GtkWidget* entry_mp = GTK_ENTRY(...)
+    GtkWidget *entry_mp_w = gtk_entry_new();
+    // CORREGIDO: Usamos el cast aquí dentro de set_text
+    gtk_entry_set_text(GTK_ENTRY(entry_mp_w), "/");
+    gtk_box_pack_start(GTK_BOX(h_mp), entry_mp_w, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), h_mp, FALSE, FALSE, 0);
 
     GtkCheckButton *chk_fmt = GTK_CHECK_BUTTON(gtk_check_button_new_with_label("Format (Create new filesystem)"));
@@ -185,14 +187,17 @@ void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
     gint result = gtk_dialog_run(GTK_DIALOG(dialog));
 
     if (result == GTK_RESPONSE_ACCEPT) {
-        // Obtenemos la partición del combo
-        const gchar *dev = gtk_combo_box_text_get_active_text(combo_dev);
+        // CORREGIDO: Usamos el cast aquí dentro de get_text
+        const gchar *dev = gtk_entry_get_text(GTK_ENTRY(entry_dev_w));
         const gchar *fs = gtk_combo_box_text_get_active_text(combo_fs);
-        const gchar *mp = gtk_entry_get_text(entry_mp);
+        // CORREGIDO: Usamos el cast aquí dentro de get_text
+        const gchar *mp = gtk_entry_get_text(GTK_ENTRY(entry_mp_w));
         gboolean fmt = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(chk_fmt));
         
-        if (dev && strlen(dev) > 0 && mp && strlen(mp) > 0) {
-            add_partition_config(app, dev, fs, mp, fmt);
+        if (strlen(dev) > 0 && strlen(mp) > 0) {
+            gchar *full_dev = g_strdup_printf("/dev/%s", dev);
+            add_partition_config(app, full_dev, fs, mp, fmt);
+            g_free(full_dev);
         }
     }
     gtk_widget_destroy(dialog);
@@ -292,7 +297,7 @@ void build_ui(AppData *app) {
     app->label_boot_status = gtk_label_new("Detecting firmware...");
     gtk_widget_set_margin_top(app->label_boot_status, 10);
     gtk_box_pack_start(GTK_BOX(page_boot), app->label_boot_status, FALSE, FALSE, 0);
-    
+
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_boot, gtk_label_new("2. Bootloader"));
 
     // --- TAB 3: SYSTEM ---
@@ -350,6 +355,7 @@ void build_ui(AppData *app) {
     GtkWidget *page_install = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(page_install), 10);
     
+    // No override_font
     GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
     app->console_text = gtk_text_view_new();

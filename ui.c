@@ -92,7 +92,7 @@ void on_reboot_clicked(GtkWidget *widget, AppData *app) { system("reboot"); }
 
 void on_popup_reboot(GtkDialog *dialog, gint response_id, gpointer user_data) {
     system("reboot");
-
+}
 // ui.c - Modificado para lanzar Popup
 gboolean set_ui_finished_safe(gpointer data) {
     AppData *app = (AppData *)data;

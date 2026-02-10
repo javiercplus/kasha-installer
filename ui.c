@@ -289,44 +289,35 @@ void open_partition_manager(GtkWidget *widget, AppData *app) {
 
 // ui.c
 GtkWidget* create_welcome_page(AppData *app) {
-    GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 20); // 20px de espacio entre imagen y texto
-    gtk_container_set_border_width(GTK_CONTAINER(hbox), 20); // Margen alrededor de todo
+    GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 20); 
+    gtk_container_set_border_width(GTK_CONTAINER(hbox), 20); 
 
-    // --- 1. IMAGEN (Izquierda) ---
+    // Picture
     GdkPixbufLoader *loader = gdk_pixbuf_loader_new();
-    // Asegúrate de que logo_png y logo_png_len existen (del archivo logo.h)
     if (gdk_pixbuf_loader_write(loader, logo_png, logo_png_len, NULL)) {
         gdk_pixbuf_loader_close(loader, NULL);
         GdkPixbuf *pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
         
         if (pixbuf) {
-            // Escalamos la imagen un poco más pequeña por si acaso (180px ancho)
             GdkPixbuf *scaled = gdk_pixbuf_scale_simple(pixbuf, 180, 450, GDK_INTERP_BILINEAR);
             GtkWidget *image = gtk_image_new_from_pixbuf(scaled);
-            
-            // Alineamos la imagen arriba y a la izquierda
             gtk_widget_set_valign(image, GTK_ALIGN_START); 
-            gtk_box_pack_start(GTK_BOX(hbox), image, FALSE, FALSE, 0); // FALSE = No estirar imagen
+            gtk_box_pack_start(GTK_BOX(hbox), image, FALSE, FALSE, 0); 
             
-            // Liberamos memoria de la versión escalada (GTK ya tiene su copia interna)
             g_object_unref(scaled); 
         }
     }
     g_object_unref(loader);
 
-    // --- 2. TEXTO (Derecha) ---
-    // Usamos un VBox en lugar de ScrolledWindow para evitar que se oculte
     GtkWidget *vbox_text = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     
     GtkWidget *label = gtk_label_new(NULL);
-    // Configuración crítica para que el texto se vea bien
-    gtk_label_set_xalign(GTK_LABEL(label), 0.0); // Alinear a la izquierda
-    gtk_label_set_yalign(GTK_LABEL(label), 0.0); // Alinear arriba
-    gtk_label_set_line_wrap(GTK_LABEL(label), TRUE); // Permitir salto de línea
-    gtk_label_set_max_width_chars(GTK_LABEL(label), 45); // Forzar ancho máximo para que haga wrap
-    gtk_label_set_selectable(GTK_LABEL(label), TRUE); // Permitir seleccionar texto (útil para debug)
+    gtk_label_set_xalign(GTK_LABEL(label), 0.0); 
+    gtk_label_set_yalign(GTK_LABEL(label), 0.0); 
+    gtk_label_set_line_wrap(GTK_LABEL(label), TRUE); 
+    gtk_label_set_max_width_chars(GTK_LABEL(label), 45); 
+    gtk_label_set_selectable(GTK_LABEL(label), TRUE); 
 
-    // Texto corregido y simplificado para evitar errores de parseo
     const char *welcome_text = 
         "<span size='xx-large' weight='bold' foreground='#33d17a'>🐱 WELCOME TO NEKO VOID!!!</span>\n\n"
         "Neko-Void is an unofficial respin of Void Linux featuring a "
@@ -521,38 +512,30 @@ void build_ui(AppData *app) {
     gtk_box_pack_start(GTK_BOX(hbox_locale), app->locale_combo, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(page_system), hbox_locale, FALSE, FALSE, 0);
 
-  // ... dentro de build_ui, en la sección TAB 3: SYSTEM ...
 
     // --- TIMEZONE SECTION ---
     GtkWidget *hbox_tz = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_widget_set_margin_top(hbox_tz, 10); // Un poco de espacio
+    gtk_widget_set_margin_top(hbox_tz, 10); 
     
     gtk_box_pack_start(GTK_BOX(hbox_tz), gtk_label_new("Timezone:"), FALSE, FALSE, 0);
 
-    // 1. Combo de REGIONES (Áreas)
+    // 1. Regions
     app->tz_area_combo = gtk_combo_box_text_new();
-    // Lista estándar de zonas
     const char *areas[] = {"Africa", "America", "Antarctica", "Arctic", "Asia", "Atlantic", "Australia", "Europe", "Indian", "Pacific", "UTC", NULL};
     
     for (int i = 0; areas[i] != NULL; i++) {
         gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->tz_area_combo), areas[i]);
     }
     
-    // CONEXIÓN CLAVE: Al cambiar región, ejecutar on_timezone_area_changed
     g_signal_connect(app->tz_area_combo, "changed", G_CALLBACK(on_timezone_area_changed), app);
 
-    // 2. Combo de CIUDADES (Se llena solo)
     app->tz_city_combo = gtk_combo_box_text_new();
 
-    // Empaquetar todo
-    gtk_box_pack_start(GTK_BOX(hbox_tz), app->tz_area_combo, FALSE, FALSE, 0); // Región no expande
-    gtk_box_pack_start(GTK_BOX(hbox_tz), app->tz_city_combo, TRUE, TRUE, 0);   // Ciudad sí expande
-
+    gtk_box_pack_start(GTK_BOX(hbox_tz), app->tz_area_combo, FALSE, FALSE, 0); 
+    gtk_box_pack_start(GTK_BOX(hbox_tz), app->tz_city_combo, TRUE, TRUE, 0);   
     gtk_box_pack_start(GTK_BOX(page_system), hbox_tz, FALSE, FALSE, 0);
-    
-    // Seleccionar "America" (índice 1) por defecto para disparar la carga inicial
     gtk_combo_box_set_active(GTK_COMBO_BOX(app->tz_area_combo), 1); 
-    // ------------------------
+
   
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_system, gtk_label_new("3. System"));
 

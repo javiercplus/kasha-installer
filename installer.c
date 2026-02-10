@@ -100,38 +100,63 @@ gpointer install_thread(gpointer data) {
     log_to_ui(app, "--- STARTING LOCAL INSTALLATION ---", 0.1);
 
     // 1. FORMAT AND MOUNT PARTITIONS
-    log_to_ui(app, "Configuring partitions from user list...", 0.2);
+    log_to_ui(app, "Configuring partitions...", 0.2);
     GSList *l = app->part_config_list;
     while(l) {
         PartitionConfig *conf = (PartitionConfig*)l->data;
         
-        gchar *fs_cmd = NULL;
-        if (conf->format) {
-             log_to_ui(app, g_strdup_printf("Formatting %s as %s...", conf->device, conf->fstype), 0.25);
-             
-             if (strcmp(conf->fstype, "ext4") == 0) fs_cmd = "mkfs.ext4 -F";
-             else if (strcmp(conf->fstype, "btrfs") == 0) fs_cmd = "mkfs.btrfs -f";
-             else if (strcmp(conf->fstype, "xfs") == 0) fs_cmd = "mkfs.xfs -f";
-             else if (strcmp(conf->fstype, "f2fs") == 0) fs_cmd = "mkfs.f2fs -f";
-             else if (strcmp(conf->fstype, "vfat") == 0) fs_cmd = "mkfs.vfat -F32";
-             else if (strcmp(conf->fstype, "swap") == 0) fs_cmd = "mkswap";
-             
-             if (fs_cmd) {
-                 run_sync(app, "%s %s", fs_cmd, conf->device);
-             }
+        if (strcmp(conf->mountpoint, "/") == 0) {
+            if (conf->format) {
+                gchar *fs_cmd = NULL;
+                log_to_ui(app, g_strdup_printf("Formatting Root %s as %s...", conf->device, conf->fstype), 0.22);
+                
+                if (strcmp(conf->fstype, "ext4") == 0) fs_cmd = "mkfs.ext4 -F";
+                else if (strcmp(conf->fstype, "btrfs") == 0) fs_cmd = "mkfs.btrfs -f";
+                else if (strcmp(conf->fstype, "xfs") == 0) fs_cmd = "mkfs.xfs -f";
+                else if (strcmp(conf->fstype, "f2fs") == 0) fs_cmd = "mkfs.f2fs -f";
+                
+                if (fs_cmd) run_sync(app, "%s %s", fs_cmd, conf->device);
+            }
+
+            // 1.2 ROOT
+            log_to_ui(app, g_strdup_printf("Mounting Root %s...", conf->device), 0.25);
+            run_sync(app, "mount %s %s", conf->device, TARGETDIR);
         }
-        
-        // Mounting / Swapon
-        if (strcmp(conf->fstype, "swap") == 0) {
-            run_sync(app, "swapon %s", conf->device);
-        } else {
-            gchar *target_path = g_strdup_printf("%s%s", TARGETDIR, conf->mountpoint);
-            log_to_ui(app, g_strdup_printf("Mounting %s to %s...", conf->device, target_path), 0.28);
-            run_sync(app, "mkdir -p %s", target_path);
-            mount(conf->device, target_path, conf->fstype, 0, NULL);
-            g_free(target_path);
+        l = l->next;
+    }
+
+    l = app->part_config_list;
+    while(l) {
+        PartitionConfig *conf = (PartitionConfig*)l->data;
+        if (strcmp(conf->mountpoint, "/") != 0) {
+            
+            gchar *fs_cmd = NULL;
+            
+            // 2.1 Format EFI
+            if (conf->format) {
+                log_to_ui(app, g_strdup_printf("Formatting %s...", conf->mountpoint), 0.26);
+                
+                if (strcmp(conf->fstype, "ext4") == 0) fs_cmd = "mkfs.ext4 -F";
+                else if (strcmp(conf->fstype, "btrfs") == 0) fs_cmd = "mkfs.btrfs -f";
+                else if (strcmp(conf->fstype, "xfs") == 0) fs_cmd = "mkfs.xfs -f";
+                else if (strcmp(conf->fstype, "vfat") == 0) fs_cmd = "mkfs.vfat -F32"; // IMPORTANTE PARA EFI
+                else if (strcmp(conf->fstype, "swap") == 0) fs_cmd = "mkswap";
+                
+                if (fs_cmd) run_sync(app, "%s %s", fs_cmd, conf->device);
+            }
+
+            // 2.2 Mount
+            if (strcmp(conf->fstype, "swap") == 0) {
+                run_sync(app, "swapon %s", conf->device);
+            } else {
+                gchar *target_path = g_strdup_printf("%s%s", TARGETDIR, conf->mountpoint);
+                run_sync(app, "mkdir -p %s", target_path);
+                log_to_ui(app, g_strdup_printf("Mounting %s...", conf->mountpoint), 0.28);
+                run_sync(app, "mount %s %s", conf->device, target_path);
+                
+                g_free(target_path);
+            }
         }
-        
         l = l->next;
     }
 

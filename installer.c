@@ -169,9 +169,16 @@ gpointer install_thread(gpointer data) {
         app->installing = FALSE; return NULL;
     }
 
+  // 8.5 REMOVE LIVE USER AND CLEANUP
+    log_to_ui(app, "Removing live user (anon) from target system...", 0.88);
+    run_sync(app, "chroot %s userdel -r anon 2>/dev/null", TARGETDIR);
+    run_sync(app, "rm -f %s/etc/sudoers.d/99-void-live", TARGETDIR);
+    run_sync(app, "sed -i 's|GETTY_ARGS=\"--noclear -a anon\"|GETTY_ARGS=\"--noclear\"|g' %s/etc/sv/agetty-tty1/conf", TARGETDIR);
+     // run_sync(app, "rm -rf %s/home/anon", TARGETDIR);
+  
     // 3. CLEANUP LIVE FILES
     log_to_ui(app, "Cleaning up live image files...", 0.4);
-    run_sync(app, "rm -rf %s/home/anon", TARGETDIR);
+
     run_sync(app, "rm -f %s/etc/motd", TARGETDIR);
     run_sync(app, "rm -f %s/etc/issue", TARGETDIR);
     run_sync(app, "rm -f %s/usr/sbin/void-installer", TARGETDIR);

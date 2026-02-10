@@ -197,6 +197,26 @@ gpointer install_thread(gpointer data) {
     run_sync(app, "echo LANG=%s > %s/etc/locale.conf", locale, TARGETDIR);
     run_sync(app, "chroot %s xbps-reconfigure -f glibc-locales", TARGETDIR);
 
+  // ... (Después de configurar hostname y locale) ...
+
+    // --- TIMEZONE SETUP ---
+    char *tz_area = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->tz_area_combo));
+    char *tz_city = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->tz_city_combo));
+
+    if (tz_area && tz_city) {
+        log_to_ui(app, g_strdup_printf("Setting Timezone: %s/%s", tz_area, tz_city), 0.81);
+        
+        // El comando mágico: ln -sf /usr/share/zoneinfo/Region/Ciudad /mnt/target/etc/localtime
+        run_sync(app, "ln -sf /usr/share/zoneinfo/%s/%s %s/etc/localtime", tz_area, tz_city, TARGETDIR);
+        
+        g_free(tz_area);
+        g_free(tz_city);
+    } else {
+        log_to_ui(app, "Timezone not selected, defaulting to UTC.", 0.81);
+        run_sync(app, "ln -sf /usr/share/zoneinfo/UTC %s/etc/localtime", TARGETDIR);
+    }
+    // ----------------------
+
     // 8. USERS
     log_to_ui(app, "Setting Root Password (SHA512)...", 0.82);
     set_safe_password(app, "root", root_pass, TARGETDIR);

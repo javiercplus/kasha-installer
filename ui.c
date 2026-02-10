@@ -347,18 +347,46 @@ GtkWidget* create_welcome_page(AppData *app) {
 
     gtk_label_set_markup(GTK_LABEL(label), welcome_text);
     
-    // Empaquetar el label
     gtk_box_pack_start(GTK_BOX(vbox_text), label, FALSE, FALSE, 0);
     
-    // Empaquetar el bloque de texto en el HBox principal
-    // TRUE, TRUE es importante aquí para que el texto ocupe todo el espacio sobrante
     gtk_box_pack_start(GTK_BOX(hbox), vbox_text, TRUE, TRUE, 10);
-
-    // --- IMPORTANTE: Forzar que se muestre todo ---
     gtk_widget_show_all(hbox);
     
     return hbox;
 }
+
+void on_timezone_area_changed(GtkComboBox *widget, AppData *app) {
+    gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(app->tz_city_combo));
+    char *area = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->tz_area_combo));
+    if (!area) return;
+    char path[256];
+    snprintf(path, sizeof(path), "/usr/share/zoneinfo/%s", area);
+    
+    DIR *d = opendir(path);
+    if (d) {
+        struct dirent *dir;
+        GSList *city_list = NULL; 
+
+        while ((dir = readdir(d)) != NULL) {
+            if (dir->d_name[0] != '.') {
+                city_list = g_slist_prepend(city_list, g_strdup(dir->d_name));
+            }
+        }
+        closedir(d);
+
+        city_list = g_slist_sort(city_list, (GCompareFunc)strcmp);
+        GSList *l = city_list;
+        while (l) {
+            gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->tz_city_combo), (char *)l->data);
+            g_free(l->data);
+            l = l->next;
+        }
+        g_slist_free(city_list);
+    }
+    gtk_combo_box_set_active(GTK_COMBO_BOX(app->tz_city_combo), 0);
+    g_free(area);
+}
+
 //custom themes
 void load_custom_css() {
     GtkCssProvider *provider = gtk_css_provider_new();
@@ -493,8 +521,42 @@ void build_ui(AppData *app) {
     gtk_box_pack_start(GTK_BOX(hbox_locale), app->locale_combo, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(page_system), hbox_locale, FALSE, FALSE, 0);
 
+  // ... dentro de build_ui, en la sección TAB 3: SYSTEM ...
+
+    // --- TIMEZONE SECTION ---
+    GtkWidget *hbox_tz = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+    gtk_widget_set_margin_top(hbox_tz, 10); // Un poco de espacio
+    
+    gtk_box_pack_start(GTK_BOX(hbox_tz), gtk_label_new("Timezone:"), FALSE, FALSE, 0);
+
+    // 1. Combo de REGIONES (Áreas)
+    app->tz_area_combo = gtk_combo_box_text_new();
+    // Lista estándar de zonas
+    const char *areas[] = {"Africa", "America", "Antarctica", "Arctic", "Asia", "Atlantic", "Australia", "Europe", "Indian", "Pacific", "UTC", NULL};
+    
+    for (int i = 0; areas[i] != NULL; i++) {
+        gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->tz_area_combo), areas[i]);
+    }
+    
+    // CONEXIÓN CLAVE: Al cambiar región, ejecutar on_timezone_area_changed
+    g_signal_connect(app->tz_area_combo, "changed", G_CALLBACK(on_timezone_area_changed), app);
+
+    // 2. Combo de CIUDADES (Se llena solo)
+    app->tz_city_combo = gtk_combo_box_text_new();
+
+    // Empaquetar todo
+    gtk_box_pack_start(GTK_BOX(hbox_tz), app->tz_area_combo, FALSE, FALSE, 0); // Región no expande
+    gtk_box_pack_start(GTK_BOX(hbox_tz), app->tz_city_combo, TRUE, TRUE, 0);   // Ciudad sí expande
+
+    gtk_box_pack_start(GTK_BOX(page_system), hbox_tz, FALSE, FALSE, 0);
+    
+    // Seleccionar "America" (índice 1) por defecto para disparar la carga inicial
+    gtk_combo_box_set_active(GTK_COMBO_BOX(app->tz_area_combo), 1); 
+    // ------------------------
+  
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_system, gtk_label_new("3. System"));
 
+  
     // --- TAB 4: USERS ---
     GtkWidget *page_user = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
     gtk_container_set_border_width(GTK_CONTAINER(page_user), 15);

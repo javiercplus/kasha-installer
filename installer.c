@@ -120,6 +120,7 @@ gpointer install_thread(gpointer data) {
 
             // 1.2 ROOT
             log_to_ui(app, g_strdup_printf("Mounting Root %s...", conf->device), 0.25);
+            run_sync(app, "mkdir -p %s", TARGETDIR);
             run_sync(app, "mount %s %s", conf->device, TARGETDIR);
         }
         l = l->next;

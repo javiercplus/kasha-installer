@@ -171,6 +171,7 @@ gpointer install_thread(gpointer data) {
 
     // 3. CLEANUP LIVE FILES
     log_to_ui(app, "Cleaning up live image files...", 0.4);
+    run_sync(app, "rm -rf %s/home/anon", TARGETDIR);
     run_sync(app, "rm -f %s/etc/motd", TARGETDIR);
     run_sync(app, "rm -f %s/etc/issue", TARGETDIR);
     run_sync(app, "rm -f %s/usr/sbin/void-installer", TARGETDIR);

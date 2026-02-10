@@ -30,7 +30,8 @@ typedef struct {
     // Tab 3: System
     GtkWidget *hostname_entry;
     GtkWidget *locale_combo;    
-    
+    GtkWidget *tz_area_combo; 
+    GtkWidget *tz_city_combo;
     // Tab 4: Users
     GtkWidget *root_pass_entry;
     GtkWidget *root_pass_confirm_entry;

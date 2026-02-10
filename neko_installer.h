@@ -5,13 +5,11 @@
 #define NEKO_INSTALLER_H
 
 #include <gtk/gtk.h>
-
-// Estructura para guardar la configuración de una partición
 typedef struct {
-    gchar *device;       // ej: /dev/sda1
-    gchar *fstype;       // ej: ext4, btrfs, swap
-    gchar *mountpoint;   // ej: /, /home, swap
-    gboolean format;      // TRUE si se debe formatear
+    gchar *device;     
+    gchar *fstype;      
+    gchar *mountpoint;  
+    gboolean format;     
 } PartitionConfig;
 
 typedef struct {
@@ -20,8 +18,8 @@ typedef struct {
     
     // Tab 1: Disks
     GtkWidget *disk_combo;     
-    GtkWidget *mount_list;     // TreeView para listar particiones configuradas
-    GSList *part_config_list; // Lista enlazada con las configuraciones
+    GtkWidget *mount_list;     
+    GSList *part_config_list;
     
     // Tab 2: Bootloader
     GtkWidget *grub_disk_combo;

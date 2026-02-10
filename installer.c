@@ -200,10 +200,20 @@ gpointer install_thread(gpointer data) {
     snprintf(disk_path, sizeof(disk_path), "/dev/%s", disk_name);
     
     if (app->is_efi) {
+        log_to_ui(app, "Downloading GRUB EFI support...", 0.91);
+        if (strcmp(app->efi_target, "x86_64-efi") == 0) {
+   
+            run_sync(app, "chroot %s xbps-install -y grub-x86_64-efi", TARGETDIR);
+        } else {
+            run_sync(app, "chroot %s xbps-install -y grub-i386-efi", TARGETDIR);
+        }
+
         run_sync(app, "chroot %s grub-install --target=%s --efi-directory=/boot/efi --bootloader-id=void_grub --recheck %s", TARGETDIR, app->efi_target, disk_path);
     } else {
         run_sync(app, "chroot %s grub-install --recheck %s", TARGETDIR, disk_path);
     }
+  
+    run_sync(app, "mkdir -p %s/boot/grub", TARGETDIR);
     run_sync(app, "chroot %s grub-mkconfig -o /boot/grub/grub.cfg", TARGETDIR);
 
     // 10. SYNC AND UNMOUNT

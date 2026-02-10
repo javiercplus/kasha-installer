@@ -168,13 +168,6 @@ gpointer install_thread(gpointer data) {
         log_to_ui(app, "ERROR: Failed to copy filesystem.", 0.0);
         app->installing = FALSE; return NULL;
     }
-
-  // 8.5 REMOVE LIVE USER AND CLEANUP
-    log_to_ui(app, "Removing live user (anon) from target system...", 0.88);
-    run_sync(app, "chroot %s userdel -r anon 2>/dev/null", TARGETDIR);
-    run_sync(app, "rm -f %s/etc/sudoers.d/99-void-live", TARGETDIR);
-    run_sync(app, "sed -i 's|GETTY_ARGS=\"--noclear -a anon\"|GETTY_ARGS=\"--noclear\"|g' %s/etc/sv/agetty-tty1/conf", TARGETDIR);
-     // run_sync(app, "rm -rf %s/home/anon", TARGETDIR);
   
     // 3. CLEANUP LIVE FILES
     log_to_ui(app, "Cleaning up live image files...", 0.4);
@@ -247,7 +240,13 @@ gpointer install_thread(gpointer data) {
         run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
     }
     run_sync(app, "rm -f %s/etc/polkit-1/rules.d/void-live.rules", TARGETDIR);
-
+    // 8.5 REMOVE LIVE USER AND CLEANUP
+    log_to_ui(app, "Removing live user (anon) from target system...", 0.88);
+    run_sync(app, "chroot %s userdel -r anon 2>/dev/null", TARGETDIR);
+    run_sync(app, "rm -f %s/etc/sudoers.d/99-void-live", TARGETDIR);
+    run_sync(app, "sed -i 's|GETTY_ARGS=\"--noclear -a anon\"|GETTY_ARGS=\"--noclear\"|g' %s/etc/sv/agetty-tty1/conf", TARGETDIR);
+     // run_sync(app, "rm -rf %s/home/anon", TARGETDIR);
+  
     // 9. BOOTLOADER
     log_to_ui(app, "Installing GRUB Bootloader...", 0.9);
     char disk_path[64];

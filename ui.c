@@ -769,7 +769,7 @@ void build_ui(AppData *app) {
     gtk_cell_layout_add_attribute(GTK_CELL_LAYOUT(app->disk_combo), renderer, "text", 1);
     
     g_signal_connect(app->disk_combo, "changed", G_CALLBACK(on_disk_changed), app);
-    gtk_box_pack_start(GTK_BOX(hbox_disk), gtk_label_new("Hard Disk:"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(hbox_disk), gtk_label_new("Disk:"), FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(hbox_disk), app->disk_combo, TRUE, TRUE, 0);
 
     GtkWidget *btn_part = gtk_button_new_with_label("Partition (GParted)");

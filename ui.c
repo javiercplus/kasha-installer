@@ -1,12 +1,12 @@
 /*
  * ui.c
- * FINAL VERSION: Fixed GtkEntry pointers and g_ascii_strdown args.
  */
 #include "neko_installer.h"
 #include <stdio.h>
 #include <dirent.h>      
 #include <sys/stat.h>   
-#include <string.h>      
+#include <string.h>
+#include <stdlib.h>      
 #include "logo.h"
 
 //read partitions
@@ -62,14 +62,109 @@ void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_te
     g_signal_stop_emission_by_name(editable, "insert-text");
 }
 
+// Helper to check for NTFS partition on the selected disk
+char* find_ntfs_partition(const char *disk_name) {
+    char cmd[256];
+    // lsblk -rn -o NAME,FSTYPE /dev/sda | grep ntfs
+    snprintf(cmd, sizeof(cmd), "lsblk -rn -o NAME,FSTYPE /dev/%s | grep ntfs | head -n1 | awk '{print $1}'", disk_name);
+    FILE *fp = popen(cmd, "r");
+    if (!fp) return NULL;
+    
+    char part_name[128];
+    if (fgets(part_name, sizeof(part_name), fp)) {
+        part_name[strcspn(part_name, "\n")] = 0;
+        pclose(fp);
+        if (strlen(part_name) > 0) {
+            // lsblk returns name (sda1), we need /dev/sda1
+            return g_strdup_printf("/dev/%s", part_name);
+        }
+    } else {
+        pclose(fp);
+    }
+    return NULL;
+}
+
+// Helper to generate partition name (e.g., sda -> sda1, nvme0n1 -> nvme0n1p1)
+char* get_partition_path(const char *disk, int part_num) {
+    if (g_str_has_suffix(disk, "0") || g_str_has_suffix(disk, "1") || 
+        g_str_has_suffix(disk, "2") || g_str_has_suffix(disk, "3") ||
+        g_str_has_suffix(disk, "4") || g_str_has_suffix(disk, "5") ||
+        g_str_has_suffix(disk, "6") || g_str_has_suffix(disk, "7") ||
+        g_str_has_suffix(disk, "8") || g_str_has_suffix(disk, "9")) {
+        // likely nvme0n1 or mmcblk0
+        return g_strdup_printf("/dev/%sp%d", disk, part_num);
+    } else {
+        // likely sda, vda
+        return g_strdup_printf("/dev/%s%d", disk, part_num);
+    }
+}
+
+void populate_defaults(AppData *app, const char *disk_name) {
+    // Clear existing
+    on_reset_partitions_clicked(NULL, app);
+    
+    char *p1 = get_partition_path(disk_name, 1);
+    char *p2 = get_partition_path(disk_name, 2);
+    
+    if (app->is_efi) {
+        // UEFI Scheme
+        // 1. ESP
+        add_partition_config(app, p1, "vfat", "/boot/efi", TRUE, FALSE, NULL);
+        // 2. Root
+        add_partition_config(app, p2, "ext4", "/", TRUE, FALSE, NULL);
+    } else {
+        // BIOS Scheme
+        // 1. Root
+        add_partition_config(app, p1, "ext4", "/", TRUE, FALSE, NULL);
+    }
+    
+    g_free(p1);
+    g_free(p2);
+    
+    app->install_mode = INSTALL_MODE_ERASE;
+}
+
 void on_disk_changed(GtkComboBox *widget, AppData *app) {
     GtkTreeIter iter;
     if (gtk_combo_box_get_active_iter(widget, &iter)) {
         GtkTreeModel *model = gtk_combo_box_get_model(widget);
         gchar *disk_name;
         gtk_tree_model_get(model, &iter, 0, &disk_name, -1);
-        app->selected_disk = disk_name; 
+        
+        if (app->selected_disk) g_free(app->selected_disk);
+        app->selected_disk = g_strdup(disk_name); 
         g_print("Disk selected: %s\n", disk_name);
+        g_free(disk_name);
+
+        // Auto-Detection Logic
+        if (app->detected_ntfs_partition) {
+            g_free(app->detected_ntfs_partition);
+            app->detected_ntfs_partition = NULL;
+        }
+
+        char *ntfs_part = find_ntfs_partition(app->selected_disk);
+        
+        if (ntfs_part) {
+            app->detected_ntfs_partition = ntfs_part;
+            
+            GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(app->window),
+                GTK_DIALOG_MODAL, GTK_MESSAGE_WARNING, GTK_BUTTONS_OK,
+                "Windows (NTFS) partition detected on %s.", ntfs_part);
+            gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog), 
+                "To dual boot, please manually resize your Windows partition using GParted or Windows Disk Management to create free space.\n\n"
+                "Then select 'Manual Partitioning' to install Neko-void in the free space.\n\n"
+                "If you wish to erase the entire disk, proceed with the defaults.");
+            
+            gtk_dialog_run(GTK_DIALOG(dialog));
+            gtk_widget_destroy(dialog);
+            
+            // Populate defaults for Erase mode anyway, user can clear if they want Manual
+            populate_defaults(app, app->selected_disk);
+            
+        } else {
+            // No NTFS -> Default Erase
+            populate_defaults(app, app->selected_disk);
+        }
     }
 }
 
@@ -142,12 +237,14 @@ GtkWidget* create_form_row(const gchar *label_text, GtkWidget **entry_ptr) {
 }
 
 //add settings of partition
-void add_partition_config(AppData *app, const gchar *dev, const gchar *fs, const gchar *mp, gboolean fmt) {
+void add_partition_config(AppData *app, const gchar *dev, const gchar *fs, const gchar *mp, gboolean fmt, gboolean encrypt, const gchar *pass) {
     PartitionConfig *conf = g_new(PartitionConfig, 1);
     conf->device = g_strdup(dev);
     conf->fstype = g_strdup(fs);
     conf->mountpoint = g_strdup(mp);
     conf->format = fmt;
+    conf->encrypt = encrypt;
+    conf->luks_pass = (encrypt && pass) ? g_strdup(pass) : NULL;
     
     app->part_config_list = g_slist_append(app->part_config_list, conf);
     
@@ -155,7 +252,27 @@ void add_partition_config(AppData *app, const gchar *dev, const gchar *fs, const
     GtkTreeIter iter;
     gtk_list_store_append(store, &iter);
     gchar *fmt_str = fmt ? "YES" : "NO";
-    gtk_list_store_set(store, &iter, 0, dev, 1, mp, 2, fs, 3, fmt_str, -1);
+    gchar *enc_str = encrypt ? "LUKS" : "-";
+    gtk_list_store_set(store, &iter, 0, dev, 1, mp, 2, fs, 3, fmt_str, 4, enc_str, -1);
+}
+
+void get_partition_fstype(const char *device_path, char *out_type, size_t max_len) {
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "lsblk -nno FSTYPE %s", device_path);
+    FILE *fp = popen(cmd, "r");
+    if (fp) {
+        if (fgets(out_type, max_len, fp) != NULL) {
+            size_t len = strlen(out_type);
+            if (len > 0 && out_type[len-1] == '\n') {
+                out_type[len-1] = '\0';
+            }
+        } else {
+            out_type[0] = '\0';
+        }
+        pclose(fp);
+    } else {
+        out_type[0] = '\0';
+    }
 }
 
 void populate_partitions_combo(GtkComboBoxText *combo, const char *disk_name) {
@@ -174,6 +291,18 @@ void populate_partitions_combo(GtkComboBoxText *combo, const char *disk_name) {
             char size_path[550];
             snprintf(size_path, sizeof(size_path), "%s/size", part_path);
             if (access(size_path, F_OK) == 0) {
+                char dev_full_path[512];
+                snprintf(dev_full_path, sizeof(dev_full_path), "/dev/%s", ent->d_name);
+                
+                char fstype[64];
+                get_partition_fstype(dev_full_path, fstype, sizeof(fstype));
+                
+                if (strcmp(fstype, "iso9660") == 0 || 
+                    strcmp(fstype, "crypto_LUKS") == 0 || 
+                    strcmp(fstype, "LVM2_member") == 0) {
+                    continue;
+                }
+
                 gtk_combo_box_text_append_text(combo, ent->d_name);
             }
         }
@@ -182,8 +311,44 @@ void populate_partitions_combo(GtkComboBoxText *combo, const char *disk_name) {
 }
 
 
-void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
-    AppData *app = (AppData *)user_data;
+// Helper to find config by device path (simple search)
+PartitionConfig* find_config_by_device(AppData *app, const gchar *device) {
+    GSList *l = app->part_config_list;
+    while (l) {
+        PartitionConfig *c = (PartitionConfig*)l->data;
+        if (strcmp(c->device, device) == 0) return c;
+        l = l->next;
+    }
+    return NULL;
+}
+
+// Helper to remove config from list
+void remove_partition_config(AppData *app, PartitionConfig *conf) {
+    app->part_config_list = g_slist_remove(app->part_config_list, conf);
+    g_free(conf->device);
+    g_free(conf->fstype);
+    g_free(conf->mountpoint);
+    if(conf->luks_pass) g_free(conf->luks_pass);
+    g_free(conf);
+}
+
+void refresh_partition_list_ui(AppData *app) {
+    GtkListStore *store = GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW(app->mount_list)));
+    gtk_list_store_clear(store);
+    
+    GSList *l = app->part_config_list;
+    while (l) {
+        PartitionConfig *c = (PartitionConfig*)l->data;
+        GtkTreeIter iter;
+        gtk_list_store_append(store, &iter);
+        gchar *fmt_str = c->format ? "YES" : "NO";
+        gchar *enc_str = c->encrypt ? "LUKS" : "-";
+        gtk_list_store_set(store, &iter, 0, c->device, 1, c->mountpoint, 2, c->fstype, 3, fmt_str, 4, enc_str, -1);
+        l = l->next;
+    }
+}
+
+void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
     if (!app->selected_disk) {
         GtkWidget *err = gtk_message_dialog_new(GTK_WINDOW(app->window),
             GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_OK,
@@ -193,15 +358,23 @@ void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
         return;
     }
 
-    GtkWidget *dialog = gtk_dialog_new_with_buttons("Add Partition", GTK_WINDOW(app->window),
+    const char *title = edit_conf ? "Edit Partition" : "Add Partition";
+    const char *btn_label = edit_conf ? "_Update" : "_Add";
+
+    GtkWidget *dialog = gtk_dialog_new_with_buttons(title, GTK_WINDOW(app->window),
                                                  GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
                                                  "_Cancel", GTK_RESPONSE_CANCEL,
-                                                 "_Add", GTK_RESPONSE_ACCEPT,
+                                                 btn_label, GTK_RESPONSE_ACCEPT,
                                                  NULL);
     gtk_container_set_border_width(GTK_CONTAINER(dialog), 10);
     GtkWidget *content = gtk_dialog_get_content_area(GTK_DIALOG(dialog));
-    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
-    gtk_container_add(GTK_CONTAINER(content), vbox);
+    
+    GtkWidget *notebook = gtk_notebook_new();
+    gtk_container_add(GTK_CONTAINER(content), notebook);
+
+    // --- Tab 1: General ---
+    GtkWidget *vbox_gen = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_container_set_border_width(GTK_CONTAINER(vbox_gen), 10);
 
     GtkWidget *h_dev = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(h_dev), gtk_label_new("Select Partition:"), FALSE, FALSE, 0);
@@ -209,11 +382,12 @@ void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
     GtkComboBoxText *combo_part = GTK_COMBO_BOX_TEXT(gtk_combo_box_text_new());
     populate_partitions_combo(combo_part, app->selected_disk);
     
-    gtk_combo_box_set_active(GTK_COMBO_BOX(combo_part), 0);
+    // Select existing if editing
     
     gtk_box_pack_start(GTK_BOX(h_dev), GTK_WIDGET(combo_part), TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(vbox), h_dev, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox_gen), h_dev, FALSE, FALSE, 0);
 
+    // ... Filesystem ...
     GtkWidget *h_fs = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(h_fs), gtk_label_new("Filesystem:"), FALSE, FALSE, 0);
     GtkComboBoxText *combo_fs = GTK_COMBO_BOX_TEXT(gtk_combo_box_text_new());
@@ -225,18 +399,73 @@ void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
     gtk_combo_box_text_append_text(combo_fs, "swap"); 
     gtk_combo_box_set_active(GTK_COMBO_BOX(combo_fs), 0);
     gtk_box_pack_start(GTK_BOX(h_fs), GTK_WIDGET(combo_fs), TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(vbox), h_fs, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox_gen), h_fs, FALSE, FALSE, 0);
 
+    // ... Mount Point ...
     GtkWidget *h_mp = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(h_mp), gtk_label_new("Mount Point:"), FALSE, FALSE, 0);
     GtkWidget *entry_mp_w = gtk_entry_new();
     gtk_entry_set_text(GTK_ENTRY(entry_mp_w), "/");
     gtk_box_pack_start(GTK_BOX(h_mp), entry_mp_w, TRUE, TRUE, 0);
-    gtk_box_pack_start(GTK_BOX(vbox), h_mp, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox_gen), h_mp, FALSE, FALSE, 0);
 
+    // ... Format ...
     GtkCheckButton *chk_fmt = GTK_CHECK_BUTTON(gtk_check_button_new_with_label("Format Partition?"));
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(chk_fmt), TRUE);
-    gtk_box_pack_start(GTK_BOX(vbox), GTK_WIDGET(chk_fmt), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox_gen), GTK_WIDGET(chk_fmt), FALSE, FALSE, 0);
+
+    // --- Tab 2: Encryption ---
+    GtkWidget *vbox_enc = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_container_set_border_width(GTK_CONTAINER(vbox_enc), 10);
+
+    GtkCheckButton *chk_encrypt = GTK_CHECK_BUTTON(gtk_check_button_new_with_label("Encrypt (LUKS)?"));
+    gtk_box_pack_start(GTK_BOX(vbox_enc), GTK_WIDGET(chk_encrypt), FALSE, FALSE, 0);
+
+    GtkWidget *vbox_pass = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    gtk_widget_set_sensitive(vbox_pass, FALSE);
+    gtk_widget_set_margin_start(vbox_pass, 20);
+    
+    GtkWidget *entry_pass = gtk_entry_new();
+    gtk_entry_set_placeholder_text(GTK_ENTRY(entry_pass), "Encryption Password");
+    gtk_entry_set_visibility(GTK_ENTRY(entry_pass), FALSE);
+    gtk_box_pack_start(GTK_BOX(vbox_pass), entry_pass, FALSE, FALSE, 0);
+
+    GtkWidget *entry_pass_conf = gtk_entry_new();
+    gtk_entry_set_placeholder_text(GTK_ENTRY(entry_pass_conf), "Confirm Password");
+    gtk_entry_set_visibility(GTK_ENTRY(entry_pass_conf), FALSE);
+    gtk_box_pack_start(GTK_BOX(vbox_pass), entry_pass_conf, FALSE, FALSE, 0);
+
+    gtk_box_pack_start(GTK_BOX(vbox_enc), vbox_pass, FALSE, FALSE, 0);
+
+    g_object_bind_property(chk_encrypt, "active", vbox_pass, "sensitive", G_BINDING_DEFAULT);
+
+    gtk_notebook_append_page(GTK_NOTEBOOK(notebook), vbox_gen, gtk_label_new("General"));
+    gtk_notebook_append_page(GTK_NOTEBOOK(notebook), vbox_enc, gtk_label_new("Encryption"));
+
+    // PRE-FILL IF EDITING
+    if (edit_conf) {
+        // Device: Try to set active.
+        const char *short_dev = edit_conf->device; // e.g /dev/sda1
+        if (strncmp(short_dev, "/dev/", 5) == 0) short_dev += 5; // sda1
+        
+        // FS
+        if (strcmp(edit_conf->fstype, "ext4") == 0) gtk_combo_box_set_active(GTK_COMBO_BOX(combo_fs), 0);
+        else if (strcmp(edit_conf->fstype, "btrfs") == 0) gtk_combo_box_set_active(GTK_COMBO_BOX(combo_fs), 1);
+        else if (strcmp(edit_conf->fstype, "xfs") == 0) gtk_combo_box_set_active(GTK_COMBO_BOX(combo_fs), 2);
+        else if (strcmp(edit_conf->fstype, "f2fs") == 0) gtk_combo_box_set_active(GTK_COMBO_BOX(combo_fs), 3);
+        else if (strcmp(edit_conf->fstype, "vfat") == 0) gtk_combo_box_set_active(GTK_COMBO_BOX(combo_fs), 4);
+        else if (strcmp(edit_conf->fstype, "swap") == 0) gtk_combo_box_set_active(GTK_COMBO_BOX(combo_fs), 5);
+
+        gtk_entry_set_text(GTK_ENTRY(entry_mp_w), edit_conf->mountpoint);
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(chk_fmt), edit_conf->format);
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(chk_encrypt), edit_conf->encrypt);
+        if (edit_conf->luks_pass) {
+            gtk_entry_set_text(GTK_ENTRY(entry_pass), edit_conf->luks_pass);
+            gtk_entry_set_text(GTK_ENTRY(entry_pass_conf), edit_conf->luks_pass);
+        }
+    } else {
+        gtk_combo_box_set_active(GTK_COMBO_BOX(combo_part), 0);
+    }
 
     gtk_widget_show_all(dialog);
     
@@ -245,26 +474,102 @@ void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
         char *fs = gtk_combo_box_text_get_active_text(combo_fs);
         const gchar *mp = gtk_entry_get_text(GTK_ENTRY(entry_mp_w));
         gboolean fmt = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(chk_fmt));
-        
-        if (dev_short && mp && strlen(mp) > 0) {
+        gboolean encrypt = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(chk_encrypt));
+        const gchar *pass = gtk_entry_get_text(GTK_ENTRY(entry_pass));
+        const gchar *pass_conf = gtk_entry_get_text(GTK_ENTRY(entry_pass_conf));
+
+        if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
+             GtkWidget *err = gtk_message_dialog_new(GTK_WINDOW(dialog),
+                GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_OK,
+                "Encryption passwords do not match or are empty!");
+            gtk_dialog_run(GTK_DIALOG(err));
+            gtk_widget_destroy(err);
+        } 
+        else if (dev_short && mp && strlen(mp) > 0) {
+            app->install_mode = INSTALL_MODE_MANUAL;
+
             gchar *full_dev = g_strdup_printf("/dev/%s", dev_short);
 
-            if (strcmp(fs, "swap") == 0) {
-                add_partition_config(app, full_dev, fs, "[SWAP]", fmt);
+            if (edit_conf) {
+                // UPDATE EXISTING
+                g_free(edit_conf->device);
+                g_free(edit_conf->fstype);
+                g_free(edit_conf->mountpoint);
+                if (edit_conf->luks_pass) g_free(edit_conf->luks_pass);
+                
+                edit_conf->device = full_dev;
+                edit_conf->device = g_strdup(full_dev);
+                edit_conf->fstype = g_strdup(fs);
+                edit_conf->mountpoint = g_strdup(mp);
+                edit_conf->format = fmt;
+                edit_conf->encrypt = encrypt;
+                edit_conf->luks_pass = (encrypt && pass) ? g_strdup(pass) : NULL;
+                
+                g_free(full_dev);
             } else {
-                add_partition_config(app, full_dev, fs, mp, fmt);
+                // ADD NEW
+                if (strcmp(fs, "swap") == 0) {
+                    add_partition_config(app, full_dev, fs, "[SWAP]", fmt, encrypt, pass);
+                } else {
+                    add_partition_config(app, full_dev, fs, mp, fmt, encrypt, pass);
+                }
+                g_free(full_dev);
             }
-            g_free(full_dev);
+            
             g_free(dev_short); 
             g_free(fs);
+            
+            if (edit_conf) refresh_partition_list_ui(app);
         }
     }
     gtk_widget_destroy(dialog);
 }
+
+void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
+    show_partition_dialog((AppData *)user_data, NULL);
+}
+
+void on_edit_partition_clicked(GtkWidget *widget, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    GtkTreeSelection *sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(app->mount_list));
+    GtkTreeModel *model;
+    GtkTreeIter iter;
+    
+    if (gtk_tree_selection_get_selected(sel, &model, &iter)) {
+        gchar *dev;
+        gtk_tree_model_get(model, &iter, 0, &dev, -1);
+        
+        PartitionConfig *conf = find_config_by_device(app, dev);
+        if (conf) {
+            show_partition_dialog(app, conf);
+        }
+        g_free(dev);
+    }
+}
+
+void on_delete_partition_clicked(GtkWidget *widget, gpointer user_data) {
+    AppData *app = (AppData *)user_data;
+    GtkTreeSelection *sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(app->mount_list));
+    GtkTreeModel *model;
+    GtkTreeIter iter;
+    
+    if (gtk_tree_selection_get_selected(sel, &model, &iter)) {
+        gchar *dev;
+        gtk_tree_model_get(model, &iter, 0, &dev, -1);
+        
+        PartitionConfig *conf = find_config_by_device(app, dev);
+        if (conf) {
+            app->install_mode = INSTALL_MODE_MANUAL;
+            remove_partition_config(app, conf);
+            gtk_list_store_remove(GTK_LIST_STORE(model), &iter);
+        }
+        g_free(dev);
+    }
+}
 void open_partition_manager(GtkWidget *widget, AppData *app) {
     if (!app->mount_list) return;
 
-    GtkListStore *store = gtk_list_store_new(4, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING); 
+    GtkListStore *store = gtk_list_store_new(5, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING); 
     gtk_tree_view_set_model(GTK_TREE_VIEW(app->mount_list), GTK_TREE_MODEL(store));
 
     GtkCellRenderer *renderer;
@@ -284,6 +589,10 @@ void open_partition_manager(GtkWidget *widget, AppData *app) {
 
     renderer = gtk_cell_renderer_text_new();
     col = gtk_tree_view_column_new_with_attributes("Format?", renderer, "text", 3, NULL);
+    gtk_tree_view_append_column(GTK_TREE_VIEW(app->mount_list), col);
+
+    renderer = gtk_cell_renderer_text_new();
+    col = gtk_tree_view_column_new_with_attributes("Encrypted?", renderer, "text", 4, NULL);
     gtk_tree_view_append_column(GTK_TREE_VIEW(app->mount_list), col);
 }
 
@@ -400,6 +709,9 @@ void load_custom_css() {
 
 
 void on_reset_partitions_clicked(GtkWidget *widget, AppData *app) {
+    // Switch to CUSTOM mode to avoid auto-partitioning override
+    app->install_mode = INSTALL_MODE_MANUAL;
+    
     GtkListStore *store = GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW(app->mount_list)));
     gtk_list_store_clear(store);
     if (app->part_config_list) {
@@ -409,6 +721,7 @@ void on_reset_partitions_clicked(GtkWidget *widget, AppData *app) {
             g_free(conf->device);
             g_free(conf->fstype);
             g_free(conf->mountpoint);
+            if(conf->luks_pass) g_free(conf->luks_pass);
             g_free(conf);
             l = l->next;
         }
@@ -468,9 +781,17 @@ void build_ui(AppData *app) {
     // Partition Manager UI
     GtkWidget *hbox_pm = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_box_pack_start(GTK_BOX(hbox_pm), gtk_label_new("Mount Points:"), FALSE, FALSE, 0);
-    GtkWidget *btn_add = gtk_button_new_with_label("Add/Edit Partition");
+    GtkWidget *btn_add = gtk_button_new_with_label("Add");
     g_signal_connect(btn_add, "clicked", G_CALLBACK(on_add_partition_clicked), app);
     gtk_box_pack_start(GTK_BOX(hbox_pm), btn_add, FALSE, FALSE, 0);
+
+    GtkWidget *btn_edit = gtk_button_new_with_label("Edit");
+    g_signal_connect(btn_edit, "clicked", G_CALLBACK(on_edit_partition_clicked), app);
+    gtk_box_pack_start(GTK_BOX(hbox_pm), btn_edit, FALSE, FALSE, 0);
+
+    GtkWidget *btn_del = gtk_button_new_with_label("Delete");
+    g_signal_connect(btn_del, "clicked", G_CALLBACK(on_delete_partition_clicked), app);
+    gtk_box_pack_start(GTK_BOX(hbox_pm), btn_del, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(page_disk), hbox_pm, FALSE, FALSE, 0);
     GtkWidget *btn_reset = gtk_button_new_with_label("Reset mount points");
     g_signal_connect(btn_reset, "clicked", G_CALLBACK(on_reset_partitions_clicked), app);
@@ -568,6 +889,11 @@ void build_ui(AppData *app) {
     gtk_box_pack_start(GTK_BOX(vbox_user), create_form_row("Confirm Password:", &app->user_pass_confirm_entry), FALSE, FALSE, 0);
     gtk_entry_set_visibility(GTK_ENTRY(app->user_pass_entry), FALSE);
     gtk_entry_set_visibility(GTK_ENTRY(app->user_pass_confirm_entry), FALSE);
+
+    app->autologin_check = gtk_check_button_new_with_label("Log in automatically");
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->autologin_check), TRUE);
+    gtk_box_pack_start(GTK_BOX(vbox_user), app->autologin_check, FALSE, FALSE, 0);
+
     gtk_box_pack_start(GTK_BOX(page_user), frame_user, FALSE, FALSE, 0);
 
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_user, gtk_label_new("4. Users"));

@@ -40,7 +40,7 @@ void read_efi_bits(AppData *app) {
                 ui_text = g_strdup("EFI System Detected (64-bit).");
             }
             
-            // ACTUALIZAR UI
+            // Update UI
             if (app->label_boot_status)
                 gtk_label_set_text(GTK_LABEL(app->label_boot_status), ui_text);
                 

@@ -10,7 +10,15 @@ typedef struct {
     gchar *fstype;      
     gchar *mountpoint;  
     gboolean format;     
+    gboolean encrypt;
+    gchar *luks_pass;
 } PartitionConfig;
+
+typedef enum {
+    INSTALL_MODE_MANUAL,
+    INSTALL_MODE_ERASE,
+    INSTALL_MODE_DUAL_BOOT
+} InstallMode;
 
 typedef struct {
     GtkWidget *window;
@@ -37,7 +45,8 @@ typedef struct {
     GtkWidget *user_fullname_entry;
     GtkWidget *user_pass_entry;
     GtkWidget *user_pass_confirm_entry;
-    
+    GtkWidget *autologin_check;
+        
     // Tab 5: Installation
     GtkWidget *console_text;
     GtkWidget *progress_bar;
@@ -52,6 +61,11 @@ typedef struct {
     gchar *efi_target; 
     gchar *selected_disk;       
     gboolean installing;
+    
+    // Auto-Partitioning
+    InstallMode install_mode;
+    gchar *detected_ntfs_partition;
+    glong ntfs_resize_mb; // Target size for NTFS in MB
 } AppData;
 
 typedef struct {
@@ -76,7 +90,8 @@ void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_te
 
 // Partition Manager
 void open_partition_manager(GtkWidget *widget, AppData *app);
-void add_partition_config(AppData *app, const gchar *dev, const gchar *fs, const gchar *mp, gboolean fmt);
+void add_partition_config(AppData *app, const gchar *dev, const gchar *fs, const gchar *mp, gboolean fmt, gboolean encrypt, const gchar *pass);
+void on_reset_partitions_clicked(GtkWidget *widget, AppData *app);
 
 // Installation
 void start_installation(GtkWidget *widget, AppData *app); 

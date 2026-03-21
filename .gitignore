@@ -1,0 +1,10 @@
+
+# Object files
+*.o
+
+# Compiled Binary
+neko_installer
+
+# Editor Temporary Files
+*~
+*.swp

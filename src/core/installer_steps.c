@@ -20,16 +20,16 @@ int step_partitioning(AppData *app, const char *disk_name) {
     
     if (app->install_mode == INSTALL_MODE_ERASE) {
         // ERASE / CREATE NEW TABLE
-        FILE *sf = popen(g_strdup_printf("sfdisk %s", disk_dev), "w");
+        FILE *sf = popen(g_strdup_printf("sfdisk --wipe always %s", disk_dev), "w");
         if (sf) {
              if (app->is_efi) fprintf(sf, "label: gpt\n");
              else fprintf(sf, "label: dos\n");
              
              if (app->is_efi) {
-                 fprintf(sf, "size=512M, type=U\n"); // ESP
-                 fprintf(sf, "type=L\n"); // Root (Rest)
+                 fprintf(sf, ",512M,U\n"); // ESP
+                 fprintf(sf, ",,L\n"); // Root (Rest)
              } else {
-                 fprintf(sf, "size=100%%, type=L, bootable\n"); // Root – MBR Boot Flag
+                 fprintf(sf, ",,L,*\n"); // Root – MBR Boot Flag
              }
              
              pclose(sf);
@@ -42,10 +42,9 @@ int step_partitioning(AppData *app, const char *disk_name) {
         FILE *sf = popen(g_strdup_printf("sfdisk -a %s", disk_dev), "w");
         if (sf) {
              if (app->is_efi) {
-                 // Check if an EFI partition already exists; if not, create one
-                 fprintf(sf, "type=L\n"); // Root in free space
+                 fprintf(sf, ",,L\n"); // Root in free space
              } else {
-                 fprintf(sf, "type=L, bootable\n"); // Root in free space – MBR Boot Flag
+                 fprintf(sf, ",,L,*\n"); // Root in free space – MBR Boot Flag
              }
              
              pclose(sf);

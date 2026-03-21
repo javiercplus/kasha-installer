@@ -1,4 +1,4 @@
-# Neko Installer
+# Kasha Installer
 
 A modular Linux system installer built with C and GTK+ 3.0.
 

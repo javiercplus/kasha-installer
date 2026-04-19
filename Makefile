@@ -3,8 +3,8 @@ TARGET = neko_installer
 
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -g `pkg-config --cflags gtk+-3.0` -Iinclude
-LIBS = `pkg-config --libs gtk+-3.0` -lpthread
+CFLAGS = -Wall -Wextra -g `pkg-config --cflags gtk4` -Iinclude
+LIBS = `pkg-config --libs gtk4` -lpthread
 
 # Source files
 SRCS = src/core/main.c \

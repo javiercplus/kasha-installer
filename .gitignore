@@ -4,7 +4,7 @@
 
 # Compiled Binary
 neko_installer
-
+downloader/downloader
 # Editor Temporary Files
 *~
 *.swp

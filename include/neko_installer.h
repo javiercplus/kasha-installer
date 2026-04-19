@@ -5,7 +5,7 @@
 #ifndef NEKO_INSTALLER_H
 #define NEKO_INSTALLER_H
 
-#include <gtk/gtk.h>
+#include <gtk-4/gtk.h>
 #include <stdlib.h>
 #include <string.h>
 

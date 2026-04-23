@@ -257,9 +257,20 @@ int step_install_base_system(AppData *app, const char *TARGETDIR) {
         run_sync(app, "chroot %s xbps-install -y cryptsetup", TARGETDIR);
     }
 
-    // REBUILD INITRAMFS
+    // COPY XBPS KEYS (needed for package verification post-install)
+    log_to_ui(app, "Copying XBPS repository keys...", 0.56);
+    run_sync(app, "mkdir -p %s/var/db/xbps/keys", TARGETDIR);
+    run_sync(app, "cp /var/db/xbps/keys/*.plist %s/var/db/xbps/keys/", TARGETDIR);
+    run_sync(app, "cp -a /usr/share/xbps.d %s/usr/share/ 2>/dev/null", TARGETDIR);
+
+    // REBUILD INITRAMFS (generic, with AHCI driver for SATA support)
     log_to_ui(app, "Rebuilding initramfs...", 0.6);
-    run_sync(app, "chroot %s dracut --force --no-hostonly-cmdline", TARGETDIR);
+    run_sync(app, "chroot %s dracut --no-hostonly --add-drivers \"ahci\" --force", TARGETDIR);
+
+    // RECONFIGURE BASE PACKAGES
+    log_to_ui(app, "Reconfiguring base system packages...", 0.63);
+    run_sync(app, "xbps-reconfigure -r %s -f base-files 2>/dev/null", TARGETDIR);
+    run_sync(app, "chroot %s xbps-reconfigure -a", TARGETDIR);
     
     return 0;
 }
@@ -269,8 +280,15 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
     log_to_ui(app, "Removing temporary live packages...", 0.7);
     run_sync(app, "chroot %s xbps-remove -Ry dialog xtools-minimal xmirror espeakup brltty 2>/dev/null", TARGETDIR);
 
+    // REMOVE LIVE USER FIRST (before creating new user to avoid UID conflicts)
+    log_to_ui(app, "Removing live user (anon) from target system...", 0.72);
+    run_sync(app, "chroot %s userdel -r anon 2>/dev/null", TARGETDIR);
+    run_sync(app, "rm -f %s/etc/sudoers.d/99-void-live", TARGETDIR);
+    run_sync(app, "sed -i 's|GETTY_ARGS=\"--noclear -a anon\"|GETTY_ARGS=\"--noclear\"|g' %s/etc/sv/agetty-tty1/conf", TARGETDIR);
+    run_sync(app, "rm -f %s/etc/polkit-1/rules.d/void-live.rules", TARGETDIR);
+
     // CONFIGURATION (Hostname, Locale)
-    log_to_ui(app, "Applying System Configuration...", 0.8);
+    log_to_ui(app, "Applying System Configuration...", 0.75);
     run_sync(app, "echo %s > %s/etc/hostname", hostname, TARGETDIR);
     run_sync(app, "sed -i 's/#%s/%s/' %s/etc/default/libc-locales", locale, locale, TARGETDIR);
     run_sync(app, "echo LANG=%s > %s/etc/locale.conf", locale, TARGETDIR);
@@ -281,47 +299,51 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
     char *tz_city = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->tz_city_combo));
 
     if (tz_area && tz_city) {
-        log_to_ui(app, g_strdup_printf("Setting Timezone: %s/%s", tz_area, tz_city), 0.81);
+        log_to_ui(app, "Setting Timezone...", 0.78);
         run_sync(app, "ln -sf /usr/share/zoneinfo/%s/%s %s/etc/localtime", tz_area, tz_city, TARGETDIR);
         g_free(tz_area);
         g_free(tz_city);
     } else {
-        log_to_ui(app, "Timezone not selected, defaulting to UTC.", 0.81);
+        log_to_ui(app, "Timezone not selected, defaulting to UTC.", 0.78);
         run_sync(app, "ln -sf /usr/share/zoneinfo/UTC %s/etc/localtime", TARGETDIR);
     }
 
-    // USERS
-    log_to_ui(app, "Setting Root Password (SHA512)...", 0.82);
+    // ROOT USER
+    log_to_ui(app, "Setting Root Password (SHA512)...", 0.80);
     set_safe_password(app, "root", root_pass, TARGETDIR);
 
+    // Copy /etc/skel files for root
+    run_sync(app, "cp %s/etc/skel/.[bix]* %s/root/ 2>/dev/null", TARGETDIR, TARGETDIR);
+
+    // CREATE USER ACCOUNT (with full group membership)
     if (strlen(user_login) > 0) {
-        run_sync(app, "chroot %s useradd -m -G wheel,audio,video -s /bin/bash %s", TARGETDIR, user_login);
+        log_to_ui(app, "Creating user account...", 0.82);
+        run_sync(app, "chroot %s useradd -m -G wheel,audio,video,input,storage,network,plugdev,cdrom,optical,floppy,kvm,users -s /bin/bash %s", TARGETDIR, user_login);
         log_to_ui(app, "Setting User Password (SHA512)...", 0.84);
         set_safe_password(app, user_login, user_pass, TARGETDIR);
-        
+
+        // Neko Void customizations
         log_to_ui(app, "Applying Neko Void customizations...", 0.85);
         run_sync(app, "cp -rf /var/lib/flatpak %s/var/lib/", TARGETDIR);
         run_sync(app, "mkdir -p %s/etc/xbps.d", TARGETDIR);
         run_sync(app, "cp -f /etc/xbps.d/* %s/etc/xbps.d/ 2>/dev/null", TARGETDIR);
-        run_sync(app, "cp -f /home/.profile %s/home/%s/", TARGETDIR, user_login);
-        run_sync(app, "cp -rf /home/anon/.themes %s/home/%s/", TARGETDIR, user_login);
-        
+        run_sync(app, "cp -f /home/.profile %s/home/%s/ 2>/dev/null", TARGETDIR, user_login);
+        run_sync(app, "cp -rf /home/anon/.themes %s/home/%s/ 2>/dev/null", TARGETDIR, user_login);
+
+        // Fix ownership of user home directory
+        run_sync(app, "chroot %s chown -R %s:%s /home/%s", TARGETDIR, user_login, user_login, user_login);
+
+        // Autologin
         if (autologin) {
             run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
             run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf", TARGETDIR, user_login, TARGETDIR);
         }
-        
+
+        // Sudoers
         run_sync(app, "echo '%%wheel ALL=(ALL:ALL) ALL' > %s/etc/sudoers.d/wheel", TARGETDIR);
         run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
     }
-    run_sync(app, "rm -f %s/etc/polkit-1/rules.d/void-live.rules", TARGETDIR);
-    
-    log_to_ui(app, "Removing live user (anon) from target system...", 0.88);
-    run_sync(app, "chroot %s userdel -r anon 2>/dev/null", TARGETDIR);
-    run_sync(app, "rm -f %s/etc/sudoers.d/99-void-live", TARGETDIR);
-    run_sync(app, "sed -i 's|GETTY_ARGS=\"--noclear -a anon\"|GETTY_ARGS=\"--noclear\"|g' %s/etc/sv/agetty-tty1/conf", TARGETDIR);
-    run_sync(app, "sed -i 's|GETTY_ARGS=\"--noclear -a anon\"|GETTY_ARGS=\"--noclear\"|g' %s/etc/sv/agetty-tty1/conf", TARGETDIR);
-   
+
     generate_fstab(app, TARGETDIR);
     return 0;
 }

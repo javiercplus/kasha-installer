@@ -103,7 +103,10 @@ void generate_fstab(AppData *app, const char *target_dir) {
         g_free(uuid);
         l = l->next;
     }
-    
+
+    // Mount /tmp as tmpfs
+    fprintf(fp, "\n# tmpfs\ntmpfs\t/tmp\ttmpfs\tdefaults,nosuid,nodev\t0\t0\n");
+
     fclose(fp);
     g_free(fstab_path);
 }

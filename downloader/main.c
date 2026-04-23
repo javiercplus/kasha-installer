@@ -23,13 +23,18 @@ static void show_error_dialog(AppData *app) {
     GtkWidget *err = gtk_message_dialog_new(
         GTK_WINDOW(app->window),
         GTK_DIALOG_MODAL,
-        GTK_MESSAGE_ERROR,
+        GTK_MESSAGE_WARNING,
         GTK_BUTTONS_OK,
-        "check your connection!"
+        "No internet connection detected!"
+    );
+    gtk_message_dialog_format_secondary_text(
+        GTK_MESSAGE_DIALOG(err),
+        "Please connect to the internet and try again."
     );
     gtk_window_set_position(GTK_WINDOW(err), GTK_WIN_POS_CENTER_ON_PARENT);
     gtk_dialog_run(GTK_DIALOG(err));
     gtk_widget_destroy(err);
+    gtk_widget_destroy(app->window);
 }
 
 static gboolean download_complete_idle(gpointer data) {

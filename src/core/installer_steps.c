@@ -223,7 +223,11 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
 int step_install_base_system(AppData *app, const char *TARGETDIR) {
     // COPY ROOTFS
     log_to_ui(app, "Copying Live Image to Target...", 0.3);
-    int ret = system("tar -cf - --one-file-system --xattrs / 2>/dev/null | tar --extract --xattrs --xattrs-include='*' --preserve-permissions -f - -C /mnt/target");
+    char tar_cmd[512];
+    snprintf(tar_cmd, sizeof(tar_cmd),
+        "tar -cf - --one-file-system --xattrs / 2>/dev/null | "
+        "tar --extract --xattrs --xattrs-include='*' --preserve-permissions -f - -C %s", TARGETDIR);
+    int ret = system(tar_cmd);
     if (WEXITSTATUS(ret) != 0) {
         log_to_ui(app, "ERROR: Failed to copy filesystem.", 0.0);
         return -1;
@@ -237,6 +241,7 @@ int step_install_base_system(AppData *app, const char *TARGETDIR) {
     run_sync(app, "rm -f %s/usr/sbin/void-installer", TARGETDIR);
     run_sync(app, "rm -f %s/etc/sddm.conf", TARGETDIR);
     run_sync(app, "sed -i 's|GETTY_ARGS=\"--noclear -a void\"|GETTY_ARGS=\"--noclear\"|g' %s/etc/sv/agetty-tty1/conf", TARGETDIR);
+    run_sync(app, "rmdir %s/mnt/target 2>/dev/null", TARGETDIR);
 
     // MOUNT DEV/PROC/SYS
     log_to_ui(app, "Mounting virtual filesystems...", 0.5);
@@ -275,7 +280,7 @@ int step_install_base_system(AppData *app, const char *TARGETDIR) {
     return 0;
 }
 
-int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *hostname, const gchar *locale, const gchar *root_pass, const gchar *user_login, const gchar *user_pass, gboolean autologin) {
+int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *hostname, const gchar *locale, const gchar *root_pass, const gchar *user_login, const gchar *user_fullname, const gchar *user_pass, gboolean autologin) {
     // REMOVE TEMPORARY PACKAGES
     log_to_ui(app, "Removing temporary live packages...", 0.7);
     run_sync(app, "chroot %s xbps-remove -Ry dialog xtools-minimal xmirror espeakup brltty 2>/dev/null", TARGETDIR);
@@ -293,6 +298,9 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
     run_sync(app, "sed -i 's/#%s/%s/' %s/etc/default/libc-locales", locale, locale, TARGETDIR);
     run_sync(app, "echo LANG=%s > %s/etc/locale.conf", locale, TARGETDIR);
     run_sync(app, "chroot %s xbps-reconfigure -f glibc-locales", TARGETDIR);
+
+    // KEYMAP SETUP — copy from live system to target
+    run_sync(app, "cp /etc/vconsole.conf %s/etc/vconsole.conf 2>/dev/null", TARGETDIR);
 
     // TIMEZONE SETUP
     char *tz_area = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->tz_area_combo));
@@ -318,7 +326,11 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
     // CREATE USER ACCOUNT (with full group membership)
     if (strlen(user_login) > 0) {
         log_to_ui(app, "Creating user account...", 0.82);
-        run_sync(app, "chroot %s useradd -m -G wheel,audio,video,input,storage,network,plugdev,cdrom,optical,floppy,kvm,users -s /bin/bash %s", TARGETDIR, user_login);
+        if (user_fullname && strlen(user_fullname) > 0) {
+            run_sync(app, "chroot %s useradd -m -c \"%s\" -G wheel,audio,video,input,storage,network,plugdev,cdrom,optical,floppy,kvm,users -s /bin/bash %s", TARGETDIR, user_fullname, user_login);
+        } else {
+            run_sync(app, "chroot %s useradd -m -G wheel,audio,video,input,storage,network,plugdev,cdrom,optical,floppy,kvm,users -s /bin/bash %s", TARGETDIR, user_login);
+        }
         log_to_ui(app, "Setting User Password (SHA512)...", 0.84);
         set_safe_password(app, user_login, user_pass, TARGETDIR);
 
@@ -417,6 +429,17 @@ int step_install_bootloader(AppData *app, const char *TARGETDIR, const char *dis
 int step_finalize(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "Syncing...", 0.95);
     system("sync");
+
+    // Disable swap partitions before unmounting
+    GSList *sw = app->part_config_list;
+    while(sw) {
+        PartitionConfig *pc = (PartitionConfig*)sw->data;
+        if (strcmp(pc->fstype, "swap") == 0) {
+            run_sync(app, "swapoff %s 2>/dev/null", pc->device);
+        }
+        sw = sw->next;
+    }
+
     run_sync(app, "umount -R %s", TARGETDIR);
     
     // CLOSE LUKS DEVICES

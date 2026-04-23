@@ -85,7 +85,12 @@ void generate_fstab(AppData *app, const char *target_dir) {
         int pass = 2; // others
         
         if (strcmp(conf->mountpoint, "/") == 0) {
-            pass = 1;
+            // btrfs, xfs, f2fs have their own check mechanisms, pass=0
+            if (strcmp(conf->fstype, "btrfs") == 0 || strcmp(conf->fstype, "xfs") == 0 || strcmp(conf->fstype, "f2fs") == 0) {
+                pass = 0;
+            } else {
+                pass = 1;
+            }
         } else if (strcmp(conf->fstype, "swap") == 0) {
             opts = "sw";
             pass = 0;
@@ -190,6 +195,7 @@ gpointer install_thread(gpointer data) {
     const gchar *root_pass = gtk_entry_get_text(GTK_ENTRY(app->root_pass_entry));
     const gchar *user_login = gtk_entry_get_text(GTK_ENTRY(app->user_login_entry));
     const gchar *user_pass = gtk_entry_get_text(GTK_ENTRY(app->user_pass_entry));
+    const gchar *user_fullname = gtk_entry_get_text(GTK_ENTRY(app->user_fullname_entry));
     const gchar *hostname = gtk_entry_get_text(GTK_ENTRY(app->hostname_entry));
     const gchar *locale = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->locale_combo));
     gboolean autologin_enabled = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->autologin_check));
@@ -210,7 +216,7 @@ gpointer install_thread(gpointer data) {
         app->installing = FALSE; return NULL;
     }
     
-    if (step_configure_system(app, TARGETDIR, hostname, locale, root_pass, user_login, user_pass, autologin_enabled) != 0) {
+    if (step_configure_system(app, TARGETDIR, hostname, locale, root_pass, user_login, user_fullname, user_pass, autologin_enabled) != 0) {
         app->installing = FALSE; return NULL;
     }
     

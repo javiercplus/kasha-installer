@@ -184,7 +184,7 @@ void set_safe_password(AppData *app, const gchar *username, const gchar *passwor
 int step_partitioning(AppData *app, const char *disk_name);
 int step_format_and_mount(AppData *app, const char *TARGETDIR);
 int step_install_base_system(AppData *app, const char *TARGETDIR);
-int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *hostname, const gchar *locale, const gchar *root_pass, const gchar *user_login, const gchar *user_pass, gboolean autologin);
+int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *hostname, const gchar *locale, const gchar *root_pass, const gchar *user_login, const gchar *user_fullname, const gchar *user_pass, gboolean autologin);
 int step_install_bootloader(AppData *app, const char *TARGETDIR, const char *disk_name);
 int step_finalize(AppData *app, const char *TARGETDIR);
 

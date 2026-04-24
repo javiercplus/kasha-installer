@@ -240,7 +240,6 @@ int step_install_base_system(AppData *app, const char *TARGETDIR) {
     run_sync(app, "rm -f %s/etc/issue", TARGETDIR);
     run_sync(app, "rm -f %s/usr/sbin/void-installer", TARGETDIR);
     run_sync(app, "rm -f %s/etc/sddm.conf", TARGETDIR);
-    run_sync(app, "sed -i 's|GETTY_ARGS=\"--noclear -a void\"|GETTY_ARGS=\"--noclear\"|g' %s/etc/sv/agetty-tty1/conf", TARGETDIR);
     run_sync(app, "rmdir %s/mnt/target 2>/dev/null", TARGETDIR);
 
     // MOUNT DEV/PROC/SYS
@@ -326,8 +325,12 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
     // CREATE USER ACCOUNT (with full group membership)
     if (strlen(user_login) > 0) {
         log_to_ui(app, "Creating user account...", 0.82);
-        // Ensure the 'render' group exists (not always present by default)
-        run_sync(app, "chroot %s groupadd -f render", TARGETDIR);
+        // Ensure all required groups exist before useradd
+        const char *ensure_groups[] = {"plugdev", "render", "xbuilder", "fuse", NULL};
+        for (int i = 0; ensure_groups[i] != NULL; i++) {
+            run_sync(app, "chroot %s groupadd -f %s 2>/dev/null", TARGETDIR, ensure_groups[i]);
+        }
+
         if (user_fullname && strlen(user_fullname) > 0) {
             run_sync(app, "chroot %s useradd -m -c \"%s\" -G wheel,floppy,audio,video,cdrom,optical,storage,network,kvm,input,plugdev,users,xbuilder,render,fuse -s /bin/bash %s", TARGETDIR, user_fullname, user_login);
         } else {
@@ -342,7 +345,9 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         run_sync(app, "mkdir -p %s/etc/xbps.d", TARGETDIR);
         run_sync(app, "cp -f /etc/xbps.d/* %s/etc/xbps.d/ 2>/dev/null", TARGETDIR);
         run_sync(app, "cp -f /home/.profile %s/home/%s/ 2>/dev/null", TARGETDIR, user_login);
-        run_sync(app, "cp -rf /home/anon/.themes %s/home/%s/ 2>/dev/null", TARGETDIR, user_login);
+        // Copy themes: ensure .themes dir exists, then copy contents
+        run_sync(app, "mkdir -p %s/home/%s/.themes", TARGETDIR, user_login);
+        run_sync(app, "cp -rf /home/anon/.themes/* %s/home/%s/.themes/ 2>/dev/null", TARGETDIR, user_login);
 
         // Fix ownership of user home directory
         run_sync(app, "chroot %s chown -R %s:%s /home/%s", TARGETDIR, user_login, user_login, user_login);

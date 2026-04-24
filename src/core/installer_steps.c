@@ -326,10 +326,12 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
     // CREATE USER ACCOUNT (with full group membership)
     if (strlen(user_login) > 0) {
         log_to_ui(app, "Creating user account...", 0.82);
+        // Ensure the 'render' group exists (not always present by default)
+        run_sync(app, "chroot %s groupadd -f render", TARGETDIR);
         if (user_fullname && strlen(user_fullname) > 0) {
-            run_sync(app, "chroot %s useradd -m -c \"%s\" -G wheel,audio,video,input,storage,network,plugdev,cdrom,optical,floppy,kvm,users -s /bin/bash %s", TARGETDIR, user_fullname, user_login);
+            run_sync(app, "chroot %s useradd -m -c \"%s\" -G wheel,floppy,audio,video,cdrom,optical,storage,network,kvm,input,plugdev,users,xbuilder,render,fuse -s /bin/bash %s", TARGETDIR, user_fullname, user_login);
         } else {
-            run_sync(app, "chroot %s useradd -m -G wheel,audio,video,input,storage,network,plugdev,cdrom,optical,floppy,kvm,users -s /bin/bash %s", TARGETDIR, user_login);
+            run_sync(app, "chroot %s useradd -m -G wheel,floppy,audio,video,cdrom,optical,storage,network,kvm,input,plugdev,users,xbuilder,render,fuse -s /bin/bash %s", TARGETDIR, user_login);
         }
         log_to_ui(app, "Setting User Password (SHA512)...", 0.84);
         set_safe_password(app, user_login, user_pass, TARGETDIR);

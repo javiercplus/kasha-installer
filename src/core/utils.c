@@ -72,14 +72,14 @@ void scan_disks(AppData *app) {
             
             char path[256];
             char size_str[64];
-            unsigned long long size_bytes = 0;
+            unsigned long long sectors = 0;
             
             snprintf(path, sizeof(path), "/sys/block/%s/size", entry->d_name);
             FILE *f = fopen(path, "r");
             if (f) {
-                fscanf(f, "%llu", &size_bytes);
+                fscanf(f, "%llu", &sectors);
                 fclose(f);
-                double gb = (size_bytes * 512) / (1024.0 * 1024.0 * 1024.0);
+                double gb = (sectors * 512.0) / (1024.0 * 1024.0 * 1024.0);
                 snprintf(size_str, sizeof(size_str), "%.1f GB", gb);
             } else {
                 strcpy(size_str, "Unknown");

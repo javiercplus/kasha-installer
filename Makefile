@@ -14,7 +14,11 @@ SRCS = src/core/main.c \
        src/core/partition_utils.c \
        src/ui/ui_partition.c \
        src/ui/ui_callbacks.c \
-       src/core/installer_steps.c
+       src/core/installer_steps.c \
+       src/i18n/lang_manager.c \
+       src/i18n/lang_en.c \
+       src/i18n/lang_es.c \
+       src/i18n/lang_ja.c
 
 OBJS = $(SRCS:.c=.o)
 
@@ -26,7 +30,7 @@ $(TARGET): $(OBJS)
 	$(CC) $(OBJS) -o $(TARGET) $(LIBS)
 
 # Compile .c files to .o
-%.o: %.c include/neko_installer.h
+%.o: %.c include/neko_installer.h include/lang.h
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Clean temporary files

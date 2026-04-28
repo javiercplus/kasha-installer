@@ -106,6 +106,7 @@ typedef struct {
     
     // Split Partition View
     GtkWidget *existing_part_list;
+    GtkWidget *frame_existing;
     
     // Manual Partitioning
     GtkWidget *chk_manual_partitions;
@@ -178,6 +179,7 @@ char* get_uuid(const char *device);
 gint sort_partitions(gconstpointer a, gconstpointer b); // exposed for steps if needed
 void unmount_safety(AppData *app);
 void generate_fstab(AppData *app, const char *target_dir);
+void generate_crypttab(AppData *app, const char *target_dir);
 void set_safe_password(AppData *app, const gchar *username, const gchar *password, const gchar *target_dir);
 
 // installer_steps.c
@@ -187,5 +189,6 @@ int step_install_base_system(AppData *app, const char *TARGETDIR);
 int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *hostname, const gchar *locale, const gchar *root_pass, const gchar *user_login, const gchar *user_fullname, const gchar *user_pass, gboolean autologin);
 int step_install_bootloader(AppData *app, const char *TARGETDIR, const char *disk_name);
 int step_finalize(AppData *app, const char *TARGETDIR);
+int check_filesystems(AppData *app);
 
 #endif

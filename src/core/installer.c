@@ -116,6 +116,51 @@ void generate_fstab(AppData *app, const char *target_dir) {
     g_free(fstab_path);
 }
 
+void generate_crypttab(AppData *app, const char *target_dir) {
+    gboolean has_crypto = FALSE;
+    GSList *l = app->part_config_list;
+    while(l) {
+        PartitionConfig *conf = (PartitionConfig*)l->data;
+        if (conf->encrypt) { has_crypto = TRUE; break; }
+        l = l->next;
+    }
+    
+    if (!has_crypto) return;
+    
+    gchar *crypttab_path = g_strdup_printf("%s/etc/crypttab", target_dir);
+    FILE *fp = fopen(crypttab_path, "w");
+    if (!fp) {
+        log_to_ui(app, "ERROR: Could not write to /etc/crypttab!", 0.0);
+        g_free(crypttab_path);
+        return;
+    }
+    
+    log_to_ui(app, "Generating /etc/crypttab...", 0.66);
+    
+    fprintf(fp, "# /etc/crypttab: encrypted block devices\n");
+    fprintf(fp, "# <mapper name> <device> <key file> <options>\n\n");
+    
+    l = app->part_config_list;
+    while(l) {
+        PartitionConfig *conf = (PartitionConfig*)l->data;
+        if (conf->encrypt && conf->luks_pass) {
+            char *map_name = g_path_get_basename(conf->device);
+            if (strstr(map_name, "_crypt")) {
+                char *short_name = g_strndup(map_name, strlen(map_name) - 6);
+                fprintf(fp, "%s_crypt UUID=%s none luks\n", short_name, get_uuid(conf->device));
+                g_free(short_name);
+            } else {
+                fprintf(fp, "%s_crypt UUID=%s none luks\n", map_name, get_uuid(conf->device));
+            }
+            g_free(map_name);
+        }
+        l = l->next;
+    }
+    
+    fclose(fp);
+    g_free(crypttab_path);
+}
+
 gboolean update_log_ui(gpointer data) {
     LogMessage *msg = (LogMessage *)data;
     AppData *app = msg->app;
@@ -187,7 +232,7 @@ gpointer install_thread(gpointer data) {
     unmount_safety(app);
     
     if (!app->part_config_list) {
-        log_to_ui(app, "ERROR: No partitions configured. Use 'Add/Edit Partition' in Tab 1.", 0.0);
+        log_to_ui(app, "ERROR: No partitions configured. Use Add/Edit Partition in Tab 1.", 0.0);
         app->installing = FALSE; return NULL;
     }
 
@@ -197,12 +242,28 @@ gpointer install_thread(gpointer data) {
     const gchar *user_pass = gtk_entry_get_text(GTK_ENTRY(app->user_pass_entry));
     const gchar *user_fullname = gtk_entry_get_text(GTK_ENTRY(app->user_fullname_entry));
     const gchar *hostname = gtk_entry_get_text(GTK_ENTRY(app->hostname_entry));
-    const gchar *locale = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->locale_combo));
+    const gchar *locale = "en_US.UTF-8";
     gboolean autologin_enabled = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->autologin_check));
 
-    if (!root_pass || strlen(root_pass) < 1) { log_to_ui(app, "Error: Root password missing.", 0.0); app->installing = FALSE; return NULL; }
+    if (!root_pass || strlen(root_pass) < 1) { 
+        log_to_ui(app, "Error: Root password missing.", 0.0); 
+        app->installing = FALSE; return NULL; 
+    }
     
     log_to_ui(app, "--- STARTING LOCAL INSTALLATION ---", 0.1);
+
+    // Validate partition config
+    int r = 0;
+    GSList *l = app->part_config_list;
+    while (l) {
+        PartitionConfig *c = (PartitionConfig*)l->data;
+        if (strcmp(c->mountpoint, "/") == 0) { r = 1; break; }
+        l = l->next;
+    }
+    if (!r) {
+        log_to_ui(app, "ERROR: Root partition not configured.", 0.0);
+        app->installing = FALSE; return NULL;
+    }
 
     if (step_partitioning(app, disk_name) != 0) {
         app->installing = FALSE; return NULL;

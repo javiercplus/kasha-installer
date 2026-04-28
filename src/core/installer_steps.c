@@ -9,6 +9,41 @@
 #include <sys/wait.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <ctype.h>
+
+int check_filesystems(AppData *app) {
+    gboolean root_found = FALSE;
+    gboolean usr_found = FALSE;
+    gboolean efi_partition_found = FALSE;
+    
+    GSList *l = app->part_config_list;
+    while (l) {
+        PartitionConfig *conf = (PartitionConfig*)l->data;
+        
+        if (strcmp(conf->mountpoint, "/") == 0) {
+            root_found = TRUE;
+        } else if (strcmp(conf->mountpoint, "/usr") == 0) {
+            usr_found = TRUE;
+        } else if (strcmp(conf->mountpoint, "/boot/efi") == 0 && 
+                  (strcmp(conf->fstype, "vfat") == 0 || strcmp(conf->fstype, "fat32") == 0)) {
+            efi_partition_found = TRUE;
+        }
+        l = l->next;
+    }
+    
+    if (!root_found) {
+        log_to_ui(app, "ERROR: Root (/) partition not configured!", 0.0);
+        return -1;
+    }
+    
+    if (usr_found) {
+        log_to_ui(app, "ERROR: /usr as separate partition is not supported!", 0.0);
+        return -1;
+    }
+    
+    // EFI requires EFI partition, but skip for now - bootloader step will handle
+    return 0;
+}
 
 int step_partitioning(AppData *app, const char *disk_name) {
     if (app->install_mode == INSTALL_MODE_MANUAL) return 0; // Skip if manual
@@ -37,17 +72,18 @@ int step_partitioning(AppData *app, const char *disk_name) {
              system("partprobe");
              sleep(1);
         }
-    } else if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
+} else if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
         // DUAL BOOT: Append new partitions to existing table (no wipe)
         FILE *sf = popen(g_strdup_printf("sfdisk -a %s", disk_dev), "w");
         if (sf) {
-             if (app->is_efi) {
-                 fprintf(sf, ",,L\n"); // Root in free space
-             } else {
-                 fprintf(sf, ",,L,*\n"); // Root in free space – MBR Boot Flag
-             }
-             
-             pclose(sf);
+              if (app->is_efi) {
+                  fprintf(sf, ",512M,U\n"); // ESP in free space
+                  fprintf(sf, ",,L\n"); // Root in free space
+              } else {
+                  fprintf(sf, ",,L,*\n"); // Root in free space – MBR Boot Flag
+              }
+              
+              pclose(sf);
              sleep(2);
              system("partprobe");
              sleep(1);
@@ -70,20 +106,34 @@ int step_partitioning(AppData *app, const char *disk_name) {
              } else {
                  cfg->device = g_strdup_printf("/dev/%s%s2", disk_name, sep);
              }
-         } else if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
-             // Find the last partition number on disk
-             char cmd[256];
-             snprintf(cmd, sizeof(cmd), "lsblk -rn -o NAME /dev/%s | tail -n1 | sed 's/[^0-9]*//g'", disk_name);
-             FILE *fp = popen(cmd, "r");
-             char last_num[16] = "1";
-             if (fp) {
-                 if (fgets(last_num, sizeof(last_num), fp)) {
-                     last_num[strcspn(last_num, "\n")] = 0;
-                 }
-                 pclose(fp);
-             }
-             cfg->device = g_strdup_printf("/dev/%s%s%s", disk_name, sep, last_num);
-         } else {
+} else if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
+              // Find the last partition number on disk
+              char cmd[256];
+              snprintf(cmd, sizeof(cmd), "lsblk -rn -o NAME /dev/%s | tail -n1 | sed 's/[^0-9]*//g'", disk_name);
+              FILE *fp = popen(cmd, "r");
+              char last_num[16] = "1";
+              if (fp) {
+                  if (fgets(last_num, sizeof(last_num), fp)) {
+                      last_num[strcspn(last_num, "\n")] = 0;
+                  }
+                  pclose(fp);
+              }
+              int base_num = atoi(last_num);
+              
+              // For EFI dual boot, we added 2 partitions (ESP + root)
+              // For BIOS dual boot, we added 1 partition (root only)
+              if (app->is_efi) {
+                  // EFI dual boot:ESP is last_num+1, root is last_num+2
+                  base_num = base_num - 1; // shift back so we assign right
+              }
+              
+              // Assign based on mountpoint
+              if (strcmp(cfg->mountpoint, "/boot/efi") == 0) {
+                  cfg->device = g_strdup_printf("/dev/%s%s%d", disk_name, sep, base_num + 1);
+              } else {
+                  cfg->device = g_strdup_printf("/dev/%s%s%d", disk_name, sep, base_num + (app->is_efi ? 2 : 1));
+              }
+          } else {
              cfg->device = g_strdup_printf("/dev/%s%s1", disk_name, sep);
          }
          l = l->next;
@@ -188,6 +238,7 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
                 if (strcmp(conf->fstype, "ext4") == 0) fs_cmd = "mkfs.ext4 -F";
                 else if (strcmp(conf->fstype, "btrfs") == 0) fs_cmd = "mkfs.btrfs -f";
                 else if (strcmp(conf->fstype, "xfs") == 0) fs_cmd = "mkfs.xfs -f";
+                else if (strcmp(conf->fstype, "f2fs") == 0) fs_cmd = "mkfs.f2fs -f";
                 else if (strcmp(conf->fstype, "vfat") == 0) fs_cmd = "mkfs.vfat -F32"; 
                 else if (strcmp(conf->fstype, "swap") == 0) fs_cmd = "mkswap";
                 
@@ -291,11 +342,21 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
     run_sync(app, "sed -i 's|GETTY_ARGS=\"--noclear -a anon\"|GETTY_ARGS=\"--noclear\"|g' %s/etc/sv/agetty-tty1/conf", TARGETDIR);
     run_sync(app, "rm -f %s/etc/polkit-1/rules.d/void-live.rules", TARGETDIR);
 
+    // CLEANUP CLONED LIVE STATE
+    log_to_ui(app, "Cleaning up machine-id and network state...", 0.73);
+    run_sync(app, "rm -f %s/etc/machine-id", TARGETDIR);
+    run_sync(app, "rm -f %s/var/lib/dbus/machine-id", TARGETDIR);
+    run_sync(app, "rm -f %s/etc/NetworkManager/system-connections/*", TARGETDIR);
+
+
     // CONFIGURATION (Hostname, Locale)
     log_to_ui(app, "Applying System Configuration...", 0.75);
-    run_sync(app, "echo %s > %s/etc/hostname", hostname, TARGETDIR);
-    run_sync(app, "sed -i 's/#%s/%s/' %s/etc/default/libc-locales", locale, locale, TARGETDIR);
-    run_sync(app, "echo LANG=%s > %s/etc/locale.conf", locale, TARGETDIR);
+    run_sync(app, "echo '%s' > %s/etc/hostname", hostname, TARGETDIR);
+    
+    // Enable locale in libc-locales
+    run_sync(app, "sed -i 's|^#%s |%s |' %s/etc/default/libc-locales 2>/dev/null || true", 
+             locale, locale, TARGETDIR);
+    run_sync(app, "echo 'LANG=%s' > %s/etc/locale.conf", locale, TARGETDIR);
     run_sync(app, "chroot %s xbps-reconfigure -f glibc-locales", TARGETDIR);
 
     // KEYMAP SETUP — copy from live system to target
@@ -356,6 +417,9 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         if (autologin) {
             run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
             run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf", TARGETDIR, user_login, TARGETDIR);
+        } else {
+            // Ensure autologin is explicitly disabled if the user unchecked the box
+            run_sync(app, "sed -i '/^autologin-user=/d' %s/etc/lightdm/lightdm.conf", TARGETDIR);
         }
 
         // Sudoers
@@ -364,6 +428,7 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
     }
 
     generate_fstab(app, TARGETDIR);
+    generate_crypttab(app, TARGETDIR);
     return 0;
 }
 
@@ -430,6 +495,12 @@ int step_install_bootloader(AppData *app, const char *TARGETDIR, const char *dis
   
     run_sync(app, "mkdir -p %s/boot/grub", TARGETDIR);
     run_sync(app, "chroot %s grub-mkconfig -o /boot/grub/grub.cfg", TARGETDIR);
+    
+    if (has_crypto) {
+        log_to_ui(app, "Regenerating initramfs with LUKS support...", 0.93);
+        run_sync(app, "chroot %s xbps-install -y base-system-dracut 2>/dev/null || true", TARGETDIR);
+        run_sync(app, "chroot %s dracut --force --kver $(chroot %s uname -r) 2>/dev/null || true", TARGETDIR, TARGETDIR);
+    }
     return 0;
 }
 

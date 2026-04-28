@@ -3,9 +3,37 @@
  * Partition Dialog and List Management
  */
 #include "neko_installer.h"
+#include "lang.h"
 #include <stdio.h>
 #include <dirent.h>
 #include <unistd.h>
+
+static const char* get_part_loc(const char *key, AppData *app) {
+    extern const LangInfo* get_lang(const char *code);
+    extern const char** get_available_langs(void);
+    const char **langs = get_available_langs();
+    int lang_idx = app->current_lang;
+    if (lang_idx < 0) lang_idx = 0;
+    if (lang_idx >= 3) lang_idx = 0;
+    const LangInfo *li = get_lang(langs[lang_idx]);
+    if (!li) return key;
+    
+    if (strcmp(key, "title_add") == 0) return li->dialog_add;
+    if (strcmp(key, "title_edit") == 0) return li->dialog_edit;
+    if (strcmp(key, "select_partition") == 0) return li->select_partition;
+    if (strcmp(key, "filesystem") == 0) return li->filesystem;
+    if (strcmp(key, "mount_point") == 0) return li->mount_point;
+    if (strcmp(key, "format_partition") == 0) return li->format_partition;
+    if (strcmp(key, "encrypt_luks") == 0) return li->encrypt_luks;
+    if (strcmp(key, "general") == 0) return li->general;
+    if (strcmp(key, "encryption") == 0) return li->encryption;
+    if (strcmp(key, "update") == 0) return li->dialog_update;
+    if (strcmp(key, "add") == 0) return li->save;
+    if (strcmp(key, "cancel") == 0) return li->cancel;
+    if (strcmp(key, "error_no_disk") == 0) return "Please select a disk in Tab 1 first!";
+    if (strcmp(key, "error_pass_mismatch") == 0) return "Encryption passwords do not match or are empty!";
+    return key;
+}
 
 void scan_partitions_for_dialog(GtkComboBoxText *combo) {
     gtk_combo_box_text_remove_all(combo);
@@ -118,18 +146,18 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
     if (!app->selected_disk) {
         GtkWidget *err = gtk_message_dialog_new(GTK_WINDOW(app->window),
             GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_OK,
-            "Please select a disk in Tab 1 first!");
+            get_part_loc("error_no_disk", app));
         gtk_dialog_run(GTK_DIALOG(err));
         gtk_widget_destroy(err);
         return;
     }
 
-    const char *title = edit_conf ? "Edit Partition" : "Add Partition";
-    const char *btn_label = edit_conf ? "_Update" : "_Add";
+    const char *title = edit_conf ? get_part_loc("title_edit", app) : get_part_loc("title_add", app);
+    const char *btn_label = edit_conf ? get_part_loc("update", app) : get_part_loc("add", app);
 
     GtkWidget *dialog = gtk_dialog_new_with_buttons(title, GTK_WINDOW(app->window),
                                                  GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
-                                                 "_Cancel", GTK_RESPONSE_CANCEL,
+                                                 get_part_loc("cancel", app), GTK_RESPONSE_CANCEL,
                                                  btn_label, GTK_RESPONSE_ACCEPT,
                                                  NULL);
     gtk_container_set_border_width(GTK_CONTAINER(dialog), 10);
@@ -143,7 +171,7 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
     gtk_container_set_border_width(GTK_CONTAINER(vbox_gen), 10);
 
     GtkWidget *h_dev = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_box_pack_start(GTK_BOX(h_dev), gtk_label_new("Select Partition:"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(h_dev), gtk_label_new(get_part_loc("select_partition", app)), FALSE, FALSE, 0);
     
     GtkComboBoxText *combo_part = GTK_COMBO_BOX_TEXT(gtk_combo_box_text_new());
     populate_partitions_combo(combo_part, app->selected_disk);
@@ -153,7 +181,7 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
 
     // ... Filesystem ...
     GtkWidget *h_fs = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_box_pack_start(GTK_BOX(h_fs), gtk_label_new("Filesystem:"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(h_fs), gtk_label_new(get_part_loc("filesystem", app)), FALSE, FALSE, 0);
     GtkComboBoxText *combo_fs = GTK_COMBO_BOX_TEXT(gtk_combo_box_text_new());
     gtk_combo_box_text_append_text(combo_fs, "ext4");
     gtk_combo_box_text_append_text(combo_fs, "btrfs");
@@ -167,14 +195,14 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
 
     // ... Mount Point ...
     GtkWidget *h_mp = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_box_pack_start(GTK_BOX(h_mp), gtk_label_new("Mount Point:"), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(h_mp), gtk_label_new(get_part_loc("mount_point", app)), FALSE, FALSE, 0);
     GtkWidget *entry_mp_w = gtk_entry_new();
     gtk_entry_set_text(GTK_ENTRY(entry_mp_w), "/");
     gtk_box_pack_start(GTK_BOX(h_mp), entry_mp_w, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox_gen), h_mp, FALSE, FALSE, 0);
 
     // ... Format ...
-    GtkCheckButton *chk_fmt = GTK_CHECK_BUTTON(gtk_check_button_new_with_label("Format Partition?"));
+    GtkCheckButton *chk_fmt = GTK_CHECK_BUTTON(gtk_check_button_new_with_label(get_part_loc("format_partition", app)));
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(chk_fmt), TRUE);
     gtk_box_pack_start(GTK_BOX(vbox_gen), GTK_WIDGET(chk_fmt), FALSE, FALSE, 0);
 
@@ -182,7 +210,7 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
     GtkWidget *vbox_enc = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
     gtk_container_set_border_width(GTK_CONTAINER(vbox_enc), 10);
 
-    GtkCheckButton *chk_encrypt = GTK_CHECK_BUTTON(gtk_check_button_new_with_label("Encrypt (LUKS)?"));
+    GtkCheckButton *chk_encrypt = GTK_CHECK_BUTTON(gtk_check_button_new_with_label(get_part_loc("encrypt_luks", app)));
     gtk_box_pack_start(GTK_BOX(vbox_enc), GTK_WIDGET(chk_encrypt), FALSE, FALSE, 0);
 
     GtkWidget *vbox_pass = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
@@ -203,8 +231,8 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
 
     g_object_bind_property(chk_encrypt, "active", vbox_pass, "sensitive", G_BINDING_DEFAULT);
 
-    gtk_notebook_append_page(GTK_NOTEBOOK(notebook), vbox_gen, gtk_label_new("General"));
-    gtk_notebook_append_page(GTK_NOTEBOOK(notebook), vbox_enc, gtk_label_new("Encryption"));
+    gtk_notebook_append_page(GTK_NOTEBOOK(notebook), vbox_gen, gtk_label_new(get_part_loc("general", app)));
+    gtk_notebook_append_page(GTK_NOTEBOOK(notebook), vbox_enc, gtk_label_new(get_part_loc("encryption", app)));
 
     // PRE-FILL IF EDITING
     if (edit_conf) {
@@ -242,13 +270,13 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
         const gchar *pass = gtk_entry_get_text(GTK_ENTRY(entry_pass));
         const gchar *pass_conf = gtk_entry_get_text(GTK_ENTRY(entry_pass_conf));
 
-        if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
+if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
              GtkWidget *err = gtk_message_dialog_new(GTK_WINDOW(dialog),
                 GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_OK,
-                "Encryption passwords do not match or are empty!");
+                get_part_loc("error_pass_mismatch", app));
             gtk_dialog_run(GTK_DIALOG(err));
             gtk_widget_destroy(err);
-        } 
+         }
         else if (dev_short && mp && strlen(mp) > 0) {
             app->install_mode = INSTALL_MODE_MANUAL;
 
@@ -410,49 +438,27 @@ void refresh_existing_partitions_ui(AppData *app) {
     GtkListStore *store = GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW(app->existing_part_list)));
     gtk_list_store_clear(store);
     
-    char sys_path[256];
-    snprintf(sys_path, sizeof(sys_path), "/sys/block/%s", app->selected_disk);
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "lsblk -rn -o NAME,SIZE,FSTYPE /dev/%s 2>/dev/null | grep -E '^%s[0-9]'", app->selected_disk, app->selected_disk);
     
-    DIR *d = opendir(sys_path);
-    if (!d) return;
+    FILE *fp = popen(cmd, "r");
+    if (!fp) return;
     
-    struct dirent *ent;
-    while ((ent = readdir(d)) != NULL) {
-        if (strncmp(ent->d_name, app->selected_disk, strlen(app->selected_disk)) == 0 &&
-            strcmp(ent->d_name, app->selected_disk) != 0) {
+    char line[256];
+    while (fgets(line, sizeof(line), fp)) {
+        char name[64], size[32], fstype[32];
+        if (sscanf(line, "%63s %31s %31s", name, size, fstype) >= 2) {
+            char dev_path[128];
+            snprintf(dev_path, sizeof(dev_path), "/dev/%s", name);
             
-            // Check partition has a size file
-            char size_file[512];
-            snprintf(size_file, sizeof(size_file), "%s/%s/size", sys_path, ent->d_name);
-            if (access(size_file, F_OK) != 0) continue;
-            
-            // Read size (in 512-byte sectors)
-            char size_str[64] = "?";
-            FILE *fp = fopen(size_file, "r");
-            if (fp) {
-                unsigned long long sectors = 0;
-                if (fscanf(fp, "%llu", &sectors) == 1) {
-                    unsigned long long mb = (sectors * 512) / (1024 * 1024);
-                    if (mb >= 1024) {
-                        snprintf(size_str, sizeof(size_str), "%.1f GB", (double)mb / 1024.0);
-                    } else {
-                        snprintf(size_str, sizeof(size_str), "%llu MB", mb);
-                    }
-                }
-                fclose(fp);
+            if (strlen(fstype) == 0 || strcmp(fstype, "-") == 0 || strlen(fstype) > 16) {
+                strcpy(fstype, "-");
             }
-            
-            // Get fstype
-            char dev_path[256];
-            snprintf(dev_path, sizeof(dev_path), "/dev/%s", ent->d_name);
-            char fstype[64];
-            get_partition_fstype(dev_path, fstype, sizeof(fstype));
-            if (strlen(fstype) == 0) strcpy(fstype, "-");
             
             GtkTreeIter iter;
             gtk_list_store_append(store, &iter);
-            gtk_list_store_set(store, &iter, 0, dev_path, 1, size_str, 2, fstype, -1);
+            gtk_list_store_set(store, &iter, 0, dev_path, 1, size, 2, fstype, -1);
         }
     }
-    closedir(d);
+    pclose(fp);
 }

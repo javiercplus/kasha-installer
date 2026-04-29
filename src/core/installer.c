@@ -32,12 +32,32 @@ char* get_uuid(const char *device) {
     return NULL;
 }
 
-// Comparator: Shortest mountpoint first
+// Comparator: Proper mount order (EFI > /boot > /home > /)
 gint sort_partitions(gconstpointer a, gconstpointer b) {
     const PartitionConfig *pa = (const PartitionConfig*)a;
     const PartitionConfig *pb = (const PartitionConfig*)b;
-    gsize la = strlen(pa->mountpoint);
-    gsize lb = strlen(pb->mountpoint);
+    const char *ma = pa->mountpoint;
+    const char *mb = pb->mountpoint;
+    
+    // Root (/) goes LAST (after all other mounts)
+    if (strcmp(ma, "/") == 0) return 1;
+    if (strcmp(mb, "/") == 0) return -1;
+    
+    // /boot/efi goes first
+    if (strcmp(ma, "/boot/efi") == 0) return -1;
+    if (strcmp(mb, "/boot/efi") == 0) return 1;
+    
+    // /boot goes second
+    if (strcmp(ma, "/boot") == 0) return -1;
+    if (strcmp(mb, "/boot") == 0) return 1;
+    
+    // /home goes before / (but after /boot)
+    if (strcmp(ma, "/home") == 0) return -1;
+    if (strcmp(mb, "/home") == 0) return 1;
+    
+    // Default: shorter mountpoint first
+    gsize la = strlen(ma);
+    gsize lb = strlen(mb);
     return (la > lb) - (la < lb);
 }
 

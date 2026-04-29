@@ -565,16 +565,7 @@ int step_finalize(AppData *app, const char *TARGETDIR) {
 
     if (has_crypto) {
         log_to_ui(app, "Closing encrypted devices...", 0.98);
-        run_sync(app, "cryptsetup close /dev/mapper/*_crypt"); 
-
-        GSList *c = app->part_config_list;
-        while(c) {
-            PartitionConfig *pc = (PartitionConfig*)c->data;
-            if (pc->encrypt && strstr(pc->device, "/dev/mapper/")) {
-                run_sync(app, "cryptsetup close %s", pc->device);
-            }
-            c = c->next;
-        }
+        run_sync(app, "cryptsetup close cryptroot 2>/dev/null || true");
     }
     return 0;
 }

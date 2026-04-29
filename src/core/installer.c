@@ -161,6 +161,26 @@ void generate_crypttab(AppData *app, const char *target_dir) {
     g_free(crypttab_path);
 }
 
+static gboolean pulse_progress_bar(gpointer data) {
+    AppData *app = (AppData *)data;
+    if (app->progress_bar && !app->installing) {
+        gtk_progress_bar_pulse(GTK_PROGRESS_BAR(app->progress_bar));
+    }
+    return TRUE;
+}
+
+void start_progress_pulse(AppData *app) {
+    if (app->progress_pulse_id > 0) return;
+    app->progress_pulse_id = g_timeout_add(100, pulse_progress_bar, app);
+}
+
+void stop_progress_pulse(AppData *app) {
+    if (app->progress_pulse_id > 0) {
+        g_source_remove(app->progress_pulse_id);
+        app->progress_pulse_id = 0;
+    }
+}
+
 gboolean update_log_ui(gpointer data) {
     LogMessage *msg = (LogMessage *)data;
     AppData *app = msg->app;
@@ -175,8 +195,6 @@ gboolean update_log_ui(gpointer data) {
     
     if (msg->fraction >= 0) {
         gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(app->progress_bar), msg->fraction);
-    } else {
-        gtk_progress_bar_pulse(GTK_PROGRESS_BAR(app->progress_bar));
     }
     g_free(msg->message);
     g_free(msg);
@@ -197,7 +215,14 @@ int run_sync(AppData *app, const char *fmt, ...) {
     va_start(args, fmt);
     vsnprintf(cmd, sizeof(cmd), fmt, args);
     va_end(args);
+    
     log_to_ui(app, cmd, -1.0);
+    
+    if (app->debug_mode) {
+        g_print("[DEBUG-SIM] %s\n", cmd);
+        return 0;
+    }
+    
     return system(cmd);
 }
 
@@ -229,9 +254,35 @@ gpointer install_thread(gpointer data) {
     AppData *app = (AppData *)data;
     const char *TARGETDIR = "/mnt/target";
     
+    if (app->debug_mode) {
+        app->installing = TRUE;
+        start_progress_pulse(app);
+        
+        log_to_ui(app, "[DEBUG MODE] Simulating installation...", 0.0);
+        g_usleep(500000);
+        log_to_ui(app, "Simulating: Formatting partitions...", 0.2);
+        g_usleep(500000);
+        log_to_ui(app, "Simulating: Mounting filesystems...", 0.4);
+        g_usleep(500000);
+        log_to_ui(app, "Simulating: Installing base system...", 0.6);
+        g_usleep(500000);
+        log_to_ui(app, "Simulating: Configuring system...", 0.8);
+        g_usleep(500000);
+        log_to_ui(app, "Simulating: Installing bootloader...", 0.9);
+        g_usleep(500000);
+        
+        stop_progress_pulse(app);
+        log_to_ui(app, "--- DEBUG INSTALLATION SIMULATED ---", 1.0);
+        app->installing = FALSE;
+        set_ui_finished(app);
+        return NULL;
+    }
+    
+    start_progress_pulse(app);
     unmount_safety(app);
     
     if (!app->part_config_list) {
+        stop_progress_pulse(app);
         log_to_ui(app, "ERROR: No partitions configured. Use Add/Edit Partition in Tab 1.", 0.0);
         app->installing = FALSE; return NULL;
     }
@@ -246,6 +297,7 @@ gpointer install_thread(gpointer data) {
     gboolean autologin_enabled = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->autologin_check));
 
     if (!root_pass || strlen(root_pass) < 1) { 
+        stop_progress_pulse(app);
         log_to_ui(app, "Error: Root password missing.", 0.0); 
         app->installing = FALSE; return NULL; 
     }
@@ -261,11 +313,13 @@ gpointer install_thread(gpointer data) {
         l = l->next;
     }
     if (!r) {
+        stop_progress_pulse(app);
         log_to_ui(app, "ERROR: Root partition not configured.", 0.0);
         app->installing = FALSE; return NULL;
     }
 
     if (step_partitioning(app, disk_name) != 0) {
+        stop_progress_pulse(app);
         app->installing = FALSE; return NULL;
     }
 
@@ -282,11 +336,13 @@ gpointer install_thread(gpointer data) {
     }
     
     if (step_install_bootloader(app, TARGETDIR, disk_name) != 0) {
+        stop_progress_pulse(app);
         app->installing = FALSE; return NULL;
     }
 
     step_finalize(app, TARGETDIR);
     
+    stop_progress_pulse(app);
     log_to_ui(app, "--- INSTALLATION COMPLETED ---", 1.0);
     app->installing = FALSE;
     set_ui_finished(app);

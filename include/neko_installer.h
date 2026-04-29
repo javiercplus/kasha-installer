@@ -66,6 +66,8 @@ typedef struct {
     gchar *efi_target; 
     gchar *selected_disk;       
     gboolean installing;
+    gboolean debug_mode;
+    guint progress_pulse_id;
     
     // Auto-Partitioning
     InstallMode install_mode;
@@ -174,6 +176,8 @@ void update_ui_language(AppData *app);
 void start_installation(GtkWidget *widget, AppData *app); 
 gpointer install_thread(gpointer data);
 void log_to_ui(AppData *app, const char *msg, gdouble fraction);
+void start_progress_pulse(AppData *app);
+void stop_progress_pulse(AppData *app);
 int run_sync(AppData *app, const char *fmt, ...);
 char* get_uuid(const char *device);
 gint sort_partitions(gconstpointer a, gconstpointer b); // exposed for steps if needed

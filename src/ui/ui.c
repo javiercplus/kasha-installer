@@ -107,6 +107,7 @@ if (strcmp(key, "tab_install") == 0) return li->tab_install;
     if (strcmp(key, "dialog_update") == 0) return li->dialog_update;
     if (strcmp(key, "save") == 0) return li->save;
     if (strcmp(key, "cancel") == 0) return li->cancel;
+    if (strcmp(key, "window_title") == 0) return li->window_title;
     
     return key;
 }

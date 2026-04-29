@@ -109,6 +109,7 @@ void remove_partition_config(AppData *app, PartitionConfig *conf) {
     app->part_config_list = g_slist_remove(app->part_config_list, conf);
     g_free(conf->device);
     g_free(conf->original_device);
+    g_free(conf->luks_uuid);
     g_free(conf->fstype);
     g_free(conf->mountpoint);
     if(conf->luks_pass) g_free(conf->luks_pass);

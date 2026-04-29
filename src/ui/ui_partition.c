@@ -111,6 +111,7 @@ void add_partition_config(AppData *app, const gchar *dev, const gchar *fs, const
     PartitionConfig *conf = g_new(PartitionConfig, 1);
     conf->device = g_strdup(dev);
     conf->original_device = g_strdup(dev);
+    conf->luks_uuid = NULL;
     conf->fstype = g_strdup(fs);
     conf->mountpoint = g_strdup(mp);
     conf->format = fmt;
@@ -319,6 +320,7 @@ if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
                 g_free(edit_conf->mountpoint);
                 if (edit_conf->luks_pass) g_free(edit_conf->luks_pass);
                 if (edit_conf->original_device) g_free(edit_conf->original_device);
+                if (edit_conf->luks_uuid) g_free(edit_conf->luks_uuid);
                 
                 edit_conf->device = g_strdup(full_dev);
                 edit_conf->original_device = g_strdup(full_dev);

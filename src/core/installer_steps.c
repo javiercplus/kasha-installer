@@ -149,7 +149,7 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
     
     GSList *l = app->part_config_list;
     
-    // First pass: LUKS Format & Open all encrypted partitions
+// First pass: LUKS Format & Open all encrypted partitions
     GSList *l_luks = app->part_config_list;
     while(l_luks) {
         PartitionConfig *conf = (PartitionConfig*)l_luks->data;
@@ -176,6 +176,20 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
              }
              g_free(cmd_fmt);
              
+             // Get LUKS UUID (header UUID, needed for GRUB)
+             char luks_uuid[64] = {0};
+             char *cmd_uuid = g_strdup_printf("cryptsetup luksUUID %s", conf->device);
+             FILE *fp = popen(cmd_uuid, "r");
+             if (fp) {
+                 if (fgets(luks_uuid, sizeof(luks_uuid), fp) != NULL) {
+                     size_t len = strlen(luks_uuid);
+                     if (len > 0 && luks_uuid[len-1] == '\n') luks_uuid[len-1] = '\0';
+                     conf->luks_uuid = g_strdup(luks_uuid);
+                 }
+                 pclose(fp);
+             }
+             g_free(cmd_uuid);
+             
              // 2. Open LUKS
              char *dev_base = g_path_get_basename(conf->device);
              char *mapper_name = g_strdup_printf("%s_crypt", dev_base);
@@ -194,7 +208,6 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
              unlink(keyfile);
              
              // UPDATE DEVICE PATH to /dev/mapper/...
-             // Keep original_device for UUID lookup in crypttab
              conf->device = g_strdup_printf("/dev/mapper/%s", mapper_name);
              
              g_free(dev_base);
@@ -469,16 +482,9 @@ if (has_crypto) {
         GSList *f = app->part_config_list;
         while(f) {
             PartitionConfig *c = (PartitionConfig*)f->data;
-            if (c->encrypt && strcmp(c->mountpoint, "/") == 0) {
-               char *uuid_device = c->original_device ? c->original_device : c->device;
-               char *uuid = get_uuid(uuid_device);
-               
-               if (uuid) {
-                   run_sync(app, "sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/GRUB_CMDLINE_LINUX_DEFAULT=\"rd.luks.uuid=%s /' %s/etc/default/grub", uuid, TARGETDIR);
-                   g_free(uuid);
-               }
-               
-               run_sync(app, "echo 'GRUB_ENABLE_CRYPTODISK=y' >> %s/etc/default/grub", TARGETDIR);
+            if (c->encrypt && strcmp(c->mountpoint, "/") == 0 && c->luks_uuid) {
+                run_sync(app, "sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/GRUB_CMDLINE_LINUX_DEFAULT=\"rd.luks.uuid=%s /' %s/etc/default/grub", c->luks_uuid, TARGETDIR);
+                run_sync(app, "echo 'GRUB_ENABLE_CRYPTODISK=y' >> %s/etc/default/grub", TARGETDIR);
             }
             f = f->next;
         }

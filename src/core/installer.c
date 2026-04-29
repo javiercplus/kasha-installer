@@ -145,18 +145,16 @@ void generate_crypttab(AppData *app, const char *target_dir) {
         PartitionConfig *conf = (PartitionConfig*)l->data;
         if (conf->encrypt && conf->luks_pass) {
             char *map_name = g_path_get_basename(conf->device);
-            char *uuid_device = conf->original_device ? conf->original_device : conf->device;
-            char *uuid = get_uuid(uuid_device);
+            char *uuid_to_use = conf->luks_uuid ? conf->luks_uuid : "UNKNOWN";
             
             if (strstr(map_name, "_crypt")) {
                 char *short_name = g_strndup(map_name, strlen(map_name) - 6);
-                fprintf(fp, "%s_crypt UUID=%s none luks\n", short_name, uuid ? uuid : "UNKNOWN");
+                fprintf(fp, "%s_crypt UUID=%s none luks\n", short_name, uuid_to_use);
                 g_free(short_name);
             } else {
-                fprintf(fp, "%s_crypt UUID=%s none luks\n", map_name, uuid ? uuid : "UNKNOWN");
+                fprintf(fp, "%s_crypt UUID=%s none luks\n", map_name, uuid_to_use);
             }
             g_free(map_name);
-            if (uuid) g_free(uuid);
         }
         l = l->next;
     }

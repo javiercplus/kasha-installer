@@ -166,8 +166,8 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
              write(fd, conf->luks_pass, strlen(conf->luks_pass));
              close(fd);
              
-             // 1. Format LUKS
-             char *cmd_fmt = g_strdup_printf("chmod 600 %s && cryptsetup luksFormat -q --key-file=%s %s", keyfile, keyfile, conf->device);
+             // 1. Format LUKS (LUKS1 for GRUB compatibility)
+             char *cmd_fmt = g_strdup_printf("chmod 600 %s && cryptsetup luksFormat --type luks1 -q --key-file=%s %s", keyfile, keyfile, conf->device);
              if (run_sync(app, cmd_fmt) != 0) {
                  log_to_ui(app, "ERROR: LUKS Format failed.", 0.0);
                  unlink(keyfile);
@@ -177,6 +177,7 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
              g_free(cmd_fmt);
              
              // Get LUKS UUID (header UUID, needed for GRUB)
+             log_to_ui(app, "Getting LUKS UUID...", 0.215);
              char luks_uuid[64] = {0};
              char *cmd_uuid = g_strdup_printf("cryptsetup luksUUID %s", conf->device);
              FILE *fp = popen(cmd_uuid, "r");
@@ -185,14 +186,27 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
                      size_t len = strlen(luks_uuid);
                      if (len > 0 && luks_uuid[len-1] == '\n') luks_uuid[len-1] = '\0';
                      conf->luks_uuid = g_strdup(luks_uuid);
+                     log_to_ui(app, g_strdup_printf("LUKS UUID: %s", luks_uuid), 0.216);
                  }
                  pclose(fp);
+             } else {
+                 log_to_ui(app, "ERROR: Failed to get LUKS UUID", 0.0);
+                 g_free(cmd_uuid);
+                 unlink(keyfile);
+                 return -1;
              }
              g_free(cmd_uuid);
              
+             // Verify UUID was captured
+             if (!conf->luks_uuid || strlen(conf->luks_uuid) == 0) {
+                 log_to_ui(app, "ERROR: LUKS UUID is empty!", 0.0);
+                 unlink(keyfile);
+                 return -1;
+             }
+             
              // 2. Open LUKS
              char *dev_base = g_path_get_basename(conf->device);
-             char *mapper_name = g_strdup_printf("%s_crypt", dev_base);
+             char *mapper_name = g_strdup_printf("cryptroot"); // Use cryptroot for compatibility
              char *cmd_open = g_strdup_printf("cryptsetup open --key-file=%s %s %s", keyfile, conf->device, mapper_name);
              
              if (run_sync(app, cmd_open) != 0) {
@@ -207,9 +221,9 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
              
              unlink(keyfile);
              
-             // UPDATE DEVICE PATH to /dev/mapper/...
-             conf->device = g_strdup_printf("/dev/mapper/%s", mapper_name);
-             
+// UPDATE DEVICE PATH to /dev/mapper/...
+              conf->device = g_strdup_printf("/dev/mapper/%s", mapper_name);
+              
              g_free(dev_base);
              g_free(mapper_name);
         }
@@ -483,8 +497,14 @@ if (has_crypto) {
         while(f) {
             PartitionConfig *c = (PartitionConfig*)f->data;
             if (c->encrypt && strcmp(c->mountpoint, "/") == 0 && c->luks_uuid) {
-                run_sync(app, "sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/GRUB_CMDLINE_LINUX_DEFAULT=\"rd.luks.uuid=%s /' %s/etc/default/grub", c->luks_uuid, TARGETDIR);
+                log_to_ui(app, g_strdup_printf("Setting GRUB LUKS UUID: %s", c->luks_uuid), 0.92);
+                
+                // Enable cryptodisk in GRUB
+                run_sync(app, "sed -i 's/GRUB_ENABLE_CRYPTODISK=.*//' %s/etc/default/grub", TARGETDIR);
                 run_sync(app, "echo 'GRUB_ENABLE_CRYPTODISK=y' >> %s/etc/default/grub", TARGETDIR);
+                
+                // Set rd.luks.name for boot
+                run_sync(app, "sed -i 's|GRUB_CMDLINE_LINUX_DEFAULT=\"|GRUB_CMDLINE_LINUX_DEFAULT=\"rd.luks.name=%s=cryptroot |' %s/etc/default/grub", c->luks_uuid, TARGETDIR);
             }
             f = f->next;
         }
@@ -507,9 +527,14 @@ if (has_crypto) {
     run_sync(app, "chroot %s grub-mkconfig -o /boot/grub/grub.cfg", TARGETDIR);
     
     if (has_crypto) {
-        log_to_ui(app, "Regenerating initramfs with LUKS support...", 0.93);
+        log_to_ui(app, "Configuring dracut for LUKS...", 0.93);
+        run_sync(app, "mkdir -p %s/etc/dracut.conf.d", TARGETDIR);
+        run_sync(app, "echo 'hostonly=yes' > %s/etc/dracut.conf.d/10-crypt.conf", TARGETDIR);
+        run_sync(app, "echo 'add_dracutmodules+=\" crypt \"' >> %s/etc/dracut.conf.d/10-crypt.conf", TARGETDIR);
+        
+        log_to_ui(app, "Regenerating initramfs with LUKS support...", 0.935);
         run_sync(app, "chroot %s xbps-install -y base-system-dracut 2>/dev/null || true", TARGETDIR);
-        run_sync(app, "chroot %s dracut --force --kver $(chroot %s uname -r) 2>/dev/null || true", TARGETDIR, TARGETDIR);
+        run_sync(app, "chroot %s xbps-reconfigure -fa 2>/dev/null || chroot %s dracut --force 2>/dev/null || true", TARGETDIR, TARGETDIR);
     }
     return 0;
 }

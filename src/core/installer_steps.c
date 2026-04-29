@@ -156,27 +156,45 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
         if (conf->encrypt && conf->luks_pass) {
              log_to_ui(app, g_strdup_printf("Encrypting %s...", conf->device), 0.21);
              
+             char keyfile[64];
+             snprintf(keyfile, sizeof(keyfile), "/tmp/luks_key_XXXXXX");
+             int fd = mkstemp(keyfile);
+             if (fd < 0) {
+                 log_to_ui(app, "ERROR: Failed to create temp keyfile.", 0.0);
+                 return -1;
+             }
+             write(fd, conf->luks_pass, strlen(conf->luks_pass));
+             close(fd);
+             
              // 1. Format LUKS
-             char *cmd_fmt = g_strdup_printf("echo -n '%s' | cryptsetup luksFormat -q %s -", conf->luks_pass, conf->device);
+             char *cmd_fmt = g_strdup_printf("chmod 600 %s && cryptsetup luksFormat -q --key-file=%s %s", keyfile, keyfile, conf->device);
              if (run_sync(app, cmd_fmt) != 0) {
                  log_to_ui(app, "ERROR: LUKS Format failed.", 0.0);
+                 unlink(keyfile);
+                 g_free(cmd_fmt);
                  return -1;
              }
              g_free(cmd_fmt);
-
+             
              // 2. Open LUKS
              char *dev_base = g_path_get_basename(conf->device);
              char *mapper_name = g_strdup_printf("%s_crypt", dev_base);
-             char *cmd_open = g_strdup_printf("echo -n '%s' | cryptsetup open %s %s -", conf->luks_pass, conf->device, mapper_name);
+             char *cmd_open = g_strdup_printf("cryptsetup open --key-file=%s %s %s", keyfile, conf->device, mapper_name);
              
              if (run_sync(app, cmd_open) != 0) {
                  log_to_ui(app, "ERROR: LUKS Open failed.", 0.0);
+                 unlink(keyfile);
+                 g_free(cmd_open);
+                 g_free(mapper_name);
+                 g_free(dev_base);
                  return -1;
              }
              g_free(cmd_open);
              
+             unlink(keyfile);
+             
              // UPDATE DEVICE PATH to /dev/mapper/...
-             g_free(conf->device);
+             // Keep original_device for UUID lookup in crypttab
              conf->device = g_strdup_printf("/dev/mapper/%s", mapper_name);
              
              g_free(dev_base);
@@ -445,38 +463,24 @@ int step_install_bootloader(AppData *app, const char *TARGETDIR, const char *dis
       chk = chk->next;
     }
 
-    if (has_crypto) {
+if (has_crypto) {
         log_to_ui(app, "Configuring GRUB for LUKS...", 0.91);
         
-        // Find UUID of root partition
         GSList *f = app->part_config_list;
         while(f) {
             PartitionConfig *c = (PartitionConfig*)f->data;
             if (c->encrypt && strcmp(c->mountpoint, "/") == 0) {
-               // The conf->device is /dev/mapper/sdxY_crypt
-               char *map_name = g_path_get_basename(c->device); // sdxY_crypt
-               char *raw_name = g_strndup(map_name, strlen(map_name) - 6); // remove _crypt
-               char *raw_dev = g_strdup_printf("/dev/%s", raw_name);
+               char *uuid_device = c->original_device ? c->original_device : c->device;
+               char *uuid = get_uuid(uuid_device);
                
-               char uuid[128] = {0};
-               FILE *fp = popen(g_strdup_printf("blkid -s UUID -o value %s", raw_dev), "r");
-               if (fp) {
-                   fgets(uuid, sizeof(uuid), fp);
-                   uuid[strcspn(uuid, "\n")] = 0;
-                   pclose(fp);
+               if (uuid) {
+                   run_sync(app, "sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/GRUB_CMDLINE_LINUX_DEFAULT=\"rd.luks.uuid=%s /' %s/etc/default/grub", uuid, TARGETDIR);
+                   g_free(uuid);
                }
                
-               // Add GRUB_CMDLINE_LINUX_DEFAULT
-               run_sync(app, "sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT=\"/GRUB_CMDLINE_LINUX_DEFAULT=\"rd.luks.uuid=%s /' %s/etc/default/grub", uuid, TARGETDIR);
-               
-               // Enable CRYPTODISK
                run_sync(app, "echo 'GRUB_ENABLE_CRYPTODISK=y' >> %s/etc/default/grub", TARGETDIR);
-               
-               g_free(raw_name);
-               g_free(raw_dev);
-               g_free(map_name);
-           }
-           f = f->next;
+            }
+            f = f->next;
         }
     }
 

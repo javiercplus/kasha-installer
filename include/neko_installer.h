@@ -16,6 +16,7 @@ typedef struct {
     gboolean format;     
     gboolean encrypt;
     gchar *luks_pass;
+    gchar *original_device; // For LUKS: stores /dev/sda1 before conversion to /dev/mapper/sda1_crypt
 } PartitionConfig;
 
 typedef enum {

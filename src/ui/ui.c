@@ -108,6 +108,9 @@ if (strcmp(key, "tab_install") == 0) return li->tab_install;
     if (strcmp(key, "save") == 0) return li->save;
     if (strcmp(key, "cancel") == 0) return li->cancel;
     if (strcmp(key, "window_title") == 0) return li->window_title;
+    if (strcmp(key, "success_title") == 0) return li->success_title;
+    if (strcmp(key, "success_body") == 0) return li->success_body;
+    if (strcmp(key, "success_reboot") == 0) return li->success_reboot;
     
     return key;
 }

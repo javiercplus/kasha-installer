@@ -92,7 +92,13 @@ PartitionConfig* find_config_by_device(AppData *app, const gchar *device) {
     GSList *l = app->part_config_list;
     while (l) {
         PartitionConfig *c = (PartitionConfig*)l->data;
-        if (strcmp(c->device, device) == 0) return c;
+        const char *d1 = c->device;
+        const char *d2 = device;
+        
+        if (strncmp(d1, "/dev/", 5) == 0) d1 += 5;
+        if (strncmp(d2, "/dev/", 5) == 0) d2 += 5;
+        
+        if (strcmp(d1, d2) == 0) return c;
         l = l->next;
     }
     return NULL;
@@ -102,6 +108,7 @@ PartitionConfig* find_config_by_device(AppData *app, const gchar *device) {
 void remove_partition_config(AppData *app, PartitionConfig *conf) {
     app->part_config_list = g_slist_remove(app->part_config_list, conf);
     g_free(conf->device);
+    g_free(conf->original_device);
     g_free(conf->fstype);
     g_free(conf->mountpoint);
     if(conf->luks_pass) g_free(conf->luks_pass);

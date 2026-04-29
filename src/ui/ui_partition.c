@@ -110,6 +110,7 @@ void populate_partitions_combo(GtkComboBoxText *combo, const char *disk_name) {
 void add_partition_config(AppData *app, const gchar *dev, const gchar *fs, const gchar *mp, gboolean fmt, gboolean encrypt, const gchar *pass) {
     PartitionConfig *conf = g_new(PartitionConfig, 1);
     conf->device = g_strdup(dev);
+    conf->original_device = g_strdup(dev);
     conf->fstype = g_strdup(fs);
     conf->mountpoint = g_strdup(mp);
     conf->format = fmt;
@@ -236,9 +237,34 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
 
     // PRE-FILL IF EDITING
     if (edit_conf) {
-        // Device: Try to set active.
-        const char *short_dev = edit_conf->device; // e.g /dev/sda1
-        if (strncmp(short_dev, "/dev/", 5) == 0) short_dev += 5; // sda1
+        gtk_widget_set_sensitive(GTK_WIDGET(combo_part), FALSE);
+        
+        const char *short_dev = edit_conf->device;
+        if (strncmp(short_dev, "/dev/", 5) == 0) short_dev += 5;
+        
+        gint n_items = gtk_combo_box_get_active(GTK_COMBO_BOX(combo_part));
+        gint found_idx = -1;
+        
+        for (gint i = 0; i < 20; i++) {
+            gtk_combo_box_set_active(GTK_COMBO_BOX(combo_part), i);
+            gchar *text = gtk_combo_box_text_get_active_text(combo_part);
+            if (text) {
+                if (strcmp(text, short_dev) == 0) {
+                    found_idx = i;
+                    g_free(text);
+                    break;
+                }
+                g_free(text);
+            } else {
+                break;
+            }
+        }
+        
+        if (found_idx >= 0) {
+            gtk_combo_box_set_active(GTK_COMBO_BOX(combo_part), found_idx);
+        } else {
+            gtk_combo_box_set_active(GTK_COMBO_BOX(combo_part), 0);
+        }
         
         // FS
         if (strcmp(edit_conf->fstype, "ext4") == 0) gtk_combo_box_set_active(GTK_COMBO_BOX(combo_fs), 0);
@@ -274,10 +300,14 @@ if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
              GtkWidget *err = gtk_message_dialog_new(GTK_WINDOW(dialog),
                 GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_OK,
                 get_part_loc("error_pass_mismatch", app));
-            gtk_dialog_run(GTK_DIALOG(err));
-            gtk_widget_destroy(err);
+             gtk_dialog_run(GTK_DIALOG(err));
+             gtk_widget_destroy(err);
+             gtk_widget_destroy(dialog);
+             g_free(dev_short);
+             g_free(fs);
+             return;
          }
-        else if (dev_short && mp && strlen(mp) > 0) {
+         else if (dev_short && mp && strlen(mp) > 0) {
             app->install_mode = INSTALL_MODE_MANUAL;
 
             gchar *full_dev = g_strdup_printf("/dev/%s", dev_short);
@@ -288,16 +318,17 @@ if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
                 g_free(edit_conf->fstype);
                 g_free(edit_conf->mountpoint);
                 if (edit_conf->luks_pass) g_free(edit_conf->luks_pass);
+                if (edit_conf->original_device) g_free(edit_conf->original_device);
                 
-                edit_conf->device = full_dev;
                 edit_conf->device = g_strdup(full_dev);
+                edit_conf->original_device = g_strdup(full_dev);
                 edit_conf->fstype = g_strdup(fs);
                 edit_conf->mountpoint = g_strdup(mp);
                 edit_conf->format = fmt;
                 edit_conf->encrypt = encrypt;
-                edit_conf->luks_pass = (encrypt && pass) ? g_strdup(pass) : NULL;
+                edit_conf->luks_pass = (encrypt && pass && strlen(pass) > 0) ? g_strdup(pass) : NULL;
                 
-                g_free(full_dev);
+                refresh_partition_list_ui(app);
             } else {
                 // ADD NEW
                 if (strcmp(fs, "swap") == 0) {
@@ -323,6 +354,21 @@ void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
 
 void on_edit_partition_clicked(GtkWidget *widget, gpointer user_data) {
     AppData *app = (AppData *)user_data;
+    
+    if (!app->selected_disk) {
+        GtkWidget *err = gtk_message_dialog_new(GTK_WINDOW(app->window),
+            GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_OK,
+            "Please select a disk first!");
+        gtk_dialog_run(GTK_DIALOG(err));
+        gtk_widget_destroy(err);
+        return;
+    }
+    
+    if (!app->part_config_list) {
+        populate_defaults(app, app->selected_disk);
+        refresh_partition_list_ui(app);
+    }
+    
     GtkTreeSelection *sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(app->mount_list));
     GtkTreeModel *model;
     GtkTreeIter iter;
@@ -334,8 +380,18 @@ void on_edit_partition_clicked(GtkWidget *widget, gpointer user_data) {
         PartitionConfig *conf = find_config_by_device(app, dev);
         if (conf) {
             show_partition_dialog(app, conf);
+        } else {
+            // Fallback: edit first partition
+            conf = (PartitionConfig*)app->part_config_list->data;
+            show_partition_dialog(app, conf);
         }
         g_free(dev);
+    } else {
+        // Edit first partition in the list
+        if (app->part_config_list) {
+            PartitionConfig *conf = (PartitionConfig*)app->part_config_list->data;
+            show_partition_dialog(app, conf);
+        }
     }
 }
 
@@ -352,8 +408,8 @@ void on_delete_partition_clicked(GtkWidget *widget, gpointer user_data) {
         PartitionConfig *conf = find_config_by_device(app, dev);
         if (conf) {
             app->install_mode = INSTALL_MODE_MANUAL;
-            remove_partition_config(app, conf);
             gtk_list_store_remove(GTK_LIST_STORE(model), &iter);
+            remove_partition_config(app, conf);
         }
         g_free(dev);
     }

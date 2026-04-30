@@ -63,7 +63,7 @@ make clean
 The installer requires root privileges to manipulate disks, format partitions, and mount filesystems.
 
 ```bash
-sudo ./kasha_installer
+sudo ./neko_installer
 ```
 
 Alternatively, use the convenience rule:

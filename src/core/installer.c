@@ -95,7 +95,7 @@ void generate_fstab(AppData *app, const char *target_dir) {
         
         char *uuid = get_uuid(conf->device);
         if (!uuid) {
-            log_to_ui(app, g_strdup_printf("Warning: No UUID for %s, using device path.", conf->device), 0.0);
+            log_to_ui_printf(app, "Warning: No UUID for %s, using device path.", conf->device);
             uuid = g_strdup(conf->device);
         }
         
@@ -221,45 +221,58 @@ void log_to_ui(AppData *app, const char *msg, gdouble fraction) {
     g_idle_add(update_log_ui, log_msg);
 }
 
+void log_to_ui_printf(AppData *app, const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    gchar *msg = g_strdup_vprintf(fmt, args);
+    va_end(args);
+    log_to_ui(app, msg, -1.0);
+    g_free(msg);
+}
+
 int run_sync(AppData *app, const char *fmt, ...) {
     char cmd[1024];
     va_list args;
     va_start(args, fmt);
     vsnprintf(cmd, sizeof(cmd), fmt, args);
     va_end(args);
-    
+
     log_to_ui(app, cmd, -1.0);
-    
+
     if (app->debug_mode) {
         g_print("[DEBUG-SIM] %s\n", cmd);
         return 0;
     }
-    
-    return system(cmd);
+
+    int ret = system(cmd);
+    if (ret == -1) return -1;
+    if (WIFEXITED(ret)) return WEXITSTATUS(ret);
+    return -1;
 }
 
 void set_safe_password(AppData *app, const gchar *username, const gchar *password, const gchar *target_dir) {
-    char live_tmp[256];
-    char chroot_tmp[256];
-    snprintf(live_tmp, sizeof(live_tmp), "/tmp/.kasha_%s", username);
-    snprintf(chroot_tmp, sizeof(chroot_tmp), "%s/tmp/.kasha_%s", target_dir, username);
-    FILE *fp = fopen(live_tmp, "w");
+    char target_tmp[256];
+    snprintf(target_tmp, sizeof(target_tmp), "%s/tmp/.kasha_%s", target_dir, username);
+    
+    FILE *fp = fopen(target_tmp, "w");
     if (fp) {
         fprintf(fp, "%s:%s\n", username, password);
         fclose(fp);
-        chmod(live_tmp, 0600); 
+        chmod(target_tmp, 0600); 
     } else {
-        log_to_ui(app, "ERROR: Cannot create temp password file.", 0.0);
+        log_to_ui(app, "ERROR: Cannot create password file in target.", 0.0);
         return;
     }
-    char cmd_cp[512];
-    snprintf(cmd_cp, sizeof(cmd_cp), "cp %s %s", live_tmp, chroot_tmp);
-    system(cmd_cp);
+    
     char cmd_chroot[512];
-    snprintf(cmd_chroot, sizeof(cmd_chroot), "chroot %s chpasswd -c SHA512 < /tmp/.kasha_%s", target_dir, username);
-    system(cmd_chroot);
-    remove(live_tmp);
-    remove(chroot_tmp);
+    snprintf(cmd_chroot, sizeof(cmd_chroot), "chroot %s chpasswd -c SHA512 < %s", target_dir, target_tmp);
+    int ret = system(cmd_chroot);
+    
+    remove(target_tmp);
+    
+    if (ret != 0) {
+        log_to_ui(app, "ERROR: Failed to set password.", 0.0);
+    }
 }
 
 gpointer install_thread(gpointer data) {
@@ -332,23 +345,31 @@ gpointer install_thread(gpointer data) {
 
     if (step_partitioning(app, disk_name) != 0) {
         stop_progress_pulse(app);
+        log_to_ui(app, "ERROR: Partitioning failed!", 0.0);
         app->installing = FALSE; return NULL;
     }
 
     if (step_format_and_mount(app, TARGETDIR) != 0) {
+        stop_progress_pulse(app);
+        log_to_ui(app, "ERROR: Format and mount failed!", 0.0);
         app->installing = FALSE; return NULL;
     }
     
     if (step_install_base_system(app, TARGETDIR) != 0) {
+        stop_progress_pulse(app);
+        log_to_ui(app, "ERROR: Base system installation failed!", 0.0);
         app->installing = FALSE; return NULL;
     }
     
     if (step_configure_system(app, TARGETDIR, hostname, locale, root_pass, user_login, user_fullname, user_pass, autologin_enabled) != 0) {
+        stop_progress_pulse(app);
+        log_to_ui(app, "ERROR: System configuration failed!", 0.0);
         app->installing = FALSE; return NULL;
     }
     
     if (step_install_bootloader(app, TARGETDIR, disk_name) != 0) {
         stop_progress_pulse(app);
+        log_to_ui(app, "ERROR: Bootloader installation failed!", 0.0);
         app->installing = FALSE; return NULL;
     }
 

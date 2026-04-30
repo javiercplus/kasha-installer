@@ -178,6 +178,7 @@ void update_ui_language(AppData *app);
 void start_installation(GtkWidget *widget, AppData *app); 
 gpointer install_thread(gpointer data);
 void log_to_ui(AppData *app, const char *msg, gdouble fraction);
+void log_to_ui_printf(AppData *app, const char *fmt, ...);
 void start_progress_pulse(AppData *app);
 void stop_progress_pulse(AppData *app);
 int run_sync(AppData *app, const char *fmt, ...);

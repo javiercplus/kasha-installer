@@ -4,6 +4,8 @@
 
 # Compiled Binary
 neko_installer
+#TARBALL OF BINARY
+neko_installer.tar
 downloader/downloader
 # Editor Temporary Files
 *~

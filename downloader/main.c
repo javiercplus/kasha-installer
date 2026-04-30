@@ -57,7 +57,7 @@ static gpointer check_internet_thread(gpointer data) {
     AppData *app = (AppData *)data;
     global_app = app;
 
-    int ret = system("wget -q --spider --timeout=5 --tries=1 https://codeberg.org/javiercplus/Kasha-Installer/releases/download/neko-installer/neko_installer.tar 2>&1");
+    int ret = system("wget -q --spider --timeout=5 --tries=1 https://github.com/javiercplus/Neko-Void/releases/download/Installer/neko_installer.tar 2>&1");
     int wstat = WEXITSTATUS(ret);
     fprintf(stderr, "[NET] wget ret=%d wstat=%d\n", ret, wstat);
 
@@ -65,7 +65,7 @@ static gpointer check_internet_thread(gpointer data) {
         app->status = 1;
     } else {
         app->status = 0;
-        ret = system("cd /tmp && wget -q --timeout=30 https://codeberg.org/javiercplus/Kasha-Installer/releases/download/neko-installer/neko_installer.tar -O installer.tar 2>&1");
+        ret = system("cd /tmp && wget -q --timeout=30 https://github.com/javiercplus/Neko-Void/releases/download/Installer/neko_installer.tar -O installer.tar 2>&1");
         if (WEXITSTATUS(ret) != 0) app->status = 1;
     }
 

@@ -35,7 +35,15 @@ Ensure you have the following installed:
 - `make`
 - `pkg-config`
 - `gtk+-3.0` development headers
+- For use your system require LUKS ,bash, Grub Install, xxd and sed
 
+# if you wanna change the logo in the installer 
+
+first convert your image logo wit xxd
+```
+xxd -i logo.png > include/logo.h
+```
+and replace logo.h in the project<3
 ### Build Instructions
 
 To compile the installer:
@@ -55,7 +63,7 @@ make clean
 The installer requires root privileges to manipulate disks, format partitions, and mount filesystems.
 
 ```bash
-sudo ./neko_installer
+sudo ./kasha_installer
 ```
 
 Alternatively, use the convenience rule:

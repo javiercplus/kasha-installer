@@ -36,7 +36,7 @@ Ensure you have the following installed:
 - `pkg-config`
 - `gtk+-3.0` development headers
 - For use your system require LUKS ,bash, Grub Install, xxd and sed
-
+-  If you use Devuan or Arch, use the universal branch.
 # if you wanna change the logo in the installer 
 
 first convert your image logo wit xxd

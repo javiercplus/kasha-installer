@@ -68,7 +68,7 @@ void scan_disks(AppData *app) {
             strncmp(entry->d_name, "vd", 2) == 0 ||
             strncmp(entry->d_name, "nvme", 4) == 0 ||
             strncmp(entry->d_name, "hd", 2) == 0 ||
-            strncmp(entry->d_name, "mmcblk", 7) == 0) {
+            strncmp(entry->d_name, "mmcblk", 6) == 0) {
             
             char path[256];
             char size_str[64];

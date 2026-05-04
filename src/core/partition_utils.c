@@ -28,6 +28,60 @@ char* find_ntfs_partition(const char *disk_name) {
     return NULL;
 }
 
+// Helper to find existing EFI System Partition on the selected disk
+char* find_efi_partition(const char *disk_name) {
+    char cmd[256];
+    // Use sfdisk to find partitions with EFI type (C12A7328-F81F-11D2-BA4B-00A0C93EC93B for GPT, or type=ef for MBR)
+    snprintf(cmd, sizeof(cmd), 
+        "lsblk -rn -o NAME,PARTTYPE /dev/%s 2>/dev/null | grep -i 'c12a7328\\|0xef' | head -n1 | awk '{print $1}'",
+        disk_name);
+    FILE *fp = popen(cmd, "r");
+    if (!fp) return NULL;
+    
+    char part_name[128];
+    if (fgets(part_name, sizeof(part_name), fp)) {
+        part_name[strcspn(part_name, "\n")] = 0;
+        pclose(fp);
+        if (strlen(part_name) > 0) {
+            return g_strdup_printf("/dev/%s", part_name);
+        }
+    } else {
+        pclose(fp);
+    }
+    return NULL;
+}
+
+// Validate that an EFI partition is usable (can be mounted, has FAT filesystem)
+gboolean validate_efi_partition(AppData *app, const char *efi_device) {
+    if (!efi_device) return FALSE;
+    
+    // Check filesystem type is vfat
+    char fstype[64];
+    get_partition_fstype(efi_device, fstype, sizeof(fstype));
+    
+    if (strlen(fstype) == 0 || strcmp(fstype, "vfat") != 0) {
+        if (app) log_to_ui_printf(app, "WARNING: EFI partition %s has fstype '%s', not vfat", efi_device, fstype);
+        return FALSE;
+    }
+    
+    // Try to mount it temporarily to verify it works
+    const char *test_mount = "/tmp/kasha_efi_test";
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "mkdir -p %s && mount -t vfat %s %s 2>/dev/null", test_mount, efi_device, test_mount);
+    int ret = system(cmd);
+    
+    if (ret != 0) {
+        if (app) log_to_ui_printf(app, "WARNING: Could not mount EFI partition %s for validation", efi_device);
+        return FALSE;
+    }
+    
+    // Unmount
+    snprintf(cmd, sizeof(cmd), "umount %s 2>/dev/null && rmdir %s 2>/dev/null", test_mount, test_mount);
+    system(cmd);
+    
+    return TRUE;
+}
+
 // Helper to generate partition name
 char* get_partition_path(const char *disk, int part_num) {
     if (g_str_has_suffix(disk, "0") || g_str_has_suffix(disk, "1") || 
@@ -50,7 +104,29 @@ void populate_defaults(AppData *app, const char *disk_name) {
     char *p2 = get_partition_path(disk_name, 2);
     
     if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
-        // Dual boot: only root partition in free space (device resolved at install time)
+        // Dual boot: detect and reuse existing EFI partition
+        if (app->detected_efi_partition) {
+            g_free(app->detected_efi_partition);
+            app->detected_efi_partition = NULL;
+        }
+        
+        if (app->is_efi) {
+            // Look for existing EFI partition on the disk
+            char *existing_efi = find_efi_partition(disk_name);
+            
+            if (existing_efi && validate_efi_partition(app, existing_efi)) {
+                // Reuse existing EFI — do NOT format
+                app->detected_efi_partition = g_strdup(existing_efi);
+                add_partition_config(app, existing_efi, "vfat", "/boot/efi", FALSE, FALSE, NULL);
+                g_free(existing_efi);
+            } else {
+                // No valid EFI found — will need to create one
+                if (existing_efi) g_free(existing_efi);
+                add_partition_config(app, "/dev/NEW_EFI", "vfat", "/boot/efi", TRUE, FALSE, NULL);
+            }
+        }
+        
+        // Root partition in free space (device resolved at install time)
         add_partition_config(app, "/dev/NEW", "ext4", "/", TRUE, FALSE, NULL);
         app->install_mode = INSTALL_MODE_DUAL_BOOT;
     } else {

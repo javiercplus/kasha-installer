@@ -54,7 +54,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
     snprintf(disk_dev, sizeof(disk_dev), "/dev/%s", disk_name);
 
     if (app->install_mode == INSTALL_MODE_ERASE) {
-        // ERASE / CREATE NEW TABLE
+        // ===== CLEAN INSTALL: ERASE / CREATE NEW TABLE =====
         char cmd_buf[256];
         snprintf(cmd_buf, sizeof(cmd_buf), "sfdisk --wipe always %s", disk_dev);
         FILE *sf = popen(cmd_buf, "w");
@@ -74,76 +74,107 @@ int step_partitioning(AppData *app, const char *disk_name) {
              run_sync(app, "partprobe");
              sleep(1);
         }
-} else if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
-        // DUAL BOOT: Append new partitions to existing table (no wipe)
+
+        // Assign device paths for clean install
+        GSList *l = app->part_config_list;
+        const char *sep = "";
+        int len = strlen(disk_name);
+        if (g_ascii_isdigit(disk_name[len-1])) sep = "p";
+
+        while(l) {
+            PartitionConfig *cfg = (PartitionConfig*)l->data;
+            g_free(cfg->device);
+
+            if (app->is_efi) {
+                if (strcmp(cfg->mountpoint, "/boot/efi") == 0) {
+                    cfg->device = g_strdup_printf("/dev/%s%s1", disk_name, sep);
+                } else {
+                    cfg->device = g_strdup_printf("/dev/%s%s2", disk_name, sep);
+                }
+            } else {
+                cfg->device = g_strdup_printf("/dev/%s%s1", disk_name, sep);
+            }
+            l = l->next;
+        }
+
+    } else if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
+        // ===== DUAL BOOT: Preserve existing table, add new partition(s) =====
+        gboolean has_existing_efi = (app->detected_efi_partition != NULL);
+        gboolean need_new_efi = (app->is_efi && !has_existing_efi);
+
+        if (has_existing_efi) {
+            log_to_ui_printf(app, "Reusing existing EFI partition: %s", app->detected_efi_partition);
+        }
+
+        // Count existing partitions BEFORE adding new ones
+        char count_cmd[256];
+        snprintf(count_cmd, sizeof(count_cmd), 
+            "lsblk -rn -o NAME /dev/%s | grep -v '^%s$' | wc -l", disk_name, disk_name);
+        FILE *fp_count = popen(count_cmd, "r");
+        int existing_part_count = 0;
+        if (fp_count) {
+            char count_buf[16];
+            if (fgets(count_buf, sizeof(count_buf), fp_count)) {
+                existing_part_count = atoi(count_buf);
+            }
+            pclose(fp_count);
+        }
+        log_to_ui_printf(app, "Existing partitions on disk: %d", existing_part_count);
+
+        // Create new partition(s) in free space
         char cmd_buf2[256];
         snprintf(cmd_buf2, sizeof(cmd_buf2), "sfdisk -a %s", disk_dev);
         FILE *sf = popen(cmd_buf2, "w");
         if (sf) {
-              if (app->is_efi) {
-                  fprintf(sf, ",512M,U\n"); // ESP in free space
-                  fprintf(sf, ",,L\n"); // Root in free space
-              } else {
-                  fprintf(sf, ",,L,*\n"); // Root in free space – MBR Boot Flag
-              }
-
-              pclose(sf);
-             sleep(2);
-             run_sync(app, "partprobe");
-             sleep(1);
+            if (need_new_efi) {
+                // No existing EFI — create one
+                log_to_ui(app, "Creating new EFI partition...", 0.16);
+                fprintf(sf, ",512M,U\n"); // ESP in free space
+            }
+            fprintf(sf, ",,L\n"); // Root in free space
+            pclose(sf);
+            sleep(2);
+            run_sync(app, "partprobe");
+            sleep(1);
         }
-    }
 
-    // RE-SCAN and UPDATE `part_config_list` with real device paths
-    GSList *l = app->part_config_list;
-    while(l) {
-         PartitionConfig *cfg = (PartitionConfig*)l->data;
-         g_free(cfg->device);
+        // Assign device paths for dual boot
+        const char *sep = "";
+        int len = strlen(disk_name);
+        if (g_ascii_isdigit(disk_name[len-1])) sep = "p";
 
-         const char *sep = "";
-         int len = strlen(disk_name);
-         if (g_ascii_isdigit(disk_name[len-1])) sep = "p";
+        // Calculate new partition numbers
+        int new_part_base = existing_part_count + 1;
 
-         if (app->is_efi && app->install_mode == INSTALL_MODE_ERASE) {
-             if (strcmp(cfg->mountpoint, "/boot/efi") == 0) {
-                 cfg->device = g_strdup_printf("/dev/%s%s1", disk_name, sep);
-             } else {
-                 cfg->device = g_strdup_printf("/dev/%s%s2", disk_name, sep);
-             }
-} else if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
-              // Find the last partition number on disk
-              char cmd[256];
-              snprintf(cmd, sizeof(cmd), "lsblk -rn -o NAME /dev/%s | tail -n1 | sed 's/[^0-9]*//g'", disk_name);
-              FILE *fp = popen(cmd, "r");
-              char last_num[16] = "1";
-              if (fp) {
-                  if (fgets(last_num, sizeof(last_num), fp)) {
-                      last_num[strcspn(last_num, "\n")] = 0;
-                  }
-                  pclose(fp);
-              }
-              int base_num = atoi(last_num);
+        GSList *l = app->part_config_list;
+        while(l) {
+            PartitionConfig *cfg = (PartitionConfig*)l->data;
 
-              // For EFI dual boot, we added 2 partitions (ESP + root)
-              // For BIOS dual boot, we added 1 partition (root only)
-              if (app->is_efi) {
-                  // EFI dual boot:ESP is last_num+1, root is last_num+2
-                  base_num = base_num - 1; // shift back so we assign right
-              }
-
-              // Assign based on mountpoint
-              if (strcmp(cfg->mountpoint, "/boot/efi") == 0) {
-                  cfg->device = g_strdup_printf("/dev/%s%s%d", disk_name, sep, base_num + 1);
-              } else {
-                  cfg->device = g_strdup_printf("/dev/%s%s%d", disk_name, sep, base_num + (app->is_efi ? 2 : 1));
-              }
-          } else {
-             cfg->device = g_strdup_printf("/dev/%s%s1", disk_name, sep);
-         }
-         l = l->next;
+            if (strcmp(cfg->mountpoint, "/boot/efi") == 0) {
+                g_free(cfg->device);
+                if (has_existing_efi) {
+                    // Reuse the detected EFI partition path as-is
+                    cfg->device = g_strdup(app->detected_efi_partition);
+                } else {
+                    // New EFI partition we just created
+                    cfg->device = g_strdup_printf("/dev/%s%s%d", disk_name, sep, new_part_base);
+                }
+            } else if (strcmp(cfg->mountpoint, "/") == 0) {
+                g_free(cfg->device);
+                if (need_new_efi) {
+                    // Root is the partition after the new EFI
+                    cfg->device = g_strdup_printf("/dev/%s%s%d", disk_name, sep, new_part_base + 1);
+                } else {
+                    // Root is the first (and only) new partition
+                    cfg->device = g_strdup_printf("/dev/%s%s%d", disk_name, sep, new_part_base);
+                }
+            }
+            l = l->next;
+        }
     }
     return 0;
 }
+
 
 int step_format_and_mount(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "Configuring partitions...", 0.2);
@@ -586,7 +617,44 @@ if (has_crypto) {
     }
 
     run_sync(app, "mkdir -p %s/boot/grub", TARGETDIR);
+
+    // DUAL BOOT: Install and enable os-prober to detect other operating systems
+    if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
+        log_to_ui(app, "Installing os-prober for dual boot detection...", 0.92);
+        run_sync(app, "chroot %s xbps-install -y os-prober ntfs-3g 2>/dev/null || true", TARGETDIR);
+
+        // Ensure GRUB_DISABLE_OS_PROBER is not set to true
+        run_sync(app, "sed -i '/GRUB_DISABLE_OS_PROBER/d' %s/etc/default/grub", TARGETDIR);
+        run_sync(app, "echo 'GRUB_DISABLE_OS_PROBER=false' >> %s/etc/default/grub", TARGETDIR);
+
+        // Mount other partitions so os-prober can detect them
+        log_to_ui(app, "Scanning for other operating systems...", 0.925);
+        run_sync(app, "mkdir -p /tmp/kasha_osprobe");
+        
+        // Scan all partitions on the system for other OS
+        char probe_cmd[512];
+        snprintf(probe_cmd, sizeof(probe_cmd),
+            "lsblk -rn -o NAME,FSTYPE /dev/%s 2>/dev/null | while read name fstype; do "
+            "  case \"$fstype\" in "
+            "    ntfs|ext4|ext3|btrfs|xfs) "
+            "      dev=\"/dev/$name\"; "
+            "      mp=\"/tmp/kasha_osprobe/$name\"; "
+            "      mkdir -p \"$mp\"; "
+            "      mount -o ro \"$dev\" \"$mp\" 2>/dev/null || true; "
+            "    ;; "
+            "  esac; "
+            "done", disk_name);
+        system(probe_cmd);
+    }
+
     run_sync(app, "chroot %s grub-mkconfig -o /boot/grub/grub.cfg", TARGETDIR);
+
+    // Cleanup os-prober mounts
+    if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
+        run_sync(app, "umount -R /tmp/kasha_osprobe 2>/dev/null || true");
+        run_sync(app, "rm -rf /tmp/kasha_osprobe 2>/dev/null || true");
+    }
+
 
     if (has_crypto) {
         log_to_ui(app, "Configuring dracut for LUKS...", 0.93);

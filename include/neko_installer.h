@@ -74,6 +74,7 @@ typedef struct {
     // Auto-Partitioning
     InstallMode install_mode;
     gchar *detected_ntfs_partition;
+    gchar *detected_efi_partition; // Existing EFI partition for dual boot
     glong ntfs_resize_mb; // Target size for NTFS in MB
 
     // Localization
@@ -133,6 +134,8 @@ void sync_grub_list(AppData *app);
 
 // partition_utils.c
 char* find_ntfs_partition(const char *disk_name);
+char* find_efi_partition(const char *disk_name);
+gboolean validate_efi_partition(AppData *app, const char *efi_device);
 char* get_partition_path(const char *disk, int part_num);
 void populate_defaults(AppData *app, const char *disk_name);
 void get_partition_fstype(const char *device_path, char *out_type, size_t max_len);

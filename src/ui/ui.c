@@ -46,7 +46,8 @@ const char* get_loc(const char *key, int lang) {
     
     if (strcmp(key, "welcome_title") == 0) return li->welcome_title;
     if (strcmp(key, "welcome_body") == 0) return li->welcome_body;
-    if (strcmp(key, "disk_title") == 0) return li->disk;
+    if (strcmp(key, "disk") == 0) return li->disk;
+    if (strcmp(key, "disk_title") == 0) return li->disk_title;
     if (strcmp(key, "disk_info") == 0) return li->disk_note;
     if (strcmp(key, "part_mount") == 0) return li->install_parts;
     if (strcmp(key, "btn_add") == 0) return li->btn_add;
@@ -113,6 +114,17 @@ if (strcmp(key, "tab_install") == 0) return li->tab_install;
     if (strcmp(key, "success_title") == 0) return li->success_title;
     if (strcmp(key, "success_body") == 0) return li->success_body;
     if (strcmp(key, "success_reboot") == 0) return li->success_reboot;
+
+    // Validation messages
+    if (strcmp(key, "val_select_disk")    == 0) return li->val_select_disk;
+    if (strcmp(key, "val_no_root")        == 0) return li->val_no_root;
+    if (strcmp(key, "val_grub_disk")      == 0) return li->val_grub_disk;
+    if (strcmp(key, "val_hostname")       == 0) return li->val_hostname;
+    if (strcmp(key, "val_username")       == 0) return li->val_username;
+    if (strcmp(key, "val_password")       == 0) return li->val_password;
+    if (strcmp(key, "val_password_match") == 0) return li->val_password_match;
+    if (strcmp(key, "val_root_pass")      == 0) return li->val_root_pass;
+    if (strcmp(key, "val_incomplete")     == 0) return li->val_incomplete;
     
     return key;
 }
@@ -680,6 +692,7 @@ void build_ui(AppData *app) {
 
     app->btn_install = gtk_button_new_with_label("Start Installation");
     gtk_widget_set_size_request(app->btn_install, -1, 40);
+    gtk_widget_set_sensitive(app->btn_install, FALSE); // disabled until all tabs are valid
     GtkStyleContext *ctx = gtk_widget_get_style_context(app->btn_install);
     gtk_style_context_add_class(ctx, "destructive-action"); 
     

@@ -24,6 +24,7 @@ typedef struct {
     
     // Partitions
     const char *disk;
+    const char *disk_title;
     const char *disk_note;
     const char *existing_parts;
     const char *install_parts;
@@ -99,6 +100,17 @@ typedef struct {
     const char *success_title;
     const char *success_body;
     const char *success_reboot;
+
+    // Validation messages
+    const char *val_select_disk;
+    const char *val_no_root;
+    const char *val_grub_disk;
+    const char *val_hostname;
+    const char *val_username;
+    const char *val_password;
+    const char *val_password_match;
+    const char *val_root_pass;
+    const char *val_incomplete;
 } LangInfo;
 
 extern const LangInfo *get_lang(const char *code);

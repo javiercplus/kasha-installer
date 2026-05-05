@@ -25,6 +25,7 @@ static const LangInfo lang_ja = {
 
     // Partitions
     .disk = "ディスク:",
+    .disk_title = "ディスクを選択:",
     .disk_note = "注意: GPartedでパーティションを変更した後、下で設定できます。",
     .existing_parts = "既存のパーティション",
     .install_parts = "インストールパーティション",
@@ -100,6 +101,17 @@ static const LangInfo lang_ja = {
     .success_title = "NEKO-VOID 準備完了!!!",
     .success_body = "インストールが完了しました。\nシステムは再起動する準備ができました。",
     .success_reboot = "今すぐ再起動",
+
+    // Validation messages
+    .val_select_disk    = "続行する前にディスクを選択してください。",
+    .val_no_root        = "ルート(/)パーティションが設定されていません。少なくとも1つ追加してください。",
+    .val_grub_disk      = "GRUBをインストールするディスクを選択してください。",
+    .val_hostname       = "ホスト名を入力してください。",
+    .val_username       = "ユーザー名を入力してください。",
+    .val_password       = "ユーザーパスワードを入力してください。",
+    .val_password_match = "ユーザーパスワードが一致しません。",
+    .val_root_pass      = "rootパスワードを入力してください。",
+    .val_incomplete     = "設定が不完全です",
 };
 
 const LangInfo* lang_ja_module(void) {

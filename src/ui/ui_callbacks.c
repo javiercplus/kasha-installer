@@ -9,18 +9,133 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-void on_next_clicked(GtkWidget *widget, AppData *app) { gtk_notebook_next_page(GTK_NOTEBOOK(app->notebook)); }
-void on_back_clicked(GtkWidget *widget, AppData *app) { gtk_notebook_prev_page(GTK_NOTEBOOK(app->notebook)); }
-void on_reboot_clicked(GtkWidget *widget, AppData *app) { system("reboot"); }
+
+void on_reboot_clicked(GtkWidget *widget, AppData *app) { (void)widget; (void)app; system("reboot"); }
 
 void on_popup_reboot(GtkDialog *dialog, gint response_id, gpointer user_data) {
+    (void)dialog; (void)response_id; (void)user_data;
     system("reboot");
 }
 
-void on_page_changed(GtkNotebook *notebook, GtkWidget *page, guint page_num, AppData *app) {
-    gtk_widget_set_sensitive(app->btn_back, (page_num > 0));
-    gtk_widget_set_sensitive(app->btn_next, (page_num < 6));
+// Forward declaration
+static void update_nav_buttons(AppData *app, guint page_num);
+
+// Returns NULL if the current tab is valid, or a human-readable error message.
+static const char* validate_tab(AppData *app, guint page_num) {
+    int lang = app->current_lang;
+    switch (page_num) {
+
+    case 2: // Partitions — disk must be selected and a root partition must exist
+        if (!app->selected_disk || strlen(app->selected_disk) == 0)
+            return get_loc("val_select_disk", lang);
+        {
+            gboolean has_root = FALSE;
+            GSList *l = app->part_config_list;
+            while (l) {
+                PartitionConfig *cfg = (PartitionConfig *)l->data;
+                if (cfg->mountpoint && strcmp(cfg->mountpoint, "/") == 0)
+                    has_root = TRUE;
+                l = l->next;
+            }
+            if (!has_root)
+                return get_loc("val_no_root", lang);
+        }
+        break;
+
+    case 3: // Bootloader — GRUB disk must be selected
+        if (gtk_combo_box_get_active(GTK_COMBO_BOX(app->grub_disk_combo)) < 0)
+            return get_loc("val_grub_disk", lang);
+        break;
+
+    case 4: // System — hostname must not be empty
+        {
+            const gchar *hostname = gtk_entry_get_text(GTK_ENTRY(app->hostname_entry));
+            if (!hostname || strlen(g_strstrip((gchar*)hostname)) == 0)
+                return get_loc("val_hostname", lang);
+        }
+        break;
+
+    case 5: // Users — username, password, confirm and root password must be filled
+        {
+            const gchar *username  = gtk_entry_get_text(GTK_ENTRY(app->user_login_entry));
+            const gchar *password  = gtk_entry_get_text(GTK_ENTRY(app->user_pass_entry));
+            const gchar *confirm   = gtk_entry_get_text(GTK_ENTRY(app->user_pass_confirm_entry));
+            const gchar *root_pass = gtk_entry_get_text(GTK_ENTRY(app->root_pass_entry));
+
+            if (!username || strlen(username) == 0)
+                return get_loc("val_username", lang);
+            if (!password || strlen(password) == 0)
+                return get_loc("val_password", lang);
+            if (!confirm  || strcmp(password, confirm) != 0)
+                return get_loc("val_password_match", lang);
+            if (!root_pass || strlen(root_pass) == 0)
+                return get_loc("val_root_pass", lang);
+        }
+        break;
+
+    default:
+        break;
+    }
+    return NULL; // valid
 }
+
+static void show_validation_error(AppData *app, const char *msg) {
+    GtkWidget *dialog = gtk_message_dialog_new(
+        GTK_WINDOW(app->window),
+        GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+        GTK_MESSAGE_WARNING,
+        GTK_BUTTONS_OK,
+        "%s", msg);
+    gtk_window_set_title(GTK_WINDOW(dialog), get_loc("val_incomplete", app->current_lang));
+    gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+}
+
+void on_next_clicked(GtkWidget *widget, AppData *app) {
+    (void)widget;
+    gint current = gtk_notebook_get_current_page(GTK_NOTEBOOK(app->notebook));
+    const char *err = validate_tab(app, (guint)current);
+    if (err) {
+        show_validation_error(app, err);
+        return;
+    }
+    gtk_notebook_next_page(GTK_NOTEBOOK(app->notebook));
+}
+
+void on_back_clicked(GtkWidget *widget, AppData *app) {
+    (void)widget;
+    gtk_notebook_prev_page(GTK_NOTEBOOK(app->notebook));
+}
+
+static void update_nav_buttons(AppData *app, guint page_num) {
+    // Back: disabled on first page
+    gtk_widget_set_sensitive(app->btn_back, (page_num > 0));
+
+    // Next: hidden/disabled on last page (Install tab)
+    gint total = gtk_notebook_get_n_pages(GTK_NOTEBOOK(app->notebook));
+    gboolean on_last = ((gint)page_num >= total - 1);
+    gtk_widget_set_visible(app->btn_next, !on_last);
+
+    // Install button: only enabled on the last tab AND all prior tabs valid
+    if (on_last) {
+        gboolean all_valid = TRUE;
+        for (guint i = 2; i <= 5; i++) {
+            if (validate_tab(app, i) != NULL) {
+                all_valid = FALSE;
+                break;
+            }
+        }
+        gtk_widget_set_sensitive(app->btn_install, all_valid);
+    } else {
+        gtk_widget_set_sensitive(app->btn_install, FALSE);
+    }
+}
+
+void on_page_changed(GtkNotebook *notebook, GtkWidget *page, guint page_num, AppData *app) {
+    (void)notebook; (void)page;
+    update_nav_buttons(app, page_num);
+}
+
 
 void on_disk_changed(GtkComboBox *widget, AppData *app) {
     GtkTreeIter iter;

@@ -25,6 +25,7 @@ static const LangInfo lang_es = {
     
     // Partitions
     .disk = "Disco:",
+    .disk_title = "Seleccionar Disco:",
     .disk_note = "Nota: Puede modificar las particiones con GParted y luego configurarlas abajo.",
     .existing_parts = "Particiones Existentes",
     .install_parts = "Particiones de Instalación",
@@ -100,6 +101,17 @@ static const LangInfo lang_es = {
     .success_title = "NEKO-VOID está LISTO!!!",
     .success_body = "Instalación completada exitosamente.\nEl sistema está listo para reiniciar.",
     .success_reboot = "REINICIAR AHORA",
+
+    // Validation messages
+    .val_select_disk    = "Por favor seleccione un disco antes de continuar.",
+    .val_no_root        = "No hay partición raíz (/) configurada. Añada al menos una partición raíz.",
+    .val_grub_disk      = "Por favor seleccione un disco para instalar GRUB.",
+    .val_hostname       = "Por favor ingrese un nombre de equipo.",
+    .val_username       = "Por favor ingrese un nombre de usuario.",
+    .val_password       = "Por favor ingrese una contraseña de usuario.",
+    .val_password_match = "Las contraseñas de usuario no coinciden.",
+    .val_root_pass      = "Por favor ingrese una contraseña de root.",
+    .val_incomplete     = "Configuración Incompleta",
 };
 
 const LangInfo* lang_es_module(void) {

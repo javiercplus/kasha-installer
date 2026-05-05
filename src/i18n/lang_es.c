@@ -42,6 +42,7 @@ static const LangInfo lang_es = {
     
     // System
     .hostname = "Nombre equipo:",
+    .country = "País:",
     .locale = "Idioma (Locale):",
     .region = "Región:",
     .city = "Ciudad:",

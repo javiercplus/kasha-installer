@@ -42,6 +42,7 @@ static const LangInfo lang_en = {
     
     // System
     .hostname = "Hostname:",
+    .country = "Country:",
     .locale = "Locale:",
     .region = "Region:",
     .city = "City:",

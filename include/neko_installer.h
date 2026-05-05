@@ -41,6 +41,7 @@ typedef struct {
     
     // Tab 3: System
     GtkWidget *hostname_entry;
+    GtkWidget *country_combo;
     GtkWidget *locale_combo;    
     GtkWidget *tz_area_combo; 
     GtkWidget *tz_city_combo;
@@ -91,6 +92,7 @@ typedef struct {
     GtkWidget *lbl_boot_status;
     GtkWidget *lbl_grub_install;
     GtkWidget *lbl_hostname;
+    GtkWidget *lbl_country;
     GtkWidget *lbl_locale;
     GtkWidget *lbl_region;
     GtkWidget *lbl_city;
@@ -124,6 +126,7 @@ typedef struct {
     gdouble fraction;
     AppData *app; 
 } LogMessage;
+
 
 // --- PROTOTYPES ---
 
@@ -161,6 +164,7 @@ void on_next_clicked(GtkWidget *widget, AppData *app);
 void on_back_clicked(GtkWidget *widget, AppData *app);
 void on_page_changed(GtkNotebook *notebook, GtkWidget *page, guint page_num, AppData *app);
 void on_disk_changed(GtkComboBox *widget, AppData *app);
+void on_country_changed(GtkComboBox *widget, AppData *app);
 void on_timezone_area_changed(GtkComboBox *widget, AppData *app);
 void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data);
 void launch_gparted(GtkWidget *widget, AppData *app);

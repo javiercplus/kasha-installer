@@ -318,7 +318,8 @@ gpointer install_thread(gpointer data) {
     const gchar *user_pass = gtk_entry_get_text(GTK_ENTRY(app->user_pass_entry));
     const gchar *user_fullname = gtk_entry_get_text(GTK_ENTRY(app->user_fullname_entry));
     const gchar *hostname = gtk_entry_get_text(GTK_ENTRY(app->hostname_entry));
-    const gchar *locale = "en_US.UTF-8";
+    gchar *locale_selected = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->locale_combo));
+    const gchar *locale = (locale_selected && strlen(locale_selected) > 0) ? locale_selected : "en_US.UTF-8";
     gboolean autologin_enabled = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->autologin_check));
 
     if (!root_pass || strlen(root_pass) < 1) { 

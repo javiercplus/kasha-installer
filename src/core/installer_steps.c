@@ -71,7 +71,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
 
              pclose(sf);
              sleep(2);
-             run_sync(app, "partprobe");
+             run_sync(app, "blockdev --rereadpt %s 2>/dev/null || true", disk_dev);
              sleep(1);
         }
 
@@ -134,7 +134,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
             fprintf(sf, ",,L\n"); // Root in free space
             pclose(sf);
             sleep(2);
-            run_sync(app, "partprobe");
+            run_sync(app, "blockdev --rereadpt %s 2>/dev/null || true", disk_dev);
             sleep(1);
         }
 

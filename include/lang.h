@@ -41,6 +41,7 @@ typedef struct {
     
     // System
     const char *hostname;
+    const char *country;
     const char *locale;
     const char *region;
     const char *city;

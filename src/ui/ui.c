@@ -4,6 +4,7 @@
  */
 #include "neko_installer.h"
 #include "lang.h"
+#include "country_data.h"
 #include <stdio.h>
 #include <stdlib.h>      
 #include <string.h>
@@ -68,6 +69,7 @@ const char* get_loc(const char *key, int lang) {
     if (strcmp(key, "grub_install") == 0) return li->grub_install;
     
     if (strcmp(key, "hostname") == 0) return li->hostname;
+    if (strcmp(key, "country") == 0) return li->country;
     if (strcmp(key, "locale") == 0) return li->locale;
     if (strcmp(key, "region") == 0) return li->region;
     if (strcmp(key, "city") == 0) return li->city;
@@ -155,6 +157,7 @@ void update_ui_language(AppData *app) {
     
     // System
     if(app->lbl_hostname) gtk_label_set_text(GTK_LABEL(app->lbl_hostname), get_loc("hostname", lang));
+    if(app->lbl_country) gtk_label_set_text(GTK_LABEL(app->lbl_country), get_loc("country", lang));
     if(app->lbl_locale) gtk_label_set_text(GTK_LABEL(app->lbl_locale), get_loc("locale", lang));
     if(app->lbl_region) gtk_label_set_text(GTK_LABEL(app->lbl_region), get_loc("region", lang));
     if(app->lbl_city) gtk_label_set_text(GTK_LABEL(app->lbl_city), get_loc("city", lang));
@@ -532,6 +535,30 @@ void build_ui(AppData *app) {
     gtk_box_pack_start(GTK_BOX(page_sys), create_form_row("Hostname:", &app->hostname_entry, &app->lbl_hostname), FALSE, FALSE, 0);
     gtk_entry_set_text(GTK_ENTRY(app->hostname_entry), "neko-void");
 
+    // Country
+    {
+        GtkWidget *vbox_country = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+        gtk_widget_set_margin_bottom(vbox_country, 10);
+        
+        app->lbl_country = gtk_label_new("Country:");
+        gtk_label_set_xalign(GTK_LABEL(app->lbl_country), 0.5);
+        
+        app->country_combo = gtk_combo_box_text_new();
+        
+        int country_count = 0;
+        const CountryInfo *countries = get_country_list(&country_count);
+        for (int i = 0; i < country_count; i++) {
+            gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->country_combo), countries[i].name);
+        }
+        // NOTE: Don't set active here — timezone widgets don't exist yet.
+        // Initial selection is done at end of build_ui().
+        
+        g_signal_connect(app->country_combo, "changed", G_CALLBACK(on_country_changed), app);
+        
+        gtk_box_pack_start(GTK_BOX(vbox_country), app->lbl_country, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(vbox_country), app->country_combo, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(page_sys), vbox_country, FALSE, FALSE, 0);
+    }
     // Locale
     GtkWidget *vbox_loc = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     gtk_widget_set_margin_bottom(vbox_loc, 10);
@@ -608,9 +635,6 @@ void build_ui(AppData *app) {
     gtk_container_set_border_width(GTK_CONTAINER(page_user), 10);
     gtk_widget_set_vexpand(page_user, TRUE);
     
-    // Root Password
-    gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Root Password:", &app->root_pass_entry, &app->lbl_root_pass), FALSE, FALSE, 0);
-    gtk_entry_set_visibility(GTK_ENTRY(app->root_pass_entry), FALSE);
 
     // Full Name
     gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Full Name:", &app->user_fullname_entry, &app->lbl_fullname), FALSE, FALSE, 0);
@@ -627,6 +651,10 @@ void build_ui(AppData *app) {
     gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Confirm:", &app->user_pass_confirm_entry, &app->lbl_user_confirm), FALSE, FALSE, 0);
     gtk_entry_set_visibility(GTK_ENTRY(app->user_pass_confirm_entry), FALSE);
     
+    // Root Password
+    gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Root Password:", &app->root_pass_entry, &app->lbl_root_pass), FALSE, FALSE, 0);
+    gtk_entry_set_visibility(GTK_ENTRY(app->root_pass_entry), FALSE);
+
     // Autologin
     app->autologin_check = gtk_check_button_new_with_label("Enable Auto-Login");
     app->chk_autologin = app->autologin_check;
@@ -680,6 +708,18 @@ void build_ui(AppData *app) {
     
     // INITIAL LOCALIZE
     update_ui_language(app);
+
+    // Set initial country selection (must be after all widgets are built)
+    {
+        int country_count = 0;
+        const CountryInfo *countries = get_country_list(&country_count);
+        for (int i = 0; i < country_count; i++) {
+            if (strcmp(countries[i].name, "United States") == 0) {
+                gtk_combo_box_set_active(GTK_COMBO_BOX(app->country_combo), i);
+                break;
+            }
+        }
+    }
 
     gtk_widget_show_all(app->window);
 

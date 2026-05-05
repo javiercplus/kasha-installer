@@ -42,6 +42,7 @@ static const LangInfo lang_ja = {
 
     // System
     .hostname = "ホスト名:",
+    .country = "国:",
     .locale = "ロケール:",
     .region = "地域:",
     .city = "都市:",

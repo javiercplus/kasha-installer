@@ -18,7 +18,7 @@ gboolean check_efi() {
 void read_efi_bits(AppData *app) {
     if (!app->is_efi) {
         app->efi_target = NULL;
-        // ACTUALIZAR UI
+        // UPDATE UI
         if (app->label_boot_status)
             gtk_label_set_text(GTK_LABEL(app->label_boot_status), "BIOS/Legacy System Detected.");
         return;

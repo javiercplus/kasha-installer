@@ -98,7 +98,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
         }
 
     } else if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
-        // ===== DUAL BOOT: Preserve existing table, add new partition(s) =====
+        // ===== DUAL BOOT: Resize existing partition if needed, then create new =====
         gboolean has_existing_efi = (app->detected_efi_partition != NULL);
         gboolean need_new_efi = (app->is_efi && !has_existing_efi);
 
@@ -106,10 +106,82 @@ int step_partitioning(AppData *app, const char *disk_name) {
             log_to_ui_printf(app, "Reusing existing EFI partition: %s", app->detected_efi_partition);
         }
 
-        // Count existing partitions BEFORE adding new ones
+        // Step 1: Check if there's already enough free space
+        glong free_space_mb = get_disk_free_space_mb(disk_name);
+        glong min_needed_mb = 7 * 1024; // 7GB minimum for Neko-Void root
+        if (need_new_efi) min_needed_mb += 512;
+
+        log_to_ui_printf(app, "Free space on disk: %ld MB, needed: %ld MB",
+                         free_space_mb, min_needed_mb);
+
+        if (free_space_mb < min_needed_mb) {
+            // Not enough free space — must resize an existing partition
+            log_to_ui(app, "Not enough free space, will resize an existing partition...", 0.16);
+
+            char *resize_target = find_largest_resizable_partition(disk_name);
+            if (!resize_target) {
+                log_to_ui(app,
+                    "ERROR: No resizable partition found! "
+                    "Use GParted or manual partitioning.", 0.0);
+                return -1;
+            }
+
+            glong part_size = get_partition_size_mb(resize_target);
+            glong min_size  = get_fs_min_size_mb(resize_target);
+
+            if (min_size < 0) {
+                log_to_ui_printf(app,
+                    "ERROR: Cannot determine minimum size for %s", resize_target);
+                g_free(resize_target);
+                return -1;
+            }
+
+            /* Safety margin: leave 512MB above fs minimum for the existing OS */
+            glong safety_margin = 512;
+            glong available_for_neko = part_size - min_size - safety_margin;
+
+            if (available_for_neko < min_needed_mb) {
+                log_to_ui_printf(app,
+                    "ERROR: Not enough space to resize! "
+                    "Partition %s (%ldMB) needs %ldMB minimum free",
+                    resize_target, part_size,
+                    min_needed_mb + min_size + safety_margin);
+                g_free(resize_target);
+                return -1;
+            }
+
+            /* Give 50% of available space to Neko, ensure at least min_needed */
+            glong space_for_neko = available_for_neko / 2;
+            if (space_for_neko < min_needed_mb) space_for_neko = min_needed_mb;
+            glong new_partition_size = part_size - space_for_neko;
+
+            /* Clamp: new size must stay above minimum + safety */
+            if (new_partition_size < min_size + safety_margin) {
+                new_partition_size = min_size + safety_margin;
+            }
+
+            log_to_ui_printf(app,
+                "Resizing %s: %ld MB → %ld MB (freeing %ld MB for Neko-Void)",
+                resize_target, part_size, new_partition_size,
+                part_size - new_partition_size);
+
+            if (resize_existing_partition(app, resize_target,
+                                          new_partition_size) != 0) {
+                log_to_ui(app, "ERROR: Partition resize failed!", 0.0);
+                g_free(resize_target);
+                return -1;
+            }
+            g_free(resize_target);
+            log_to_ui(app, "Partition resize completed successfully.", 0.17);
+        } else {
+            log_to_ui(app, "Sufficient free space found, skipping resize.", 0.16);
+        }
+
+        // Step 2: Count existing partitions BEFORE adding new ones
         char count_cmd[256];
-        snprintf(count_cmd, sizeof(count_cmd), 
-            "lsblk -rn -o NAME /dev/%s | grep -v '^%s$' | wc -l", disk_name, disk_name);
+        snprintf(count_cmd, sizeof(count_cmd),
+            "lsblk -rn -o NAME /dev/%s | grep -v '^%s$' | wc -l",
+            disk_name, disk_name);
         FILE *fp_count = popen(count_cmd, "r");
         int existing_part_count = 0;
         if (fp_count) {
@@ -121,29 +193,27 @@ int step_partitioning(AppData *app, const char *disk_name) {
         }
         log_to_ui_printf(app, "Existing partitions on disk: %d", existing_part_count);
 
-        // Create new partition(s) in free space
+        // Step 3: Create new partition(s) in the free space (now guaranteed to exist)
         char cmd_buf2[256];
         snprintf(cmd_buf2, sizeof(cmd_buf2), "sfdisk -a %s", disk_dev);
         FILE *sf = popen(cmd_buf2, "w");
         if (sf) {
             if (need_new_efi) {
-                // No existing EFI — create one
-                log_to_ui(app, "Creating new EFI partition...", 0.16);
+                log_to_ui(app, "Creating new EFI partition...", 0.18);
                 fprintf(sf, ",512M,U\n"); // ESP in free space
             }
-            fprintf(sf, ",,L\n"); // Root in free space
+            fprintf(sf, ",,L\n"); // Root in remaining free space
             pclose(sf);
             sleep(2);
             run_sync(app, "blockdev --rereadpt %s 2>/dev/null || true", disk_dev);
             sleep(1);
         }
 
-        // Assign device paths for dual boot
+        // Step 4: Assign device paths for dual boot partitions
         const char *sep = "";
         int len = strlen(disk_name);
         if (g_ascii_isdigit(disk_name[len-1])) sep = "p";
 
-        // Calculate new partition numbers
         int new_part_base = existing_part_count + 1;
 
         GSList *l = app->part_config_list;
@@ -153,20 +223,19 @@ int step_partitioning(AppData *app, const char *disk_name) {
             if (strcmp(cfg->mountpoint, "/boot/efi") == 0) {
                 g_free(cfg->device);
                 if (has_existing_efi) {
-                    // Reuse the detected EFI partition path as-is
                     cfg->device = g_strdup(app->detected_efi_partition);
                 } else {
-                    // New EFI partition we just created
-                    cfg->device = g_strdup_printf("/dev/%s%s%d", disk_name, sep, new_part_base);
+                    cfg->device = g_strdup_printf("/dev/%s%s%d",
+                        disk_name, sep, new_part_base);
                 }
             } else if (strcmp(cfg->mountpoint, "/") == 0) {
                 g_free(cfg->device);
                 if (need_new_efi) {
-                    // Root is the partition after the new EFI
-                    cfg->device = g_strdup_printf("/dev/%s%s%d", disk_name, sep, new_part_base + 1);
+                    cfg->device = g_strdup_printf("/dev/%s%s%d",
+                        disk_name, sep, new_part_base + 1);
                 } else {
-                    // Root is the first (and only) new partition
-                    cfg->device = g_strdup_printf("/dev/%s%s%d", disk_name, sep, new_part_base);
+                    cfg->device = g_strdup_printf("/dev/%s%s%d",
+                        disk_name, sep, new_part_base);
                 }
             }
             l = l->next;
@@ -387,33 +456,40 @@ int step_install_base_system(AppData *app, const char *TARGETDIR) {
       chk = chk->next;
     }
 
+#ifndef UNIVERSAL_BUILD
+    /* --- Void Linux: xbps-install cryptsetup + copy XBPS keys --- */
     if (has_crypto) {
-        log_to_ui(app, "Installing cryptsetup...", 0.55);
-        run_sync(app, "chroot %s xbps-install -y cryptsetup", TARGETDIR);
+        void_install_crypto_packages(app, TARGETDIR);
     }
-
-    // COPY XBPS KEYS (needed for package verification post-install)
-    log_to_ui(app, "Copying XBPS repository keys...", 0.56);
-    run_sync(app, "mkdir -p %s/var/db/xbps/keys", TARGETDIR);
-    run_sync(app, "cp /var/db/xbps/keys/*.plist %s/var/db/xbps/keys/", TARGETDIR);
-    run_sync(app, "cp -a /usr/share/xbps.d %s/usr/share/ 2>/dev/null", TARGETDIR);
+    void_copy_xbps_keys(app, TARGETDIR);
+#else
+    /* --- Universal: cryptsetup must already be in the base image --- */
+    if (has_crypto) {
+        log_to_ui(app, "[Universal] cryptsetup required – ensure it is pre-installed in the base image.", 0.55);
+    }
+#endif
 
     // REBUILD INITRAMFS (generic, with AHCI driver for SATA support)
     log_to_ui(app, "Rebuilding initramfs...", 0.6);
     run_sync(app, "chroot %s dracut --no-hostonly --add-drivers \"ahci\" --force", TARGETDIR);
 
-    // RECONFIGURE BASE PACKAGES
-    log_to_ui(app, "Reconfiguring base system packages...", 0.63);
-    run_sync(app, "xbps-reconfigure -r %s -f base-files 2>/dev/null", TARGETDIR);
-    run_sync(app, "chroot %s xbps-reconfigure -a", TARGETDIR);
+#ifndef UNIVERSAL_BUILD
+    /* --- Void Linux: reconfigure base packages with xbps-reconfigure --- */
+    void_reconfigure_base(app, TARGETDIR);
+#else
+    log_to_ui(app, "[Universal] Skipping xbps-reconfigure (not a Void system).", 0.63);
+#endif
 
     return 0;
 }
 
 int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *hostname, const gchar *locale, const gchar *root_pass, const gchar *user_login, const gchar *user_fullname, const gchar *user_pass, gboolean autologin) {
-    // REMOVE TEMPORARY PACKAGES
-    log_to_ui(app, "Removing temporary live packages...", 0.7);
-    run_sync(app, "chroot %s xbps-remove -Ry dialog xtools-minimal xmirror espeakup brltty 2>/dev/null", TARGETDIR);
+#ifndef UNIVERSAL_BUILD
+    /* --- Void Linux: remove live packages with xbps-remove --- */
+    void_remove_live_packages(app, TARGETDIR);
+#else
+    log_to_ui(app, "[Universal] Skipping xbps-remove of live packages (not a Void system).", 0.70);
+#endif
 
     // REMOVE LIVE USER FIRST (before creating new user to avoid UID conflicts)
     log_to_ui(app, "Removing live user (anon) from target system...", 0.72);
@@ -433,11 +509,15 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
     log_to_ui(app, "Applying System Configuration...", 0.75);
     run_sync(app, "echo '%s' > %s/etc/hostname", hostname, TARGETDIR);
 
-    // Enable locale in libc-locales
-    run_sync(app, "sed -i 's|^#%s |%s |' %s/etc/default/libc-locales 2>/dev/null || true",
-             locale, locale, TARGETDIR);
+    // Enable locale
     run_sync(app, "echo 'LANG=%s' > %s/etc/locale.conf", locale, TARGETDIR);
-    run_sync(app, "chroot %s xbps-reconfigure -f glibc-locales", TARGETDIR);
+#ifndef UNIVERSAL_BUILD
+    /* --- Void Linux: enable locale in libc-locales and reconfigure with xbps --- */
+    void_reconfigure_locales(app, TARGETDIR, locale);
+#else
+    /* --- Universal: use locale-gen or another base distro mechanism --- */
+    run_sync(app, "chroot %s locale-gen 2>/dev/null || true", TARGETDIR);
+#endif
 
     // KEYMAP SETUP — copy from live system to target
     run_sync(app, "cp /etc/vconsole.conf %s/etc/vconsole.conf 2>/dev/null", TARGETDIR);
@@ -544,9 +624,10 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         // Copy flatpak if exists
         run_sync(app, "cp -rf /var/lib/flatpak %s/var/lib/ 2>/dev/null || true", TARGETDIR);
 
-        // Copy xbps.d config
-        run_sync(app, "mkdir -p %s/etc/xbps.d", TARGETDIR);
-        run_sync(app, "cp -f /etc/xbps.d/* %s/etc/xbps.d/ 2>/dev/null || true", TARGETDIR);
+#ifndef UNIVERSAL_BUILD
+        /* --- Void Linux: copy XBPS repository configuration --- */
+        void_copy_xbpsd_config(app, TARGETDIR);
+#endif
 
         // Fix ownership of user home directory
         run_sync(app, "chroot %s chown -R %s:%s /home/%s 2>/dev/null || true", TARGETDIR, user_login, user_login, user_login);
@@ -604,13 +685,12 @@ if (has_crypto) {
     }
 
     if (app->is_efi) {
-        log_to_ui(app, "Downloading GRUB EFI support...", 0.91);
-        if (strcmp(app->efi_target, "x86_64-efi") == 0) {
-            run_sync(app, "chroot %s xbps-install -y grub-x86_64-efi", TARGETDIR);
-        } else {
-            run_sync(app, "chroot %s xbps-install -y grub-i386-efi", TARGETDIR);
-        }
-
+#ifndef UNIVERSAL_BUILD
+        /* --- Void Linux: install grub-*-efi via xbps --- */
+        void_install_grub_efi_pkg(app, TARGETDIR);
+#else
+        log_to_ui(app, "[Universal] grub EFI package must be pre-installed in the base image.", 0.91);
+#endif
         run_sync(app, "chroot %s grub-install --target=%s --efi-directory=/boot/efi --bootloader-id=BOOT --recheck --removable", TARGETDIR, app->efi_target);
     } else {
         run_sync(app, "chroot %s grub-install --recheck %s", TARGETDIR, disk_path);
@@ -620,8 +700,12 @@ if (has_crypto) {
 
     // DUAL BOOT: Install and enable os-prober to detect other operating systems
     if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
-        log_to_ui(app, "Installing os-prober for dual boot detection...", 0.92);
-        run_sync(app, "chroot %s xbps-install -y os-prober ntfs-3g 2>/dev/null || true", TARGETDIR);
+#ifndef UNIVERSAL_BUILD
+        /* --- Void Linux: install os-prober and ntfs-3g via xbps --- */
+        void_install_osprober(app, TARGETDIR);
+#else
+        log_to_ui(app, "[Universal] os-prober/ntfs-3g must be pre-installed in the base image.", 0.92);
+#endif
 
         // Ensure GRUB_DISABLE_OS_PROBER is not set to true
         run_sync(app, "sed -i '/GRUB_DISABLE_OS_PROBER/d' %s/etc/default/grub", TARGETDIR);
@@ -663,8 +747,13 @@ if (has_crypto) {
         run_sync(app, "echo 'add_dracutmodules+=\" crypt \"' >> %s/etc/dracut.conf.d/10-crypt.conf", TARGETDIR);
 
         log_to_ui(app, "Regenerating initramfs with LUKS support...", 0.935);
-        run_sync(app, "chroot %s xbps-install -y base-system-dracut 2>/dev/null || true", TARGETDIR);
-        run_sync(app, "chroot %s xbps-reconfigure -fa 2>/dev/null || chroot %s dracut --force 2>/dev/null || true", TARGETDIR, TARGETDIR);
+#ifndef UNIVERSAL_BUILD
+        /* --- Void Linux: install base-system-dracut and reconfigure with xbps --- */
+        void_install_dracut_luks(app, TARGETDIR);
+#else
+        /* --- Universal: regenerate initramfs directly with dracut --- */
+        run_sync(app, "chroot %s dracut --force 2>/dev/null || true", TARGETDIR);
+#endif
     }
     return 0;
 }

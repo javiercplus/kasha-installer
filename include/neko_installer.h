@@ -17,7 +17,7 @@ typedef struct {
     gboolean encrypt;
     gchar *luks_pass;
     gchar *original_device;
-    gchar *luks_uuid; // UUID del header LUKS (para GRUB y crypttab)
+    gchar *luks_uuid; // LUKS header UUID (for GRUB and crypttab)
 } PartitionConfig;
 
 typedef enum {
@@ -144,6 +144,12 @@ void populate_defaults(AppData *app, const char *disk_name);
 void get_partition_fstype(const char *device_path, char *out_type, size_t max_len);
 PartitionConfig* find_config_by_device(AppData *app, const gchar *device);
 void remove_partition_config(AppData *app, PartitionConfig *conf);
+glong get_partition_size_mb(const char *device);
+glong get_fs_min_size_mb(const char *device);
+glong get_disk_free_space_mb(const char *disk_name);
+char* find_largest_resizable_partition(const char *disk_name);
+int resize_existing_partition(AppData *app, const char *device, glong new_size_mb);
+
 
 // ui_partition.c
 void scan_partitions_for_dialog(GtkComboBoxText *combo);
@@ -205,4 +211,17 @@ int step_install_bootloader(AppData *app, const char *TARGETDIR, const char *dis
 int step_finalize(AppData *app, const char *TARGETDIR);
 int check_filesystems(AppData *app);
 
-#endif
+// installer_steps_void.c  (normal build only, NOT in UNIVERSAL_BUILD)
+#ifndef UNIVERSAL_BUILD
+void void_install_crypto_packages(AppData *app, const char *TARGETDIR);
+void void_copy_xbps_keys(AppData *app, const char *TARGETDIR);
+void void_reconfigure_base(AppData *app, const char *TARGETDIR);
+void void_remove_live_packages(AppData *app, const char *TARGETDIR);
+void void_reconfigure_locales(AppData *app, const char *TARGETDIR, const char *locale);
+void void_copy_xbpsd_config(AppData *app, const char *TARGETDIR);
+void void_install_grub_efi_pkg(AppData *app, const char *TARGETDIR);
+void void_install_osprober(AppData *app, const char *TARGETDIR);
+void void_install_dracut_luks(AppData *app, const char *TARGETDIR);
+#endif /* !UNIVERSAL_BUILD */
+
+#endif /* NEKO_INSTALLER_H */

@@ -51,6 +51,11 @@ To compile the installer:
 ```bash
 make
 ```
+- for OTHER DISTROS (ARTIX/ARCH, DEVUAN/DEBIAN, ETC...)
+
+```bash
+make universal
+```
 
 To clean the build artifacts:
 

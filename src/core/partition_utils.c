@@ -98,12 +98,16 @@ char* get_partition_path(const char *disk, int part_num) {
 }
 
 void populate_defaults(AppData *app, const char *disk_name) {
+    /* Save the intended mode BEFORE reset (on_reset_partitions_clicked
+       clobbers install_mode to INSTALL_MODE_MANUAL) */
+    InstallMode intended_mode = app->install_mode;
+
     on_reset_partitions_clicked(NULL, app);
     
     char *p1 = get_partition_path(disk_name, 1);
     char *p2 = get_partition_path(disk_name, 2);
     
-    if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
+    if (intended_mode == INSTALL_MODE_DUAL_BOOT) {
         // Dual boot: detect and reuse existing EFI partition
         if (app->detected_efi_partition) {
             g_free(app->detected_efi_partition);
@@ -190,4 +194,287 @@ void remove_partition_config(AppData *app, PartitionConfig *conf) {
     g_free(conf->mountpoint);
     if(conf->luks_pass) g_free(conf->luks_pass);
     g_free(conf);
+}
+
+/* ------------------------------------------------------------------ *
+ *  get_partition_size_mb                                               *
+ *  Get the size of a partition/device in megabytes.                    *
+ * ------------------------------------------------------------------ */
+glong get_partition_size_mb(const char *device) {
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd), "blockdev --getsize64 %s 2>/dev/null", device);
+    FILE *fp = popen(cmd, "r");
+    if (!fp) return -1;
+
+    char buf[64];
+    glong result = -1;
+    if (fgets(buf, sizeof(buf), fp)) {
+        long long bytes = atoll(buf);
+        result = (glong)(bytes / (1024LL * 1024LL));
+    }
+    pclose(fp);
+    return result;
+}
+
+/* ------------------------------------------------------------------ *
+ *  get_fs_min_size_mb                                                  *
+ *  Get minimum possible size for a filesystem in MB.                  *
+ *  Uses filesystem-specific tools to determine the minimum.           *
+ * ------------------------------------------------------------------ */
+glong get_fs_min_size_mb(const char *device) {
+    char fstype[64];
+    get_partition_fstype(device, fstype, sizeof(fstype));
+
+    if (strcmp(fstype, "ext4") == 0 || strcmp(fstype, "ext3") == 0 ||
+        strcmp(fstype, "ext2") == 0) {
+        /* resize2fs -P gives minimum number of filesystem blocks */
+        char cmd[256];
+        snprintf(cmd, sizeof(cmd),
+            "resize2fs -P %s 2>/dev/null | awk -F': ' '{print $2}'", device);
+        FILE *fp = popen(cmd, "r");
+        if (!fp) return -1;
+
+        char buf[64];
+        glong result = -1;
+        if (fgets(buf, sizeof(buf), fp)) {
+            long long min_blocks = atoll(buf);
+            /* Get block size from dumpe2fs */
+            char cmd2[256];
+            snprintf(cmd2, sizeof(cmd2),
+                "dumpe2fs -h %s 2>/dev/null | grep 'Block size' | awk '{print $NF}'",
+                device);
+            FILE *fp2 = popen(cmd2, "r");
+            long block_size = 4096; /* default */
+            if (fp2) {
+                char buf2[32];
+                if (fgets(buf2, sizeof(buf2), fp2)) {
+                    block_size = atol(buf2);
+                }
+                pclose(fp2);
+            }
+            result = (glong)((min_blocks * block_size) / (1024LL * 1024LL));
+        }
+        pclose(fp);
+        return result;
+    }
+    else if (strcmp(fstype, "ntfs") == 0) {
+        /* ntfsresize --info gives "You might resize at <bytes> bytes" */
+        char cmd[512];
+        snprintf(cmd, sizeof(cmd),
+            "ntfsresize --info --force --no-progress-bar %s 2>/dev/null "
+            "| grep -i 'resize at' | grep -oE '[0-9]+' | tail -n1",
+            device);
+        FILE *fp = popen(cmd, "r");
+        if (!fp) return -1;
+
+        char buf[64];
+        glong result = -1;
+        if (fgets(buf, sizeof(buf), fp)) {
+            long long bytes = atoll(buf);
+            result = (glong)(bytes / (1024LL * 1024LL));
+        }
+        pclose(fp);
+        return result;
+    }
+
+    return -1; /* Unsupported filesystem */
+}
+
+/* ------------------------------------------------------------------ *
+ *  get_disk_free_space_mb                                              *
+ *  Get total unallocated free space on a disk in MB.                  *
+ * ------------------------------------------------------------------ */
+glong get_disk_free_space_mb(const char *disk_name) {
+    /* Use sfdisk -F (show free space) — available on all systems */
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd),
+        "sfdisk -F /dev/%s 2>/dev/null", disk_name);
+    FILE *fp = popen(cmd, "r");
+    if (!fp) return 0;
+
+    glong total_free = 0;
+    char line[256];
+    while (fgets(line, sizeof(line), fp)) {
+        /* sfdisk -F output: "Unpartitioned space ... X bytes, Y MiB" or
+         *   start    size   sectors" lines with sector counts.
+         * Look for lines with sector counts (numeric start) */
+        unsigned long long start_s = 0, size_s = 0;
+        if (sscanf(line, " %llu %llu", &start_s, &size_s) == 2 && size_s > 0) {
+            total_free += (glong)(size_s / 2048); /* sectors → MB (512B/sector) */
+        }
+    }
+    pclose(fp);
+    return total_free;
+}
+
+/* ------------------------------------------------------------------ *
+ *  find_largest_resizable_partition                                    *
+ *  Find the last large partition with a supported fs (ext4/ntfs).     *
+ *  Returns allocated device path or NULL.                             *
+ * ------------------------------------------------------------------ */
+char* find_largest_resizable_partition(const char *disk_name) {
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd),
+        "lsblk -rn -o NAME,FSTYPE /dev/%s | grep -v '^%s '",
+        disk_name, disk_name);
+    FILE *fp = popen(cmd, "r");
+    if (!fp) return NULL;
+
+    char best_name[128] = {0};
+    glong best_size = 0;
+
+    char line[256];
+    while (fgets(line, sizeof(line), fp)) {
+        char name[64] = {0}, fstype[32] = {0};
+        sscanf(line, "%63s %31s", name, fstype);
+
+        /* Only consider resizable filesystems */
+        if (strcmp(fstype, "ext4") != 0 && strcmp(fstype, "ext3") != 0 &&
+            strcmp(fstype, "ext2") != 0 && strcmp(fstype, "ntfs") != 0) {
+            continue;
+        }
+
+        char dev_path[128];
+        snprintf(dev_path, sizeof(dev_path), "/dev/%s", name);
+        glong size_mb = get_partition_size_mb(dev_path);
+
+        if (size_mb > best_size) {
+            best_size = size_mb;
+            strncpy(best_name, name, sizeof(best_name) - 1);
+        }
+    }
+    pclose(fp);
+
+    if (best_name[0] != '\0') {
+        return g_strdup_printf("/dev/%s", best_name);
+    }
+    return NULL;
+}
+
+/* ------------------------------------------------------------------ *
+ *  parse_disk_and_partnum                                              *
+ *  Split "/dev/sda2" → disk="/dev/sda", partnum=2                     *
+ *  Split "/dev/nvme0n1p3" → disk="/dev/nvme0n1", partnum=3            *
+ * ------------------------------------------------------------------ */
+static int parse_disk_and_partnum(const char *device, char *disk_out,
+                                  size_t disk_sz, int *partnum_out) {
+    const char *dev = device;
+    if (strncmp(dev, "/dev/", 5) == 0) dev += 5;
+
+    if (strncmp(dev, "nvme", 4) == 0 || strncmp(dev, "mmcblk", 6) == 0) {
+        /* Find last 'p' followed by digits only */
+        const char *last_p = NULL;
+        for (const char *s = dev; *s; s++) {
+            if (*s == 'p' && s[1] >= '0' && s[1] <= '9') {
+                gboolean all_d = TRUE;
+                for (const char *c = s + 1; *c; c++)
+                    if (!g_ascii_isdigit(*c)) { all_d = FALSE; break; }
+                if (all_d) last_p = s;
+            }
+        }
+        if (!last_p) return -1;
+        int disk_len = (int)(last_p - dev);
+        snprintf(disk_out, disk_sz, "/dev/%.*s", disk_len, dev);
+        *partnum_out = atoi(last_p + 1);
+    } else {
+        /* sda2 → disk=sda, part=2 */
+        int i = (int)strlen(dev) - 1;
+        while (i >= 0 && g_ascii_isdigit(dev[i])) i--;
+        snprintf(disk_out, disk_sz, "/dev/%.*s", i + 1, dev);
+        *partnum_out = atoi(dev + i + 1);
+    }
+    return (*partnum_out > 0) ? 0 : -1;
+}
+
+/* ------------------------------------------------------------------ *
+ *  resize_existing_partition                                           *
+ *  Shrink filesystem + partition table entry.                         *
+ *  new_size_mb = desired new total partition size in MB.               *
+ * ------------------------------------------------------------------ */
+int resize_existing_partition(AppData *app, const char *device,
+                              glong new_size_mb) {
+    char fstype[64];
+    get_partition_fstype(device, fstype, sizeof(fstype));
+
+    /* 1. Unmount */
+    log_to_ui_printf(app, "Unmounting %s if mounted...", device);
+    run_sync(app, "umount %s 2>/dev/null || true", device);
+
+    /* 2. Shrink filesystem */
+    if (strcmp(fstype, "ext4") == 0 || strcmp(fstype, "ext3") == 0 ||
+        strcmp(fstype, "ext2") == 0) {
+        log_to_ui_printf(app, "Checking filesystem on %s...", device);
+        if (run_sync(app, "e2fsck -f -y %s", device) != 0) {
+            log_to_ui(app, "ERROR: Filesystem check failed!", 0.0);
+            return -1;
+        }
+        log_to_ui_printf(app, "Resizing ext filesystem on %s to %ldM...",
+                         device, new_size_mb);
+        if (run_sync(app, "resize2fs %s %ldM", device, new_size_mb) != 0) {
+            log_to_ui(app, "ERROR: Filesystem resize failed!", 0.0);
+            return -1;
+        }
+    }
+    else if (strcmp(fstype, "ntfs") == 0) {
+        long long new_bytes = (long long)new_size_mb * 1024LL * 1024LL;
+        log_to_ui_printf(app, "Resizing NTFS on %s to %ldMB...",
+                         device, new_size_mb);
+        if (run_sync(app, "echo y | ntfsresize --no-progress-bar --size %lld %s",
+                     new_bytes, device) != 0) {
+            log_to_ui(app, "ERROR: NTFS resize failed!", 0.0);
+            return -1;
+        }
+    }
+    else {
+        log_to_ui_printf(app, "ERROR: Unsupported filesystem '%s' for resize!",
+                         fstype);
+        return -1;
+    }
+
+    /* 3. Shrink partition table entry via sfdisk (parted not available on live ISO) */
+    char disk_dev[128] = {0};
+    int part_num = 0;
+    if (parse_disk_and_partnum(device, disk_dev, sizeof(disk_dev),
+                               &part_num) != 0) {
+        log_to_ui(app, "ERROR: Could not determine disk/partition number!", 0.0);
+        return -1;
+    }
+
+    /* Read partition start sector from sysfs (always available) */
+    const char *disk_base = disk_dev + 5; /* skip /dev/ */
+    const char *part_base = device + 5;   /* skip /dev/ */
+    char sysfs_path[256];
+    snprintf(sysfs_path, sizeof(sysfs_path),
+        "/sys/block/%s/%s/start", disk_base, part_base);
+
+    FILE *fp_s = fopen(sysfs_path, "r");
+    long long start_sectors = 0;
+    if (fp_s) {
+        fscanf(fp_s, "%lld", &start_sectors);
+        fclose(fp_s);
+    }
+    if (start_sectors <= 0) {
+        log_to_ui_printf(app, "ERROR: Could not read partition start from %s",
+                         sysfs_path);
+        return -1;
+    }
+
+    /* Calculate new size in sectors (1 MB = 2048 sectors of 512 bytes) */
+    long long new_size_sectors = (long long)new_size_mb * 2048LL;
+
+    log_to_ui_printf(app,
+        "Updating partition table: part %d start=%lld size=%lld sectors",
+        part_num, start_sectors, new_size_sectors);
+
+    /* Use sfdisk -N to modify just this partition, keeping type/uuid intact */
+    if (run_sync(app, "echo '%lld %lld' | sfdisk --no-reread -N %d %s 2>/dev/null",
+                 start_sectors, new_size_sectors, part_num, disk_dev) != 0) {
+        log_to_ui(app, "ERROR: Partition table resize failed!", 0.0);
+        return -1;
+    }
+
+    sleep(1);
+    run_sync(app, "blockdev --rereadpt %s 2>/dev/null || true", disk_dev);
+    sleep(1);
+    return 0;
 }

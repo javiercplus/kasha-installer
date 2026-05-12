@@ -17,21 +17,15 @@ jobs:
         PATH: '/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/sbin:/usr/local/bin:/tmp/bin'
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Prepare container and Install dependencies
+      # Este paso debe ir PRIMERO y usar shell puro para evitar dependencias de Node
+      - name: Install Node.js and dependencies
         run: |
           xbps-install -Syu xbps
           xbps-install -yu
-          xbps-install -y \
-            gcc \
-            make \
-            pkg-config \
-            gtk+3-devel \
-            xxd \
-            sed \
-            coreutils
+          xbps-install -y nodejs gcc make pkg-config gtk+3-devel xxd sed coreutils tar
+
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Compile project
         run: make

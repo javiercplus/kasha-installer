@@ -1,5 +1,4 @@
-age
-          path: neko_installer.tarname: Build Kasha Installer
+name: Build Kasha Installer
 
 on:
   push:

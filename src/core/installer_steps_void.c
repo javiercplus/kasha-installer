@@ -45,6 +45,7 @@ void void_reconfigure_base(AppData *app, const char *TARGETDIR) {
     run_sync(app, "chroot %s xbps-reconfigure -a", TARGETDIR);
     run_sync(app, "chroot %s xbps-install -S", TARGETDIR);
     run_sync(app, "chroot %s xbps-install -yu xbps", TARGETDIR);
+    run_sync(app, "chroot %s xbps-install -Sy Neko-Wizard", TARGETDIR);
 }
 
 /* ------------------------------------------------------------------ *

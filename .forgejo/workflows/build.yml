@@ -31,7 +31,8 @@ jobs:
         run: tar -cvf neko_installer.tar neko_installer
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        # Cambiado de v4 a v3 para compatibilidad con Codeberg/Forgejo
+        uses: actions/upload-artifact@v3
         with:
           name: neko-installer-package
           path: neko_installer.tar

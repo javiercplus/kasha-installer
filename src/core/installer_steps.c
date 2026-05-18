@@ -634,11 +634,28 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
 
         // Autologin
         if (autologin) {
-            run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
-            run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf", TARGETDIR, user_login, TARGETDIR);
+            // Check if SDDM is present on the target
+            char sddm_path[512];
+            char lightdm_conf_path[512];
+            snprintf(sddm_path, sizeof(sddm_path), "%s/usr/bin/sddm", TARGETDIR);
+            snprintf(lightdm_conf_path, sizeof(lightdm_conf_path), "%s/etc/lightdm/lightdm.conf", TARGETDIR);
+            if (access(sddm_path, F_OK) == 0) {
+                log_to_ui(app, "Configuring SDDM autologin...", 0.87);
+                // Create sddm.conf.d directory if it doesn't exist
+                run_sync(app, "mkdir -p %s/etc/sddm.conf.d", TARGETDIR);
+                // Write SDDM autologin configuration
+                run_sync(app, "printf '[Autologin]\\nUser=%s\\n' > %s/etc/sddm.conf.d/autologin.conf", user_login, TARGETDIR);
+            } else if (access(lightdm_conf_path, F_OK) == 0) {
+                log_to_ui(app, "Configuring LightDM autologin...", 0.87);
+                run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
+                run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf", TARGETDIR, user_login, TARGETDIR);
+            }
         } else {
             // Ensure autologin is explicitly disabled if the user unchecked the box
-            run_sync(app, "sed -i '/^autologin-user=/d' %s/etc/lightdm/lightdm.conf", TARGETDIR);
+            // SDDM
+            run_sync(app, "rm -f %s/etc/sddm.conf.d/autologin.conf", TARGETDIR);
+            // LightDM
+            run_sync(app, "sed -i '/^autologin-user=/d' %s/etc/lightdm/lightdm.conf 2>/dev/null || true", TARGETDIR);
         }
 
         // Sudoers

@@ -15,7 +15,19 @@ void load_custom_css() {
     GtkCssProvider *provider = gtk_css_provider_new();
     const gchar *css_data = 
         "progressbar trough { min-height: 20px; }"
-        "progressbar progress { min-height: 20px; background-color: #33d17a; }"; 
+        "progressbar progress { min-height: 20px; background-color: #33d17a; }"
+        /* Console text view: terminal-like colors, force visibility on all DEs */
+        "#console_view {"
+        "  background-color: #1e1e1e;"
+        "  color: #e0e0e0;"
+        "  font-family: monospace;"
+        "  font-size: 10pt;"
+        "  padding: 6px;"
+        "}"
+        "#console_view text {"
+        "  background-color: #1e1e1e;"
+        "  color: #e0e0e0;"
+        "}"; 
 
     GError *error = NULL;
     gtk_css_provider_load_from_data(provider, css_data, -1, &error);
@@ -682,6 +694,7 @@ void build_ui(AppData *app) {
 
     app->console_text = gtk_text_view_new();
     gtk_text_view_set_editable(GTK_TEXT_VIEW(app->console_text), FALSE);
+    gtk_widget_set_name(app->console_text, "console_view");
     GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
     gtk_container_add(GTK_CONTAINER(scroll), app->console_text);
     gtk_widget_set_vexpand(scroll, TRUE);

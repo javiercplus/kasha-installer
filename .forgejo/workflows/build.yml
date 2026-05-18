@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: codeberg-medium
+    runs-on: codeberg-small
     container:
       image: 'ghcr.io/void-linux/void-mklive:20250116R1'
       options: --privileged

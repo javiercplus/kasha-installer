@@ -3,6 +3,7 @@
  * Installation Steps Implementation
  */
 #include "neko_installer.h"
+#include "country_data.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -519,8 +520,91 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
     run_sync(app, "chroot %s locale-gen 2>/dev/null || true", TARGETDIR);
 #endif
 
-    // KEYMAP SETUP — copy from live system to target
-    run_sync(app, "cp /etc/vconsole.conf %s/etc/vconsole.conf 2>/dev/null", TARGETDIR);
+    // KEYMAP SETUP — configure keyboard layout for console, X11 and Wayland
+    {
+        const char *console_kmap = "us";
+        const char *x11_layout = "us";
+        const char *x11_variant = "";
+
+        // 1st priority: user-selected keyboard layout from UI
+        int kbd_active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_layout_combo));
+        if (kbd_active >= 0) {
+            int kbd_count = 0;
+            const KbdLayout *layouts = get_keyboard_layouts(&kbd_count);
+            if (kbd_active < kbd_count) {
+                console_kmap = layouts[kbd_active].console_kmap;
+                x11_layout   = layouts[kbd_active].layout;
+            }
+
+            // Get selected variant
+            int var_active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_variant_combo));
+            if (var_active > 0 && kbd_active < kbd_count) {
+                // variant index 0 = "Default" = empty string
+                const KbdVariant *vars = layouts[kbd_active].variants;
+                int vi = 0;
+                for (int i = 0; vars[i].name != NULL; i++) {
+                    if (vi == var_active) {
+                        x11_variant = vars[i].code;
+                        break;
+                    }
+                    vi++;
+                }
+            }
+        } else {
+            // 2nd priority: derive from country selection
+            gchar *country_name = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->country_combo));
+            if (country_name && strlen(country_name) > 0) {
+                const CountryInfo *ci = find_country_by_name(country_name);
+                if (ci && ci->console_kmap && ci->x11_layout) {
+                    console_kmap = ci->console_kmap;
+                    x11_layout   = ci->x11_layout;
+                }
+                g_free(country_name);
+            }
+        }
+
+        log_to_ui_printf(app, "Keyboard: console=%s, X11=%s, variant=%s",
+                         console_kmap, x11_layout,
+                         strlen(x11_variant) ? x11_variant : "none");
+
+        // 1. Console TTY keymap → /etc/rc.conf (Runit/Void Linux)
+        run_sync(app, "mkdir -p %s/etc", TARGETDIR);
+        run_sync(app, "if grep -q '^KEYMAP=' %s/etc/rc.conf 2>/dev/null; then "
+                       "sed -i 's/^KEYMAP=.*/KEYMAP=\"%s\"/' %s/etc/rc.conf; "
+                       "else echo 'KEYMAP=\"%s\"' >> %s/etc/rc.conf; fi",
+                 TARGETDIR, console_kmap, TARGETDIR, console_kmap, TARGETDIR);
+
+        // 2. X11 keyboard → /etc/X11/xorg.conf.d/00-keyboard.conf
+        run_sync(app, "mkdir -p %s/etc/X11/xorg.conf.d", TARGETDIR);
+        if (strlen(x11_variant) > 0) {
+            run_sync(app, "printf 'Section \"InputClass\"\\n"
+                           "        Identifier \"system-keyboard\"\\n"
+                           "        MatchIsKeyboard \"on\"\\n"
+                           "        Option \"XkbLayout\" \"%s\"\\n"
+                           "        Option \"XkbVariant\" \"%s\"\\n"
+                           "EndSection\\n' > %s/etc/X11/xorg.conf.d/00-keyboard.conf",
+                     x11_layout, x11_variant, TARGETDIR);
+        } else {
+            run_sync(app, "printf 'Section \"InputClass\"\\n"
+                           "        Identifier \"system-keyboard\"\\n"
+                           "        MatchIsKeyboard \"on\"\\n"
+                           "        Option \"XkbLayout\" \"%s\"\\n"
+                           "EndSection\\n' > %s/etc/X11/xorg.conf.d/00-keyboard.conf",
+                     x11_layout, TARGETDIR);
+        }
+
+        // 3. Environment variables for Wayland / XKB → /etc/profile.d/keyboard.sh
+        run_sync(app, "mkdir -p %s/etc/profile.d", TARGETDIR);
+        if (strlen(x11_variant) > 0) {
+            run_sync(app, "printf 'export XKB_DEFAULT_LAYOUT=\"%s\"\\n"
+                           "export XKB_DEFAULT_VARIANT=\"%s\"\\n' > %s/etc/profile.d/keyboard.sh",
+                     x11_layout, x11_variant, TARGETDIR);
+        } else {
+            run_sync(app, "printf 'export XKB_DEFAULT_LAYOUT=\"%s\"\\n' > %s/etc/profile.d/keyboard.sh",
+                     x11_layout, TARGETDIR);
+        }
+        run_sync(app, "chmod 0644 %s/etc/profile.d/keyboard.sh", TARGETDIR);
+    }
 
     // TIMEZONE SETUP
     char *tz_area = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->tz_area_combo));

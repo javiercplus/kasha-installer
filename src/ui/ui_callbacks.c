@@ -276,6 +276,21 @@ void on_country_changed(GtkComboBox *widget, AppData *app) {
         }
     }
     g_free(city_copy);
+
+    // --- Set Keyboard Layout ---
+    if (info->x11_layout) {
+        const KbdLayout *kbd = find_keyboard_layout(info->x11_layout);
+        if (kbd) {
+            int kbd_count = 0;
+            const KbdLayout *all_kbd = get_keyboard_layouts(&kbd_count);
+            for (int i = 0; i < kbd_count; i++) {
+                if (&all_kbd[i] == kbd) {
+                    gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_layout_combo), i);
+                    break;
+                }
+            }
+        }
+    }
 }
 
 void on_timezone_area_changed(GtkComboBox *widget, AppData *app) {
@@ -308,6 +323,25 @@ void on_timezone_area_changed(GtkComboBox *widget, AppData *app) {
     }
     gtk_combo_box_set_active(GTK_COMBO_BOX(app->tz_city_combo), 0);
     g_free(area);
+}
+
+void on_kbd_layout_changed(GtkComboBox *widget, AppData *app) {
+    int active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_layout_combo));
+    if (active < 0) return;
+
+    int count = 0;
+    const KbdLayout *layouts = get_keyboard_layouts(&count);
+    if (active >= count) return;
+
+    const KbdLayout *layout = &layouts[active];
+
+    // Repopulate variant combo
+    gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(app->kbd_variant_combo));
+    for (int i = 0; layout->variants[i].name != NULL; i++) {
+        gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->kbd_variant_combo),
+                                        layout->variants[i].name);
+    }
+    gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_variant_combo), 0);
 }
 
 void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data) {

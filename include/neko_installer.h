@@ -45,6 +45,10 @@ typedef struct {
     GtkWidget *locale_combo;    
     GtkWidget *tz_area_combo; 
     GtkWidget *tz_city_combo;
+    GtkWidget *kbd_layout_combo;
+    GtkWidget *kbd_variant_combo;
+    GtkWidget *lbl_kbd_layout;
+    GtkWidget *lbl_kbd_variant;
     
     // Tab 4: Users
     GtkWidget *root_pass_entry;
@@ -172,6 +176,7 @@ void on_page_changed(GtkNotebook *notebook, GtkWidget *page, guint page_num, App
 void on_disk_changed(GtkComboBox *widget, AppData *app);
 void on_country_changed(GtkComboBox *widget, AppData *app);
 void on_timezone_area_changed(GtkComboBox *widget, AppData *app);
+void on_kbd_layout_changed(GtkComboBox *widget, AppData *app);
 void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data);
 void launch_gparted(GtkWidget *widget, AppData *app);
 void on_reboot_clicked(GtkWidget *widget, AppData *app);

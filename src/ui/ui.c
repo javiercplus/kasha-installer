@@ -652,6 +652,45 @@ void build_ui(AppData *app) {
     
     gtk_box_pack_start(GTK_BOX(page_sys), vbox_tz, FALSE, FALSE, 0);
 
+        // Keyboard Layout
+    {
+        GtkWidget *vbox_kbd = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+        gtk_widget_set_margin_bottom(vbox_kbd, 10);
+
+        app->lbl_kbd_layout = gtk_label_new("Keyboard Layout:");
+        gtk_label_set_xalign(GTK_LABEL(app->lbl_kbd_layout), 0.5);
+
+        app->kbd_layout_combo = gtk_combo_box_text_new();
+        int kbd_count = 0;
+        const KbdLayout *layouts = get_keyboard_layouts(&kbd_count);
+        for (int i = 0; i < kbd_count; i++) {
+            gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->kbd_layout_combo), layouts[i].name);
+        }
+        gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_layout_combo), 0); // Default: English (US)
+        g_signal_connect(app->kbd_layout_combo, "changed", G_CALLBACK(on_kbd_layout_changed), app);
+
+        gtk_box_pack_start(GTK_BOX(vbox_kbd), app->lbl_kbd_layout, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(vbox_kbd), app->kbd_layout_combo, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(page_sys), vbox_kbd, FALSE, FALSE, 0);
+    }
+
+    // Keyboard Variant
+    {
+        GtkWidget *vbox_kvar = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+        gtk_widget_set_margin_bottom(vbox_kvar, 10);
+
+        app->lbl_kbd_variant = gtk_label_new("Variant:");
+        gtk_label_set_xalign(GTK_LABEL(app->lbl_kbd_variant), 0.5);
+
+        app->kbd_variant_combo = gtk_combo_box_text_new();
+        gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->kbd_variant_combo), "Default");
+        gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_variant_combo), 0);
+
+        gtk_box_pack_start(GTK_BOX(vbox_kvar), app->lbl_kbd_variant, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(vbox_kvar), app->kbd_variant_combo, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(page_sys), vbox_kvar, FALSE, FALSE, 0);
+    }
+
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_sys, gtk_label_new("System"));
 
     // --- TAB 4: USERS ---

@@ -54,8 +54,27 @@ int step_partitioning(AppData *app, const char *disk_name) {
     char disk_dev[64];
     snprintf(disk_dev, sizeof(disk_dev), "/dev/%s", disk_name);
 
+    // ===== PRE-PARTITION CLEANUP =====
+    // Deactivate swap on all partitions of this disk
+    log_to_ui(app, "Deactivating swap partitions on target disk...", 0.12);
+    run_sync(app, "for p in /dev/%s*; do swapoff \"$p\" 2>/dev/null; done || true", disk_name);
+
+    // Unmount all partitions currently mounted from this disk
+    log_to_ui(app, "Unmounting any existing partitions on target disk...", 0.13);
+    run_sync(app, "for p in $(lsblk -rn -o NAME /dev/%s 2>/dev/null | grep -v '^%s$'); do umount -lf /dev/$p 2>/dev/null; done || true", disk_name, disk_name);
+
+    // Close any LUKS devices backed by partitions on this disk
+    run_sync(app, "for p in $(lsblk -rn -o NAME /dev/%s 2>/dev/null | grep -v '^%s$'); do "
+                   "cryptsetup close /dev/mapper/$(lsblk -rn -o NAME /dev/$p 2>/dev/null | head -1) 2>/dev/null; "
+                   "done || true", disk_name, disk_name);
+
     if (app->install_mode == INSTALL_MODE_ERASE) {
         // ===== CLEAN INSTALL: ERASE / CREATE NEW TABLE =====
+
+        // Wipe old filesystem signatures from the entire disk
+        log_to_ui(app, "Wiping old signatures from disk...", 0.14);
+        run_sync(app, "wipefs -af %s 2>/dev/null || true", disk_dev);
+
         char cmd_buf[256];
         snprintf(cmd_buf, sizeof(cmd_buf), "sfdisk --wipe always %s", disk_dev);
         FILE *sf = popen(cmd_buf, "w");
@@ -73,6 +92,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
              pclose(sf);
              sleep(2);
              run_sync(app, "blockdev --rereadpt %s 2>/dev/null || true", disk_dev);
+             run_sync(app, "udevadm settle --timeout=10 2>/dev/null || sleep 2");
              sleep(1);
         }
 
@@ -207,6 +227,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
             pclose(sf);
             sleep(2);
             run_sync(app, "blockdev --rereadpt %s 2>/dev/null || true", disk_dev);
+            run_sync(app, "udevadm settle --timeout=10 2>/dev/null || sleep 2");
             sleep(1);
         }
 
@@ -347,6 +368,25 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
                 gchar *fs_cmd = NULL;
                 log_to_ui_printf(app, "Formatting Root %s as %s...", conf->device, conf->fstype);
 
+                // Wait for device node to appear (kernel may still be creating it)
+                int wait_tries = 0;
+                while (access(conf->device, F_OK) != 0 && wait_tries < 10) {
+                    log_to_ui_printf(app, "Waiting for %s to appear... (%d/10)", conf->device, wait_tries + 1);
+                    sleep(1);
+                    wait_tries++;
+                }
+                if (access(conf->device, F_OK) != 0) {
+                    log_to_ui_printf(app, "ERROR: Device %s does not exist!", conf->device);
+                    return -1;
+                }
+
+                // Ensure partition is not busy (unmount + swapoff just in case)
+                run_sync(app, "umount -lf %s 2>/dev/null || true", conf->device);
+                run_sync(app, "swapoff %s 2>/dev/null || true", conf->device);
+
+                // Wipe old filesystem signatures before formatting
+                run_sync(app, "wipefs -af %s 2>/dev/null || true", conf->device);
+
                 if (strcmp(conf->fstype, "ext4") == 0) fs_cmd = "mkfs.ext4 -F";
                 else if (strcmp(conf->fstype, "btrfs") == 0) fs_cmd = "mkfs.btrfs -f";
                 else if (strcmp(conf->fstype, "xfs") == 0) fs_cmd = "mkfs.xfs -f";
@@ -381,9 +421,28 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
         if (strcmp(conf->mountpoint, "/") != 0) {
             gchar *fs_cmd = NULL;
 
-            // 2.1 Format EFI
+            // 2.1 Format
             if (conf->format) {
                 log_to_ui_printf(app, "Formatting %s...", conf->mountpoint);
+
+                // Wait for device node to appear
+                int wait_tries = 0;
+                while (access(conf->device, F_OK) != 0 && wait_tries < 10) {
+                    log_to_ui_printf(app, "Waiting for %s to appear... (%d/10)", conf->device, wait_tries + 1);
+                    sleep(1);
+                    wait_tries++;
+                }
+                if (access(conf->device, F_OK) != 0) {
+                    log_to_ui_printf(app, "ERROR: Device %s does not exist!", conf->device);
+                    return -1;
+                }
+
+                // Ensure partition is not busy
+                run_sync(app, "umount -lf %s 2>/dev/null || true", conf->device);
+                run_sync(app, "swapoff %s 2>/dev/null || true", conf->device);
+
+                // Wipe old filesystem signatures before formatting
+                run_sync(app, "wipefs -af %s 2>/dev/null || true", conf->device);
 
                 if (strcmp(conf->fstype, "ext4") == 0) fs_cmd = "mkfs.ext4 -F";
                 else if (strcmp(conf->fstype, "btrfs") == 0) fs_cmd = "mkfs.btrfs -f";

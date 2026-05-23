@@ -77,6 +77,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
 
         char cmd_buf[256];
         snprintf(cmd_buf, sizeof(cmd_buf), "sfdisk --wipe always %s", disk_dev);
+        log_to_ui_printf(app, "Running: %s", cmd_buf);
         FILE *sf = popen(cmd_buf, "w");
         if (sf) {
              if (app->is_efi) fprintf(sf, "label: gpt\n");
@@ -89,11 +90,20 @@ int step_partitioning(AppData *app, const char *disk_name) {
                  fprintf(sf, ",,L,*\n"); // Root – MBR Boot Flag
              }
 
-             pclose(sf);
+             int sfdisk_ret = pclose(sf);
+             if (sfdisk_ret != 0) {
+                 log_to_ui_printf(app, "ERROR: sfdisk failed (exit code %d)! "
+                                  "Disk may be busy or have I/O errors.", WEXITSTATUS(sfdisk_ret));
+                 return -1;
+             }
+
              sleep(2);
              run_sync(app, "blockdev --rereadpt %s 2>/dev/null || true", disk_dev);
              run_sync(app, "udevadm settle --timeout=10 2>/dev/null || sleep 2");
              sleep(1);
+        } else {
+             log_to_ui(app, "ERROR: Could not execute sfdisk!", 0.0);
+             return -1;
         }
 
         // Assign device paths for clean install
@@ -115,6 +125,26 @@ int step_partitioning(AppData *app, const char *disk_name) {
             } else {
                 cfg->device = g_strdup_printf("/dev/%s%s1", disk_name, sep);
             }
+            l = l->next;
+        }
+
+        // Verify partition device nodes were actually created
+        l = app->part_config_list;
+        while(l) {
+            PartitionConfig *cfg = (PartitionConfig*)l->data;
+            int tries = 0;
+            while (access(cfg->device, F_OK) != 0 && tries < 15) {
+                log_to_ui_printf(app, "Waiting for %s to appear... (%d/15)", cfg->device, tries + 1);
+                run_sync(app, "udevadm settle --timeout=3 2>/dev/null || sleep 1");
+                sleep(1);
+                tries++;
+            }
+            if (access(cfg->device, F_OK) != 0) {
+                log_to_ui_printf(app, "ERROR: Partition %s was not created! "
+                                 "sfdisk may have failed silently.", cfg->device);
+                return -1;
+            }
+            log_to_ui_printf(app, "Partition %s is ready.", cfg->device);
             l = l->next;
         }
 
@@ -217,6 +247,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
         // Step 3: Create new partition(s) in the free space (now guaranteed to exist)
         char cmd_buf2[256];
         snprintf(cmd_buf2, sizeof(cmd_buf2), "sfdisk -a %s", disk_dev);
+        log_to_ui_printf(app, "Running: %s", cmd_buf2);
         FILE *sf = popen(cmd_buf2, "w");
         if (sf) {
             if (need_new_efi) {
@@ -224,11 +255,21 @@ int step_partitioning(AppData *app, const char *disk_name) {
                 fprintf(sf, ",512M,U\n"); // ESP in free space
             }
             fprintf(sf, ",,L\n"); // Root in remaining free space
-            pclose(sf);
+
+            int sfdisk_ret = pclose(sf);
+            if (sfdisk_ret != 0) {
+                log_to_ui_printf(app, "ERROR: sfdisk failed (exit code %d)! "
+                                 "Disk may be busy or have I/O errors.", WEXITSTATUS(sfdisk_ret));
+                return -1;
+            }
+
             sleep(2);
             run_sync(app, "blockdev --rereadpt %s 2>/dev/null || true", disk_dev);
             run_sync(app, "udevadm settle --timeout=10 2>/dev/null || sleep 2");
             sleep(1);
+        } else {
+            log_to_ui(app, "ERROR: Could not execute sfdisk!", 0.0);
+            return -1;
         }
 
         // Step 4: Assign device paths for dual boot partitions
@@ -260,6 +301,26 @@ int step_partitioning(AppData *app, const char *disk_name) {
                         disk_name, sep, new_part_base);
                 }
             }
+            l = l->next;
+        }
+
+        // Verify partition device nodes were actually created
+        l = app->part_config_list;
+        while(l) {
+            PartitionConfig *cfg = (PartitionConfig*)l->data;
+            int tries = 0;
+            while (access(cfg->device, F_OK) != 0 && tries < 15) {
+                log_to_ui_printf(app, "Waiting for %s to appear... (%d/15)", cfg->device, tries + 1);
+                run_sync(app, "udevadm settle --timeout=3 2>/dev/null || sleep 1");
+                sleep(1);
+                tries++;
+            }
+            if (access(cfg->device, F_OK) != 0) {
+                log_to_ui_printf(app, "ERROR: Partition %s was not created! "
+                                 "sfdisk may have failed silently.", cfg->device);
+                return -1;
+            }
+            log_to_ui_printf(app, "Partition %s is ready.", cfg->device);
             l = l->next;
         }
     }

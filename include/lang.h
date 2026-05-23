@@ -48,6 +48,15 @@ typedef struct {
     const char *city;
     const char *timezone;
     
+    // Privilege Manager
+    const char *tab_privilege;
+    const char *priv_title;
+    const char *priv_desc;
+    const char *priv_sudo_label;
+    const char *priv_sudo_desc;
+    const char *priv_doas_label;
+    const char *priv_doas_desc;
+
     // Users
     const char *root_pass;
     const char *user_account;

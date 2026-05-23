@@ -64,6 +64,15 @@ static const LangInfo lang_ja = {
     .back = "戻る",
     .next = "次へ",
 
+    // Privilege Manager
+    .tab_privilege = "セキュリティ",
+    .priv_title = "権限昇格",
+    .priv_desc = "従来のsudoと軽量なdoasから選択:",
+    .priv_sudo_label = "sudo",
+    .priv_sudo_desc = "標準ツール。広く互換性があり、コードベースは複雑。",
+    .priv_doas_label = "doas",
+    .priv_doas_desc = "最小限の代替。よりシンプルで攻撃ベクトルが少ない。推奨。",
+    
     // Tabs
     .tab_welcome = "ようこそ",
     .tab_install_type = "種別",

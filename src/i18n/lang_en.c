@@ -64,6 +64,15 @@ static const LangInfo lang_en = {
     .back = "Back",
     .next = "Next",
     
+    // Privilege Manager
+    .tab_privilege = "Security",
+    .priv_title = "Privilege Escalation",
+    .priv_desc = "Choose between traditional sudo or the lightweight doas:",
+    .priv_sudo_label = "sudo",
+    .priv_sudo_desc = "Standard tool. Widely compatible, complex codebase.",
+    .priv_doas_label = "doas",
+    .priv_doas_desc = "Minimal alternative. Simpler, fewer attack vectors. Recommended.",
+    
     // Tabs
     .tab_welcome = "Welcome",
     .tab_install_type = "Installation Type",

@@ -58,8 +58,18 @@ typedef struct {
     GtkWidget *user_pass_entry;
     GtkWidget *user_pass_confirm_entry;
     GtkWidget *autologin_check;
-        
-    // Tab 5: Installation
+
+    // Tab 5: Privilege Manager
+    GtkWidget *radio_priv_sudo;
+    GtkWidget *radio_priv_doas;
+    GtkWidget *lbl_priv_title;
+    GtkWidget *lbl_priv_desc;
+    GtkWidget *lbl_priv_sudo;
+    GtkWidget *lbl_priv_doas;
+    GtkWidget *lbl_priv_sudo_desc;
+    GtkWidget *lbl_priv_doas_desc;
+
+    // Tab 6: Installation
     GtkWidget *console_text;
     GtkWidget *progress_bar;
     GtkWidget *btn_install;

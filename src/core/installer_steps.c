@@ -742,9 +742,36 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
             run_sync(app, "sed -i '/^autologin-user=/d' %s/etc/lightdm/lightdm.conf 2>/dev/null || true", TARGETDIR);
         }
 
-        // Sudoers
-        run_sync(app, "echo '%%wheel ALL=(ALL:ALL) ALL' > %s/etc/sudoers.d/wheel", TARGETDIR);
-        run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
+        // Privilege Manager: doas or sudo
+        if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->radio_priv_doas))) {
+            log_to_ui(app, "Configuring doas (lightweight privilege manager)...", 0.88);
+
+            // 1. Prevent sudo from being pulled as a dependency
+            run_sync(app, "mkdir -p %s/etc/xbps.d", TARGETDIR);
+            run_sync(app, "if ! grep -q 'ignorepkg=sudo' %s/etc/xbps.d/10-ignore.conf 2>/dev/null; then "
+                           "echo 'ignorepkg=sudo' >> %s/etc/xbps.d/10-ignore.conf; fi",
+                     TARGETDIR, TARGETDIR);
+
+            // 2. Install opendoas
+            run_sync(app, "chroot %s xbps-install -Sy opendoas 2>/dev/null || true", TARGETDIR);
+
+            // 3. Configure doas.conf
+            run_sync(app, "printf '# doas configuration\npermit persist :wheel\n' > %s/etc/doas.conf", TARGETDIR);
+            run_sync(app, "chmod 0400 %s/etc/doas.conf", TARGETDIR);
+
+            // 4. Remove sudo (will be ignored by xbps from now on)
+            run_sync(app, "chroot %s xbps-remove -Ry sudo 2>/dev/null || true", TARGETDIR);
+
+            // Still write sudoers as fallback
+            run_sync(app, "mkdir -p %s/etc/sudoers.d", TARGETDIR);
+            run_sync(app, "echo '%%wheel ALL=(ALL:ALL) ALL' > %s/etc/sudoers.d/wheel", TARGETDIR);
+            run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
+        } else {
+            // Traditional sudo
+            log_to_ui(app, "Configuring sudo...", 0.88);
+            run_sync(app, "echo '%%wheel ALL=(ALL:ALL) ALL' > %s/etc/sudoers.d/wheel", TARGETDIR);
+            run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
+        }
     }
 
     generate_fstab(app, TARGETDIR);

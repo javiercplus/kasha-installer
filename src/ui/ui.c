@@ -6,14 +6,14 @@
 #include "lang.h"
 #include "country_data.h"
 #include <stdio.h>
-#include <stdlib.h>      
+#include <stdlib.h>
 #include <string.h>
 #include "logo.h"
 
 //custom themes
 void load_custom_css() {
     GtkCssProvider *provider = gtk_css_provider_new();
-    const gchar *css_data = 
+    const gchar *css_data =
         "progressbar trough { min-height: 20px; }"
         "progressbar progress { min-height: 20px; background-color: #33d17a; }"
         /* Console text view: terminal-like colors, force visibility on all DEs */
@@ -27,7 +27,7 @@ void load_custom_css() {
         "#console_view text {"
         "  background-color: #1e1e1e;"
         "  color: #e0e0e0;"
-        "}"; 
+        "}";
 
     GError *error = NULL;
     gtk_css_provider_load_from_data(provider, css_data, -1, &error);
@@ -47,15 +47,15 @@ const char* get_loc(const char *key, int lang) {
     // Get language from module
     extern const LangInfo* get_lang(const char *code);
     extern const char** get_available_langs(void);
-    
+
     const char **langs = get_available_langs();
     lang = (lang >= 0) ? lang : 0;
     if (lang >= 3) lang = 0;  // safety
-    
+
     const char *code = langs[lang];
     const LangInfo *li = get_lang(code);
     if (!li) return key;
-    
+
     if (strcmp(key, "welcome_title") == 0) return li->welcome_title;
     if (strcmp(key, "welcome_body") == 0) return li->welcome_body;
     if (strcmp(key, "disk") == 0) return li->disk;
@@ -67,7 +67,7 @@ const char* get_loc(const char *key, int lang) {
     if (strcmp(key, "btn_del") == 0) return li->btn_delete;
     if (strcmp(key, "btn_reset") == 0) return li->btn_reset;
     if (strcmp(key, "btn_gparted") == 0) return li->btn_gparted;
-    
+
     if (strcmp(key, "tab_install_type") == 0) return li->tab_install_type;
     if (strcmp(key, "install_type_title") == 0) return li->install_type_title;
     if (strcmp(key, "clean_install") == 0) return li->clean_install;
@@ -77,16 +77,16 @@ const char* get_loc(const char *key, int lang) {
     if (strcmp(key, "manual_partitioning") == 0) return li->manual_partitioning;
     if (strcmp(key, "existing_parts") == 0) return li->existing_parts;
     if (strcmp(key, "install_parts") == 0) return li->install_parts;
-    
+
     if (strcmp(key, "boot_detect") == 0) return li->boot_detect;
     if (strcmp(key, "grub_install") == 0) return li->grub_install;
-    
+
     if (strcmp(key, "hostname") == 0) return li->hostname;
     if (strcmp(key, "country") == 0) return li->country;
     if (strcmp(key, "locale") == 0) return li->locale;
     if (strcmp(key, "region") == 0) return li->region;
     if (strcmp(key, "city") == 0) return li->city;
-    
+
     if (strcmp(key, "root_pass") == 0) return li->root_pass;
     if (strcmp(key, "user_acc_title") == 0) return li->user_account;
     if (strcmp(key, "fullname") == 0) return li->fullname;
@@ -94,18 +94,25 @@ const char* get_loc(const char *key, int lang) {
     if (strcmp(key, "password") == 0) return li->password;
     if (strcmp(key, "confirm") == 0) return li->confirm;
     if (strcmp(key, "autologin") == 0) return li->autologin;
-    
+
     if (strcmp(key, "install_btn") == 0) return li->install_btn;
     if (strcmp(key, "reboot_btn") == 0) return li->reboot_btn;
     if (strcmp(key, "back") == 0) return li->back;
     if (strcmp(key, "next") == 0) return li->next;
-    
+
     if (strcmp(key, "tab_welcome") == 0) return li->tab_welcome;
     if (strcmp(key, "tab_partitions") == 0) return li->tab_partitions;
     if (strcmp(key, "tab_bootloader") == 0) return li->tab_bootloader;
     if (strcmp(key, "tab_system") == 0) return li->tab_system;
     if (strcmp(key, "tab_users") == 0) return li->tab_users;
-if (strcmp(key, "tab_install") == 0) return li->tab_install;
+    if (strcmp(key, "tab_privilege") == 0) return li->tab_privilege;
+    if (strcmp(key, "priv_title") == 0) return li->priv_title;
+    if (strcmp(key, "priv_desc") == 0) return li->priv_desc;
+    if (strcmp(key, "priv_sudo_label") == 0) return li->priv_sudo_label;
+    if (strcmp(key, "priv_sudo_desc") == 0) return li->priv_sudo_desc;
+    if (strcmp(key, "priv_doas_label") == 0) return li->priv_doas_label;
+    if (strcmp(key, "priv_doas_desc") == 0) return li->priv_doas_desc;
+    if (strcmp(key, "tab_install") == 0) return li->tab_install;
     if (strcmp(key, "welcome_title_markup") == 0) return li->welcome_title_markup;
     if (strcmp(key, "welcome_body_markup") == 0) return li->welcome_body_markup;
     if (strcmp(key, "part_mount") == 0) return li->part_mount;
@@ -137,17 +144,17 @@ if (strcmp(key, "tab_install") == 0) return li->tab_install;
     if (strcmp(key, "val_password_match") == 0) return li->val_password_match;
     if (strcmp(key, "val_root_pass")      == 0) return li->val_root_pass;
     if (strcmp(key, "val_incomplete")     == 0) return li->val_incomplete;
-    
+
     return key;
 }
 
 void update_ui_language(AppData *app) {
     int lang = app->current_lang;
-    
+
     // Welcome
     if(app->lbl_welcome_title) gtk_label_set_markup(GTK_LABEL(app->lbl_welcome_title), get_loc("welcome_title", lang));
     if(app->lbl_welcome_body) gtk_label_set_markup(GTK_LABEL(app->lbl_welcome_body), get_loc("welcome_body", lang));
-    
+
     // Install Type
     if(app->lbl_install_type_title) gtk_label_set_text(GTK_LABEL(app->lbl_install_type_title), get_loc("install_type_title", lang));
     if(app->radio_clean_install) gtk_button_set_label(GTK_BUTTON(app->radio_clean_install), get_loc("clean_install", lang));
@@ -164,7 +171,7 @@ void update_ui_language(AppData *app) {
     if(app->btn_part_reset) gtk_button_set_label(GTK_BUTTON(app->btn_part_reset), get_loc("btn_reset", lang));
     if(app->btn_part_gparted) gtk_button_set_label(GTK_BUTTON(app->btn_part_gparted), get_loc("btn_gparted", lang));
     if(app->chk_manual_partitions) gtk_button_set_label(GTK_BUTTON(app->chk_manual_partitions), get_loc("manual_partitioning", lang));
-    
+
     // Frame labels
     if(app->frame_existing) {
         GtkWidget *frame_label = gtk_frame_get_label_widget(GTK_FRAME(app->frame_existing));
@@ -178,14 +185,14 @@ void update_ui_language(AppData *app) {
     // Boot
     // if(app->lbl_boot_status) gtk_label_set_text(GTK_LABEL(app->lbl_boot_status), get_loc("boot_detect", lang));
     if(app->lbl_grub_install) gtk_label_set_text(GTK_LABEL(app->lbl_grub_install), get_loc("grub_install", lang));
-    
+
     // System
     if(app->lbl_hostname) gtk_label_set_text(GTK_LABEL(app->lbl_hostname), get_loc("hostname", lang));
     if(app->lbl_country) gtk_label_set_text(GTK_LABEL(app->lbl_country), get_loc("country", lang));
     if(app->lbl_locale) gtk_label_set_text(GTK_LABEL(app->lbl_locale), get_loc("locale", lang));
     if(app->lbl_region) gtk_label_set_text(GTK_LABEL(app->lbl_region), get_loc("region", lang));
     if(app->lbl_city) gtk_label_set_text(GTK_LABEL(app->lbl_city), get_loc("city", lang));
-    
+
     // User
     if(app->lbl_root_pass) gtk_label_set_text(GTK_LABEL(app->lbl_root_pass), get_loc("root_pass", lang));
     if(app->lbl_user_account) gtk_label_set_text(GTK_LABEL(app->lbl_user_account), get_loc("user_acc_title", lang));
@@ -194,53 +201,63 @@ void update_ui_language(AppData *app) {
     if(app->lbl_user_pass) gtk_label_set_text(GTK_LABEL(app->lbl_user_pass), get_loc("password", lang));
     if(app->lbl_user_confirm) gtk_label_set_text(GTK_LABEL(app->lbl_user_confirm), get_loc("confirm", lang));
     if(app->chk_autologin) gtk_button_set_label(GTK_BUTTON(app->chk_autologin), get_loc("autologin", lang));
-    
+
+    // Privilege Manager
+    if(app->lbl_priv_title) gtk_label_set_markup(GTK_LABEL(app->lbl_priv_title),
+        g_strdup_printf("<b><span size='large'>%s</span></b>", get_loc("priv_title", lang)));
+    if(app->lbl_priv_desc) gtk_label_set_text(GTK_LABEL(app->lbl_priv_desc), get_loc("priv_desc", lang));
+    if(app->lbl_priv_sudo) gtk_button_set_label(GTK_BUTTON(app->lbl_priv_sudo), get_loc("priv_sudo_label", lang));
+    if(app->lbl_priv_doas) gtk_button_set_label(GTK_BUTTON(app->lbl_priv_doas), get_loc("priv_doas_label", lang));
+    if(app->lbl_priv_sudo_desc) gtk_label_set_text(GTK_LABEL(app->lbl_priv_sudo_desc), get_loc("priv_sudo_desc", lang));
+    if(app->lbl_priv_doas_desc) gtk_label_set_text(GTK_LABEL(app->lbl_priv_doas_desc), get_loc("priv_doas_desc", lang));
+
     // Common
     if(!app->installing) gtk_button_set_label(GTK_BUTTON(app->btn_install), get_loc("install_btn", lang));
     gtk_button_set_label(GTK_BUTTON(app->btn_back), get_loc("back", lang));
     gtk_button_set_label(GTK_BUTTON(app->btn_next), get_loc("next", lang));
-    
-    // Update Tab Labels (7 tabs: Welcome, Install Type, Partitions, Bootloader, System, Users, Install)
+
+    // Update Tab Labels (8 tabs)
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 0), get_loc("tab_welcome", lang));
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 1), get_loc("tab_install_type", lang));
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 2), get_loc("tab_partitions", lang));
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 3), get_loc("tab_bootloader", lang));
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 4), get_loc("tab_system", lang));
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 5), get_loc("tab_users", lang));
-    gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 6), get_loc("tab_install", lang));
+    gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 6), get_loc("tab_privilege", lang));
+    gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 7), get_loc("tab_install", lang));
 }
 
 void on_lang_toggled(GtkWidget *widget, AppData *app) {
     extern int get_lang_count(void);
     extern const LangInfo* get_lang(const char *code);
     extern const char** get_available_langs(void);
-    
+
     app->current_lang++;
     if (app->current_lang >= get_lang_count()) {
         app->current_lang = 0;
     }
-    
+
     const char **langs = get_available_langs();
     const char *code = langs[app->current_lang];
     const LangInfo *li = get_lang(code);
-    
+
     const char *name = li ? li->name : code;
     gtk_button_set_label(GTK_BUTTON(widget), name);
-    
+
     // Update window title
     const char *title = get_loc("window_title", app->current_lang);
     gtk_window_set_title(GTK_WINDOW(app->window), title);
-    
+
     update_ui_language(app);
 }
 
 void set_ui_finished_safe(gpointer data) {
     AppData *app = (AppData *)data;
-    
+
     gtk_widget_set_sensitive(app->btn_back, FALSE);
     gtk_widget_set_sensitive(app->btn_next, FALSE);
     gtk_widget_set_sensitive(app->notebook, FALSE);
-    
+
     gtk_button_set_label(GTK_BUTTON(app->btn_install), get_loc("reboot_btn", app->current_lang));
     g_signal_handlers_disconnect_by_func(app->btn_install, G_CALLBACK(start_installation), app);
     g_signal_connect(app->btn_install, "clicked", G_CALLBACK(on_reboot_clicked), app);
@@ -252,7 +269,7 @@ void set_ui_finished_safe(gpointer data) {
         GTK_BUTTONS_NONE,
         get_loc("success_title", app->current_lang));
 
-    gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(success_dialog), 
+    gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(success_dialog),
         get_loc("success_body", app->current_lang));
 
     GtkWidget *btn_reboot_popup = gtk_dialog_add_button(GTK_DIALOG(success_dialog), get_loc("success_reboot", app->current_lang), GTK_RESPONSE_ACCEPT);
@@ -272,13 +289,13 @@ void set_ui_finished(AppData *app) { g_idle_add(set_ui_finished_wrapper, app); }
 
 GtkWidget* create_form_row(const gchar *label_text, GtkWidget **entry_ptr, GtkWidget **label_ptr) {
     GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    gtk_widget_set_margin_bottom(hbox, 5); 
-    
+    gtk_widget_set_margin_bottom(hbox, 5);
+
     GtkWidget *label = gtk_label_new(label_text);
-    gtk_label_set_xalign(GTK_LABEL(label), 0.0); 
+    gtk_label_set_xalign(GTK_LABEL(label), 0.0);
 
     if(label_ptr) *label_ptr = label;
-    
+
     *entry_ptr = gtk_entry_new();
     gtk_widget_set_hexpand(*entry_ptr, TRUE);
     gtk_box_pack_start(GTK_BOX(hbox), label, FALSE, FALSE, 0);
@@ -288,14 +305,14 @@ GtkWidget* create_form_row(const gchar *label_text, GtkWidget **entry_ptr, GtkWi
 
 GtkWidget* create_vertical_input(const gchar *label_text, GtkWidget **entry_ptr, GtkWidget **label_ptr) {
     GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 1);
-    gtk_widget_set_margin_bottom(vbox, 5); 
+    gtk_widget_set_margin_bottom(vbox, 5);
 
     GtkWidget *label = gtk_label_new(label_text);
-    gtk_label_set_xalign(GTK_LABEL(label), 0.0); 
+    gtk_label_set_xalign(GTK_LABEL(label), 0.0);
     if(label_ptr) *label_ptr = label;
-    
+
     *entry_ptr = gtk_entry_new();
-    
+
     gtk_box_pack_start(GTK_BOX(vbox), label, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), *entry_ptr, FALSE, FALSE, 0);
     return vbox;
@@ -307,8 +324,8 @@ GtkWidget* create_welcome_page(AppData *app) {
     gtk_widget_set_margin_bottom(align_box, 10);
     gtk_widget_set_margin_start(align_box, 10);
     gtk_widget_set_margin_end(align_box, 10);
-    
-    GtkWidget *vbox_main = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8); 
+
+    GtkWidget *vbox_main = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
     gtk_widget_set_halign(vbox_main, GTK_ALIGN_CENTER);
     gtk_widget_set_valign(vbox_main, GTK_ALIGN_CENTER);
     gtk_widget_set_vexpand(vbox_main, TRUE);
@@ -318,7 +335,7 @@ GtkWidget* create_welcome_page(AppData *app) {
     if (gdk_pixbuf_loader_write(loader, logo_png, logo_png_len, NULL)) {
         gdk_pixbuf_loader_close(loader, NULL);
         GdkPixbuf *pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
-        
+
         if (pixbuf) {
             int width = gdk_pixbuf_get_width(pixbuf);
             int height = gdk_pixbuf_get_height(pixbuf);
@@ -328,9 +345,9 @@ GtkWidget* create_welcome_page(AppData *app) {
             GtkWidget *image = gtk_image_new_from_pixbuf(scaled);
             gtk_widget_set_halign(image, GTK_ALIGN_CENTER);
             gtk_widget_set_margin_bottom(image, 10);
-            gtk_box_pack_start(GTK_BOX(vbox_main), image, FALSE, FALSE, 0); 
-            
-            g_object_unref(scaled); 
+            gtk_box_pack_start(GTK_BOX(vbox_main), image, FALSE, FALSE, 0);
+
+            g_object_unref(scaled);
         }
     }
     g_object_unref(loader);
@@ -342,10 +359,10 @@ GtkWidget* create_welcome_page(AppData *app) {
 
     app->lbl_welcome_body = gtk_label_new(NULL);
     gtk_label_set_justify(GTK_LABEL(app->lbl_welcome_body), GTK_JUSTIFY_CENTER);
-    gtk_label_set_xalign(GTK_LABEL(app->lbl_welcome_body), 0.5); 
-    gtk_label_set_yalign(GTK_LABEL(app->lbl_welcome_body), 0.5); 
-    gtk_label_set_line_wrap(GTK_LABEL(app->lbl_welcome_body), TRUE); 
-    gtk_label_set_max_width_chars(GTK_LABEL(app->lbl_welcome_body), 50); 
+    gtk_label_set_xalign(GTK_LABEL(app->lbl_welcome_body), 0.5);
+    gtk_label_set_yalign(GTK_LABEL(app->lbl_welcome_body), 0.5);
+    gtk_label_set_line_wrap(GTK_LABEL(app->lbl_welcome_body), TRUE);
+    gtk_label_set_max_width_chars(GTK_LABEL(app->lbl_welcome_body), 50);
     gtk_label_set_selectable(GTK_LABEL(app->lbl_welcome_body), TRUE);
     gtk_widget_set_margin_start(app->lbl_welcome_body, 10);
     gtk_widget_set_margin_end(app->lbl_welcome_body, 10);
@@ -357,7 +374,7 @@ GtkWidget* create_welcome_page(AppData *app) {
     const char **langs = get_available_langs();
     const LangInfo *first_lang = get_lang(langs[0]);
     const char *first_lang_name = first_lang ? first_lang->name : "English";
-    
+
     GtkWidget *btn_lang = gtk_button_new_with_label(first_lang_name);
     gtk_widget_set_halign(btn_lang, GTK_ALIGN_CENTER);
     gtk_widget_set_margin_top(btn_lang, 5);
@@ -366,18 +383,18 @@ GtkWidget* create_welcome_page(AppData *app) {
 
     gtk_box_pack_start(GTK_BOX(align_box), vbox_main, TRUE, TRUE, 0);
     gtk_widget_show_all(align_box);
-    
+
     return align_box;
 }
 
 void build_ui(AppData *app) {
     load_custom_css();
     app->current_lang = 0; // Default EN
-    
+
     // Initialize language module
     extern void lang_init(void);
     lang_init();
-    
+
     app->window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(app->window), get_loc("window_title", 0));
     gtk_window_set_default_size(GTK_WINDOW(app->window), 800, 480);
@@ -388,7 +405,7 @@ void build_ui(AppData *app) {
     // Allow minimum window size
     gtk_widget_set_size_request(app->window, 640, 400);
 
-    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0); 
+    GtkWidget *vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     gtk_container_add(GTK_CONTAINER(app->window), vbox);
 
     app->notebook = gtk_notebook_new();
@@ -397,16 +414,16 @@ void build_ui(AppData *app) {
     gtk_widget_set_margin_end(app->notebook, 10);
     gtk_widget_set_margin_top(app->notebook, 10);
     gtk_box_pack_start(GTK_BOX(vbox), app->notebook, TRUE, TRUE, 0);
-  
+
     //WELCOME
     GtkWidget *page_welcome = create_welcome_page(app);
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_welcome, gtk_label_new("Welcome"));
-    
+
     // --- TAB 1: INSTALLATION TYPE ---
     GtkWidget *page_install_type = gtk_box_new(GTK_ORIENTATION_VERTICAL, 8);
     gtk_container_set_border_width(GTK_CONTAINER(page_install_type), 10);
     gtk_widget_set_vexpand(page_install_type, TRUE);
-    
+
     app->lbl_install_type_title = gtk_label_new("Select installation type:");
     gtk_label_set_xalign(GTK_LABEL(app->lbl_install_type_title), 0.0);
     PangoAttrList *attrs = pango_attr_list_new();
@@ -414,34 +431,34 @@ void build_ui(AppData *app) {
     gtk_label_set_attributes(GTK_LABEL(app->lbl_install_type_title), attrs);
     pango_attr_list_unref(attrs);
     gtk_box_pack_start(GTK_BOX(page_install_type), app->lbl_install_type_title, FALSE, FALSE, 0);
-    
+
     app->radio_clean_install = gtk_radio_button_new_with_label(NULL, "Clean Install (erase entire disk)");
     gtk_box_pack_start(GTK_BOX(page_install_type), app->radio_clean_install, FALSE, FALSE, 0);
-    
+
     app->radio_alongside = gtk_radio_button_new_with_label_from_widget(
         GTK_RADIO_BUTTON(app->radio_clean_install), "Install alongside another OS (resize)");
     gtk_box_pack_start(GTK_BOX(page_install_type), app->radio_alongside, FALSE, FALSE, 0);
-    
+
     app->lbl_install_type_desc = gtk_label_new("All data on the selected disk will be erased and partitions will be created automatically.");
     gtk_label_set_xalign(GTK_LABEL(app->lbl_install_type_desc), 0.0);
     gtk_label_set_line_wrap(GTK_LABEL(app->lbl_install_type_desc), TRUE);
     gtk_widget_set_margin_top(app->lbl_install_type_desc, 5);
     gtk_box_pack_start(GTK_BOX(page_install_type), app->lbl_install_type_desc, FALSE, FALSE, 0);
-    
+
     g_signal_connect(app->radio_clean_install, "toggled", G_CALLBACK(on_install_type_changed), app);
     g_signal_connect(app->radio_alongside, "toggled", G_CALLBACK(on_install_type_changed), app);
-    
+
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_install_type, gtk_label_new("Installation Type"));
 
     // --- TAB 2: PARTITIONS (Split View) ---
     GtkWidget *page_disk = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_set_border_width(GTK_CONTAINER(page_disk), 8);
     gtk_widget_set_vexpand(page_disk, TRUE);
-    
+
     // Disk selector row
     GtkWidget *hbox_disk = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 3);
     gtk_box_pack_start(GTK_BOX(page_disk), hbox_disk, FALSE, FALSE, 0);
-    
+
     app->disk_combo = gtk_combo_box_new();
     GtkListStore *disk_store = gtk_list_store_new(2, G_TYPE_STRING, G_TYPE_STRING);
     gtk_combo_box_set_model(GTK_COMBO_BOX(app->disk_combo), GTK_TREE_MODEL(disk_store));
@@ -451,9 +468,9 @@ void build_ui(AppData *app) {
     renderer = gtk_cell_renderer_text_new();
     gtk_cell_layout_pack_start(GTK_CELL_LAYOUT(app->disk_combo), renderer, TRUE);
     gtk_cell_layout_add_attribute(GTK_CELL_LAYOUT(app->disk_combo), renderer, "text", 1);
-    
+
     g_signal_connect(app->disk_combo, "changed", G_CALLBACK(on_disk_changed), app);
-    
+
     app->lbl_disk_title = gtk_label_new("Disk:");
     gtk_box_pack_start(GTK_BOX(hbox_disk), app->lbl_disk_title, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(hbox_disk), app->disk_combo, TRUE, TRUE, 0);
@@ -461,43 +478,43 @@ void build_ui(AppData *app) {
     app->btn_part_gparted = gtk_button_new_with_label("Partition (GParted)");
     g_signal_connect(app->btn_part_gparted, "clicked", G_CALLBACK(launch_gparted), app);
     gtk_box_pack_start(GTK_BOX(hbox_disk), app->btn_part_gparted, FALSE, FALSE, 0);
-    
+
     app->lbl_disk_info = gtk_label_new("Note: You can modify the partitions with GParted and then configure them below.");
     gtk_label_set_line_wrap(GTK_LABEL(app->lbl_disk_info), TRUE);
     gtk_label_set_xalign(GTK_LABEL(app->lbl_disk_info), 0.0);
     gtk_box_pack_start(GTK_BOX(page_disk), app->lbl_disk_info, FALSE, FALSE, 0);
-    
+
     // ===== FRAME 1: Existing Partitions (read-only) =====
     app->frame_existing = gtk_frame_new(get_loc("existing_parts", app->current_lang));
     gtk_box_pack_start(GTK_BOX(page_disk), app->frame_existing, TRUE, TRUE, 0);
-    
+
     app->existing_part_list = gtk_tree_view_new();
     init_existing_partitions_view(app);
-    
+
     GtkWidget *scroll_existing = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scroll_existing), 60);
     gtk_widget_set_vexpand(scroll_existing, TRUE);
     gtk_container_add(GTK_CONTAINER(scroll_existing), app->existing_part_list);
     gtk_container_add(GTK_CONTAINER(app->frame_existing), scroll_existing);
-    
+
     // ===== MANUAL CHECKBOX =====
     app->chk_manual_partitions = gtk_check_button_new_with_label(get_loc("manual_partitioning", app->current_lang));
     g_signal_connect(app->chk_manual_partitions, "toggled", G_CALLBACK(on_manual_check_toggled), app);
     gtk_box_pack_start(GTK_BOX(page_disk), app->chk_manual_partitions, FALSE, FALSE, 0);
-    
+
     // ===== FRAME 2: Installation Partitions (editable) =====
     app->frame_install_parts = gtk_frame_new(get_loc("install_parts", app->current_lang));
     gtk_box_pack_start(GTK_BOX(page_disk), app->frame_install_parts, TRUE, TRUE, 0);
-    
+
     GtkWidget *vbox_install_parts = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_set_border_width(GTK_CONTAINER(vbox_install_parts), 5);
     gtk_container_add(GTK_CONTAINER(app->frame_install_parts), vbox_install_parts);
-    
+
     // Buttons row
     GtkWidget *hbox_pm = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     app->lbl_part_mount = gtk_label_new("Mount Points:");
     gtk_box_pack_start(GTK_BOX(hbox_pm), app->lbl_part_mount, FALSE, FALSE, 0);
-    
+
     app->btn_part_add = gtk_button_new_with_label("Add");
     g_signal_connect(app->btn_part_add, "clicked", G_CALLBACK(on_add_partition_clicked), app);
     gtk_box_pack_start(GTK_BOX(hbox_pm), app->btn_part_add, FALSE, FALSE, 0);
@@ -509,25 +526,25 @@ void build_ui(AppData *app) {
     app->btn_part_del = gtk_button_new_with_label("Delete");
     g_signal_connect(app->btn_part_del, "clicked", G_CALLBACK(on_delete_partition_clicked), app);
     gtk_box_pack_start(GTK_BOX(hbox_pm), app->btn_part_del, FALSE, FALSE, 0);
-    
+
     app->btn_part_reset = gtk_button_new_with_label("Reset mount points");
     g_signal_connect(app->btn_part_reset, "clicked", G_CALLBACK(on_reset_partitions_clicked), app);
     gtk_box_pack_start(GTK_BOX(hbox_pm), app->btn_part_reset, FALSE, FALSE, 0);
 
     gtk_box_pack_start(GTK_BOX(vbox_install_parts), hbox_pm, FALSE, FALSE, 0);
-  
+
     app->mount_list = gtk_tree_view_new();
     open_partition_manager(app->mount_list, app);
-    
+
     GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scrolled), 60);
     gtk_widget_set_vexpand(scrolled, TRUE);
     gtk_container_add(GTK_CONTAINER(scrolled), app->mount_list);
     gtk_box_pack_start(GTK_BOX(vbox_install_parts), scrolled, TRUE, TRUE, 0);
-    
+
     // Start with manual mode DISABLED (auto-partitioning default)
     gtk_widget_set_sensitive(app->frame_install_parts, FALSE);
-    
+
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_disk, gtk_label_new("Partitions"));
 
 
@@ -535,7 +552,7 @@ void build_ui(AppData *app) {
     // --- TAB 2: BOOTLOADER ---
     GtkWidget *page_boot = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
     gtk_container_set_border_width(GTK_CONTAINER(page_boot), 15);
-    
+
     app->lbl_boot_status = gtk_label_new("Detecting firmware...");
     app->label_boot_status = app->lbl_boot_status;
     gtk_box_pack_start(GTK_BOX(page_boot), app->lbl_boot_status, FALSE, FALSE, 0);
@@ -543,18 +560,18 @@ void build_ui(AppData *app) {
     GtkWidget *hbox_grub = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
     app->lbl_grub_install = gtk_label_new("Install GRUB to:");
     gtk_box_pack_start(GTK_BOX(hbox_grub), app->lbl_grub_install, FALSE, FALSE, 0);
-    
+
     app->grub_disk_combo = gtk_combo_box_text_new();
     gtk_box_pack_start(GTK_BOX(hbox_grub), app->grub_disk_combo, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(page_boot), hbox_grub, FALSE, FALSE, 0);
-    
+
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_boot, gtk_label_new("Bootloader"));
 
     // --- TAB 3: SYSTEM CONFIG ---
     GtkWidget *page_sys = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_set_border_width(GTK_CONTAINER(page_sys), 10);
     gtk_widget_set_vexpand(page_sys, TRUE);
-    
+
     // Hostname
     gtk_box_pack_start(GTK_BOX(page_sys), create_form_row("Hostname:", &app->hostname_entry, &app->lbl_hostname), FALSE, FALSE, 0);
     gtk_entry_set_text(GTK_ENTRY(app->hostname_entry), "neko-void");
@@ -563,12 +580,12 @@ void build_ui(AppData *app) {
     {
         GtkWidget *vbox_country = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
         gtk_widget_set_margin_bottom(vbox_country, 10);
-        
+
         app->lbl_country = gtk_label_new("Country:");
         gtk_label_set_xalign(GTK_LABEL(app->lbl_country), 0.5);
-        
+
         app->country_combo = gtk_combo_box_text_new();
-        
+
         int country_count = 0;
         const CountryInfo *countries = get_country_list(&country_count);
         for (int i = 0; i < country_count; i++) {
@@ -576,9 +593,9 @@ void build_ui(AppData *app) {
         }
         // NOTE: Don't set active here — timezone widgets don't exist yet.
         // Initial selection is done at end of build_ui().
-        
+
         g_signal_connect(app->country_combo, "changed", G_CALLBACK(on_country_changed), app);
-        
+
         gtk_box_pack_start(GTK_BOX(vbox_country), app->lbl_country, FALSE, FALSE, 0);
         gtk_box_pack_start(GTK_BOX(vbox_country), app->country_combo, FALSE, FALSE, 0);
         gtk_box_pack_start(GTK_BOX(page_sys), vbox_country, FALSE, FALSE, 0);
@@ -586,10 +603,10 @@ void build_ui(AppData *app) {
     // Locale
     GtkWidget *vbox_loc = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     gtk_widget_set_margin_bottom(vbox_loc, 10);
-    
+
     app->lbl_locale = gtk_label_new("Locale:");
     gtk_label_set_xalign(GTK_LABEL(app->lbl_locale), 0.5);
-    
+
     app->locale_combo = gtk_combo_box_text_new();
     // Dynamically load all UTF-8 locales from the system
     {
@@ -627,29 +644,29 @@ void build_ui(AppData *app) {
     gtk_box_pack_start(GTK_BOX(vbox_loc), app->lbl_locale, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(vbox_loc), app->locale_combo, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(page_sys), vbox_loc, FALSE, FALSE, 0);
-    
+
     // Region
     GtkWidget *vbox_tz = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     gtk_widget_set_margin_bottom(vbox_tz, 10);
-    
+
     app->lbl_region = gtk_label_new("Region:");
     gtk_label_set_xalign(GTK_LABEL(app->lbl_region), 0.5);
-    
+
     GtkWidget *hbox_tz_combos = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
-    
+
     app->tz_area_combo = gtk_combo_box_text_new();
     const char *areas[] = { "Africa", "America", "Antarctica", "Arctic", "Asia", "Atlantic", "Australia", "Europe", "Indian", "Pacific", NULL };
     for (int i=0; areas[i]; i++) gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(app->tz_area_combo), areas[i]);
     g_signal_connect(app->tz_area_combo, "changed", G_CALLBACK(on_timezone_area_changed), app);
-    
+
     app->tz_city_combo = gtk_combo_box_text_new();
-    
+
     gtk_box_pack_start(GTK_BOX(hbox_tz_combos), app->tz_area_combo, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(hbox_tz_combos), app->tz_city_combo, TRUE, TRUE, 0);
-    
+
     gtk_box_pack_start(GTK_BOX(vbox_tz), app->lbl_region, FALSE, FALSE, 0);
     gtk_box_pack_start(GTK_BOX(vbox_tz), hbox_tz_combos, FALSE, FALSE, 0);
-    
+
     gtk_box_pack_start(GTK_BOX(page_sys), vbox_tz, FALSE, FALSE, 0);
 
         // Keyboard Layout
@@ -697,11 +714,11 @@ void build_ui(AppData *app) {
     GtkWidget *page_user = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_set_border_width(GTK_CONTAINER(page_user), 10);
     gtk_widget_set_vexpand(page_user, TRUE);
-    
+
 
     // Full Name
     gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Full Name:", &app->user_fullname_entry, &app->lbl_fullname), FALSE, FALSE, 0);
-    
+
     // Username
     gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Username:", &app->user_login_entry, &app->lbl_username), FALSE, FALSE, 0);
     g_signal_connect(app->user_login_entry, "insert-text", G_CALLBACK(on_insert_text_username), NULL);
@@ -713,7 +730,7 @@ void build_ui(AppData *app) {
     // Confirm
     gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Confirm:", &app->user_pass_confirm_entry, &app->lbl_user_confirm), FALSE, FALSE, 0);
     gtk_entry_set_visibility(GTK_ENTRY(app->user_pass_confirm_entry), FALSE);
-    
+
     // Root Password
     gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Root Password:", &app->root_pass_entry, &app->lbl_root_pass), FALSE, FALSE, 0);
     gtk_entry_set_visibility(GTK_ENTRY(app->root_pass_entry), FALSE);
@@ -727,7 +744,71 @@ void build_ui(AppData *app) {
 
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_user, gtk_label_new("Users"));
 
-    // --- TAB 5: INSTALL ---
+    // --- TAB 5: SECURITY ---
+    GtkWidget *page_sec = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
+    gtk_container_set_border_width(GTK_CONTAINER(page_sec), 20);
+
+    // Title
+    app->lbl_priv_title = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(app->lbl_priv_title),
+        "<b><span size='large'>Privilege Escalation</span></b>");
+    gtk_widget_set_halign(app->lbl_priv_title, GTK_ALIGN_CENTER);
+    gtk_widget_set_margin_bottom(app->lbl_priv_title, 5);
+    gtk_box_pack_start(GTK_BOX(page_sec), app->lbl_priv_title, FALSE, FALSE, 0);
+
+    // Subtitle / description
+    app->lbl_priv_desc = gtk_label_new("Choose between traditional sudo or the lightweight doas:");
+    gtk_widget_set_halign(app->lbl_priv_desc, GTK_ALIGN_CENTER);
+    gtk_widget_set_margin_bottom(app->lbl_priv_desc, 20);
+    gtk_box_pack_start(GTK_BOX(page_sec), app->lbl_priv_desc, FALSE, FALSE, 0);
+
+    // sudo option
+    {
+        GtkWidget *frame = gtk_frame_new(NULL);
+        GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        gtk_container_set_border_width(GTK_CONTAINER(hbox), 12);
+
+        app->radio_priv_sudo = gtk_radio_button_new_with_label(NULL, "sudo");
+        app->lbl_priv_sudo = app->radio_priv_sudo;
+
+        app->lbl_priv_sudo_desc = gtk_label_new("Standard tool. Widely compatible, complex codebase.");
+        gtk_label_set_xalign(GTK_LABEL(app->lbl_priv_sudo_desc), 0.0);
+        gtk_label_set_line_wrap(GTK_LABEL(app->lbl_priv_sudo_desc), TRUE);
+        gtk_widget_set_hexpand(app->lbl_priv_sudo_desc, TRUE);
+
+        gtk_box_pack_start(GTK_BOX(hbox), app->radio_priv_sudo, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(hbox), app->lbl_priv_sudo_desc, TRUE, TRUE, 0);
+        gtk_container_add(GTK_CONTAINER(frame), hbox);
+        gtk_box_pack_start(GTK_BOX(page_sec), frame, FALSE, FALSE, 0);
+    }
+
+    // doas option
+    {
+        GtkWidget *frame = gtk_frame_new(NULL);
+        GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+        gtk_container_set_border_width(GTK_CONTAINER(hbox), 12);
+
+        app->radio_priv_doas = gtk_radio_button_new_with_label_from_widget(
+            GTK_RADIO_BUTTON(app->radio_priv_sudo), "doas");
+        app->lbl_priv_doas = app->radio_priv_doas;
+
+        app->lbl_priv_doas_desc = gtk_label_new("Minimal alternative. Simpler, fewer attack vectors. Recommended.");
+        gtk_label_set_xalign(GTK_LABEL(app->lbl_priv_doas_desc), 0.0);
+        gtk_label_set_line_wrap(GTK_LABEL(app->lbl_priv_doas_desc), TRUE);
+        gtk_widget_set_hexpand(app->lbl_priv_doas_desc, TRUE);
+
+        gtk_box_pack_start(GTK_BOX(hbox), app->radio_priv_doas, FALSE, FALSE, 0);
+        gtk_box_pack_start(GTK_BOX(hbox), app->lbl_priv_doas_desc, TRUE, TRUE, 0);
+        gtk_container_add(GTK_CONTAINER(frame), hbox);
+        gtk_box_pack_start(GTK_BOX(page_sec), frame, FALSE, FALSE, 0);
+    }
+
+    // Default: sudo
+    //gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->radio_priv_doas), TRUE);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->radio_priv_sudo), TRUE);
+    gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_sec, gtk_label_new("Security"));
+
+    // --- TAB 6: INSTALL ---
     GtkWidget *page_inst = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_set_border_width(GTK_CONTAINER(page_inst), 10);
 
@@ -738,7 +819,7 @@ void build_ui(AppData *app) {
     gtk_container_add(GTK_CONTAINER(scroll), app->console_text);
     gtk_widget_set_vexpand(scroll, TRUE);
     gtk_box_pack_start(GTK_BOX(page_inst), scroll, TRUE, TRUE, 0);
-    
+
     app->progress_bar = gtk_progress_bar_new();
     gtk_box_pack_start(GTK_BOX(page_inst), app->progress_bar, FALSE, FALSE, 0);
 
@@ -746,8 +827,8 @@ void build_ui(AppData *app) {
     gtk_widget_set_size_request(app->btn_install, -1, 40);
     gtk_widget_set_sensitive(app->btn_install, FALSE); // disabled until all tabs are valid
     GtkStyleContext *ctx = gtk_widget_get_style_context(app->btn_install);
-    gtk_style_context_add_class(ctx, "destructive-action"); 
-    
+    gtk_style_context_add_class(ctx, "destructive-action");
+
     g_signal_connect(app->btn_install, "clicked", G_CALLBACK(start_installation), app);
     gtk_box_pack_start(GTK_BOX(page_inst), app->btn_install, FALSE, FALSE, 0);
 
@@ -756,21 +837,21 @@ void build_ui(AppData *app) {
     // --- BOTTOM NAV ---
     GtkWidget *hbox_nav = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
     gtk_container_set_border_width(GTK_CONTAINER(hbox_nav), 8);
-    
+
     app->btn_back = gtk_button_new_with_label("Back");
     gtk_widget_set_sensitive(app->btn_back, FALSE);
     g_signal_connect(app->btn_back, "clicked", G_CALLBACK(on_back_clicked), app);
-    
+
     app->btn_next = gtk_button_new_with_label("Next");
     g_signal_connect(app->btn_next, "clicked", G_CALLBACK(on_next_clicked), app);
-    
+
     gtk_box_pack_start(GTK_BOX(hbox_nav), app->btn_back, FALSE, FALSE, 0);
     gtk_box_pack_end(GTK_BOX(hbox_nav), app->btn_next, FALSE, FALSE, 0);
-    
+
     gtk_box_pack_start(GTK_BOX(vbox), hbox_nav, FALSE, FALSE, 0);
-    
+
     g_signal_connect(app->notebook, "switch-page", G_CALLBACK(on_page_changed), app);
-    
+
     // INITIAL LOCALIZE
     update_ui_language(app);
 

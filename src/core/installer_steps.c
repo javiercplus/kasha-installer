@@ -755,7 +755,7 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         const char *all_groups[] = {
             "wheel", "floppy", "audio", "video", "cdrom", "optical",
             "storage", "network", "kvm", "input", "plugdev", "users",
-            "xbuilder", "render", "fuse", NULL
+            "xbuilder", "render", "fuse", "disk", NULL
         };
 
         for (int i = 0; all_groups[i] != NULL; i++) {

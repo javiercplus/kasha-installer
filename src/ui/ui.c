@@ -56,6 +56,7 @@ const char* get_loc(const char *key, int lang) {
     const LangInfo *li = get_lang(code);
     if (!li) return key;
 
+    if (strcmp(key, "language") == 0) return li->language;
     if (strcmp(key, "welcome_title") == 0) return li->welcome_title;
     if (strcmp(key, "welcome_body") == 0) return li->welcome_body;
     if (strcmp(key, "disk") == 0) return li->disk;
@@ -151,6 +152,8 @@ const char* get_loc(const char *key, int lang) {
 void update_ui_language(AppData *app) {
     int lang = app->current_lang;
 
+    if(app->lbl_lang_selection) gtk_label_set_text(GTK_LABEL(app->lbl_lang_selection), get_loc("language", lang));
+
     // Welcome
     if(app->lbl_welcome_title) gtk_label_set_markup(GTK_LABEL(app->lbl_welcome_title), get_loc("welcome_title", lang));
     if(app->lbl_welcome_body) gtk_label_set_markup(GTK_LABEL(app->lbl_welcome_body), get_loc("welcome_body", lang));
@@ -227,22 +230,10 @@ void update_ui_language(AppData *app) {
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 7), get_loc("tab_install", lang));
 }
 
-void on_lang_toggled(GtkWidget *widget, AppData *app) {
-    extern int get_lang_count(void);
-    extern const LangInfo* get_lang(const char *code);
-    extern const char** get_available_langs(void);
-
-    app->current_lang++;
-    if (app->current_lang >= get_lang_count()) {
-        app->current_lang = 0;
-    }
-
-    const char **langs = get_available_langs();
-    const char *code = langs[app->current_lang];
-    const LangInfo *li = get_lang(code);
-
-    const char *name = li ? li->name : code;
-    gtk_button_set_label(GTK_BUTTON(widget), name);
+void on_lang_changed(GtkComboBox *widget, AppData *app) {
+    int sel = gtk_combo_box_get_active(widget);
+    if (sel < 0) return;
+    app->current_lang = sel;
 
     // Update window title
     const char *title = get_loc("window_title", app->current_lang);
@@ -368,18 +359,24 @@ GtkWidget* create_welcome_page(AppData *app) {
     gtk_widget_set_margin_end(app->lbl_welcome_body, 10);
     gtk_box_pack_start(GTK_BOX(vbox_main), app->lbl_welcome_body, FALSE, FALSE, 5);
 
-    // Lang Button - get first language name
-    extern const LangInfo* get_lang(const char *code);
-    extern const char** get_available_langs(void);
-    const char **langs = get_available_langs();
-    const LangInfo *first_lang = get_lang(langs[0]);
-    const char *first_lang_name = first_lang ? first_lang->name : "English";
+    // Lang Dropdown
+    GtkWidget *hbox_lang = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
+    gtk_widget_set_halign(hbox_lang, GTK_ALIGN_CENTER);
+    gtk_widget_set_margin_top(hbox_lang, 5);
 
-    GtkWidget *btn_lang = gtk_button_new_with_label(first_lang_name);
-    gtk_widget_set_halign(btn_lang, GTK_ALIGN_CENTER);
-    gtk_widget_set_margin_top(btn_lang, 5);
-    g_signal_connect(btn_lang, "clicked", G_CALLBACK(on_lang_toggled), app);
-    gtk_box_pack_start(GTK_BOX(vbox_main), btn_lang, FALSE, FALSE, 0);
+    app->lbl_lang_selection = gtk_label_new(get_loc("language", app->current_lang));
+    gtk_box_pack_start(GTK_BOX(hbox_lang), app->lbl_lang_selection, FALSE, FALSE, 0);
+
+    GtkWidget *combo_lang = gtk_combo_box_text_new();
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo_lang), "English");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo_lang), "Español");
+    gtk_combo_box_text_append_text(GTK_COMBO_BOX_TEXT(combo_lang), "日本語");
+    
+    gtk_combo_box_set_active(GTK_COMBO_BOX(combo_lang), 0);
+    g_signal_connect(combo_lang, "changed", G_CALLBACK(on_lang_changed), app);
+    gtk_box_pack_start(GTK_BOX(hbox_lang), combo_lang, FALSE, FALSE, 0);
+
+    gtk_box_pack_start(GTK_BOX(vbox_main), hbox_lang, FALSE, FALSE, 0);
 
     gtk_box_pack_start(GTK_BOX(align_box), vbox_main, TRUE, TRUE, 0);
     gtk_widget_show_all(align_box);

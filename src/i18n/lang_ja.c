@@ -9,6 +9,7 @@
 static const LangInfo lang_ja = {
     .code = "ja",
     .name = "日本語",
+    .language = "言語:",
 
     // Welcome
     .welcome_title = "Neko-Voidへようこそ",

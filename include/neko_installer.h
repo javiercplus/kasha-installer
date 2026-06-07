@@ -94,6 +94,7 @@ typedef struct {
 
     // Localization
     int current_lang; // 0=EN, 1=ES
+    GtkWidget *lbl_lang_selection;
     GtkWidget *lbl_welcome_title;
     GtkWidget *lbl_welcome_body;
     GtkWidget *lbl_disk_title;

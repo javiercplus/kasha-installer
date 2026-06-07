@@ -8,6 +8,7 @@
 typedef struct {
     const char *code;      // "en", "es", etc.
     const char *name;     // "English", "Español"
+    const char *language; // "Language", "Idioma", "言語"
     
     // Welcome
     const char *welcome_title;

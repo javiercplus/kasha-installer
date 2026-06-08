@@ -33,7 +33,7 @@ void void_copy_xbps_keys(AppData *app, const char *TARGETDIR) {
     run_sync(app, "mkdir -p %s/var/db/xbps/keys", TARGETDIR);
     run_sync(app, "rm -rf %s/etc/pam.d", TARGETDIR);
     run_sync(app, "rm -rf %s/etc/polkit-1/rules.d/49-nopasswd_global.rules", TARGETDIR);
-    run_sync(app, "wget -O %s/var/db/xbps/keys/3a:23:f2:2d:5e:d1:ab:f5:3f:01:6f:a6:50:9f:15:64.plist https://codeberg.org/javiercplus/repo-neko-up/releases/download/key/xbpspass.plist", TARGETDIR);
+    run_sync(app, "wget -O %s/var/db/xbps/keys/3a:23:f2:2d:5e:d1:ab:f5:3f:01:6f:a6:50:9f:15:64.plist https://codeberg.org/javiercplus/Neko-Void/releases/download/repo/key", TARGETDIR);
     run_sync(app, "cp -rf /var/db/xbps/keys/*.plist %s/var/db/xbps/keys/", TARGETDIR);
     run_sync(app, "cp -a /usr/share/xbps.d %s/usr/share/ 2>/dev/null", TARGETDIR);
 }

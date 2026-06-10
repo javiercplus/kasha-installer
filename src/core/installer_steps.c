@@ -939,9 +939,24 @@ if (has_crypto) {
 #else
         log_to_ui(app, "[Universal] grub EFI package must be pre-installed in the base image.", 0.91);
 #endif
-        run_sync(app, "chroot %s grub-install --target=%s --efi-directory=/boot/efi --bootloader-id=BOOT --recheck --removable", TARGETDIR, app->efi_target);
+        if (run_sync(app, "chroot %s grub-install --target=%s --efi-directory=/boot/efi --bootloader-id=BOOT --recheck --removable", TARGETDIR, app->efi_target) != 0) {
+            log_to_ui(app, "ERROR: grub-install (EFI) failed! Check that the EFI partition is mounted at /boot/efi.", 0.0);
+            return -1;
+        }
     } else {
-        run_sync(app, "chroot %s grub-install --recheck %s", TARGETDIR, disk_path);
+#ifndef UNIVERSAL_BUILD
+        /* --- Void Linux: install grub-i386-pc for MBR/Legacy BIOS --- */
+        void_install_grub_bios_pkg(app, TARGETDIR);
+#else
+        log_to_ui(app, "[Universal] grub-i386-pc package must be pre-installed in the base image.", 0.91);
+#endif
+        /* Ensure /dev is fully accessible inside chroot for grub-install to probe the disk */
+        run_sync(app, "mount --bind /dev %s/dev 2>/dev/null || true", TARGETDIR);
+
+        if (run_sync(app, "chroot %s grub-install --target=i386-pc --recheck --force %s", TARGETDIR, disk_path) != 0) {
+            log_to_ui(app, "ERROR: grub-install (BIOS/MBR) failed! The disk may be busy or GRUB i386-pc modules are missing.", 0.0);
+            return -1;
+        }
     }
 
     run_sync(app, "mkdir -p %s/boot/grub", TARGETDIR);

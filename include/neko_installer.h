@@ -236,6 +236,7 @@ void void_remove_live_packages(AppData *app, const char *TARGETDIR);
 void void_reconfigure_locales(AppData *app, const char *TARGETDIR, const char *locale);
 void void_copy_xbpsd_config(AppData *app, const char *TARGETDIR);
 void void_install_grub_efi_pkg(AppData *app, const char *TARGETDIR);
+void void_install_grub_bios_pkg(AppData *app, const char *TARGETDIR);
 void void_install_osprober(AppData *app, const char *TARGETDIR);
 void void_install_dracut_luks(AppData *app, const char *TARGETDIR);
 #endif /* !UNIVERSAL_BUILD */

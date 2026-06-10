@@ -345,14 +345,53 @@ void on_kbd_layout_changed(GtkComboBox *widget, AppData *app) {
 }
 
 void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data) {
+    /* Convert entire input to lowercase first */
     gchar *lower_text = g_utf8_strdown(new_text, new_text_length);
-    
-    if (g_strcmp0(lower_text, new_text) != 0) {
-        g_signal_handlers_block_by_func(editable, on_insert_text_username, data);
-        gtk_editable_insert_text(editable, lower_text, -1, position);
-        g_signal_handlers_unblock_by_func(editable, on_insert_text_username, data);
-        g_signal_stop_emission_by_name(editable, "insert-text");
+    gint lower_len = (gint)strlen(lower_text);
+
+    /* Get current content length to know if we're at position 0 */
+    const gchar *current = gtk_entry_get_text(GTK_ENTRY(editable));
+    gint current_len = (gint)strlen(current);
+    gint insert_pos = *position;
+
+    /* Filter: keep only valid Linux username characters [a-z0-9_-]
+     * First character of the username must be [a-z_] */
+    GString *filtered = g_string_sized_new(lower_len);
+    const gchar *p = lower_text;
+    while (*p) {
+        gunichar ch = g_utf8_get_char(p);
+        gboolean valid = FALSE;
+
+        if ((ch >= 'a' && ch <= 'z') || ch == '_') {
+            valid = TRUE;
+        } else if (ch >= '0' && ch <= '9') {
+            /* Digits allowed only if not the very first character of the username */
+            if (current_len > 0 || filtered->len > 0 || insert_pos > 0) {
+                valid = TRUE;
+            }
+        } else if (ch == '-') {
+            /* Hyphen allowed only if not the very first character */
+            if (current_len > 0 || filtered->len > 0 || insert_pos > 0) {
+                valid = TRUE;
+            }
+        }
+
+        if (valid) {
+            g_string_append_unichar(filtered, ch);
+        }
+        p = g_utf8_next_char(p);
     }
+
+    /* Always stop the original emission and insert our sanitized version */
+    g_signal_stop_emission_by_name(editable, "insert-text");
+
+    if (filtered->len > 0) {
+        g_signal_handlers_block_by_func(editable, on_insert_text_username, data);
+        gtk_editable_insert_text(editable, filtered->str, (gint)filtered->len, position);
+        g_signal_handlers_unblock_by_func(editable, on_insert_text_username, data);
+    }
+
+    g_string_free(filtered, TRUE);
     g_free(lower_text);
 }
 

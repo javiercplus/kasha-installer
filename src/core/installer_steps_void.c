@@ -112,4 +112,13 @@ void void_install_dracut_luks(AppData *app, const char *TARGETDIR) {
              TARGETDIR, TARGETDIR);
 }
 
+/* ------------------------------------------------------------------ *
+ *  void_install_grub_bios_pkg                                          *
+ *  Install grub-i386-pc package for MBR/Legacy BIOS boot.             *
+ * ------------------------------------------------------------------ */
+void void_install_grub_bios_pkg(AppData *app, const char *TARGETDIR) {
+    log_to_ui(app, "[Void] Installing GRUB BIOS (i386-pc) support via xbps...", 0.91);
+    run_sync(app, "chroot %s xbps-install -y grub-i386-pc", TARGETDIR);
+}
+
 #endif /* !UNIVERSAL_BUILD */

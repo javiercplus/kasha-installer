@@ -801,8 +801,8 @@ void build_ui(AppData *app) {
     }
 
     // Default: sudo
-    //gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->radio_priv_doas), TRUE);
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->radio_priv_sudo), TRUE);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->radio_priv_doas), TRUE);
+    //gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->radio_priv_sudo), TRUE);
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_sec, gtk_label_new("Security"));
 
     // --- TAB 6: INSTALL ---

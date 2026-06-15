@@ -21,7 +21,7 @@ jobs:
       - name: Install Node.js and dependencies
         run: |
           xbps-install -Syu xbps
-          xbps-install -yu
+          xbps-install -Syu
           xbps-install -Sy nodejs gcc make pkg-config gtk+3-devel xxd sed coreutils tar
 
       - name: Checkout code

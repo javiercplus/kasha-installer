@@ -30,6 +30,7 @@ void void_install_crypto_packages(AppData *app, const char *TARGETDIR) {
  * ------------------------------------------------------------------ */
 void void_copy_xbps_keys(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "[Void] Copying XBPS keys and xbps.d...", 0.56);
+    run_sync(app, "cp -f /etc/xbps.d/* %s/etc/xbps.d/ 2>/dev/null || true", TARGETDIR);
     run_sync(app, "mkdir -p %s/var/db/xbps/keys", TARGETDIR);
     run_sync(app, "wget -O %s/var/db/xbps/keys/3a:23:f2:2d:5e:d1:ab:f5:3f:01:6f:a6:50:9f:15:64.plist -4 https://codeberg.org/javiercplus/Neko-Void/releases/download/repo/key", TARGETDIR);
     run_sync(app, "cp -rf /var/db/xbps/keys/*.plist %s/var/db/xbps/keys/", TARGETDIR);
@@ -45,9 +46,9 @@ void void_reconfigure_base(AppData *app, const char *TARGETDIR) {
     run_sync(app, "xbps-reconfigure -r %s -f base-files 2>/dev/null", TARGETDIR);
     run_sync(app, "chroot %s xbps-reconfigure -a", TARGETDIR);
     run_sync(app, "chroot %s xbps-install -S", TARGETDIR);
-    run_sync(app, "chroot %s xbps-install -yu --repository=https://repo-de.voidlinux.org/current/ xbps", TARGETDIR);
-    run_sync(app, "chroot %s xbps-install -Sy Neko-Wizard kpm", TARGETDIR);
-    run_sync(app, "chroot %s xbps-install -yu Neko-Wizard", TARGETDIR);
+    run_sync(app, "chroot %s xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ xbps", TARGETDIR);
+    run_sync(app, "chroot %s xbps-install -Sy --repository=https://repo-de.voidlinux.org/current/ kpm", TARGETDIR);
+    run_sync(app, "chroot %s xbps-install -yu --repository=https://repo-de.voidlinux.org/current/ Neko-Wizard", TARGETDIR);
 }
 
 /* ------------------------------------------------------------------ *
@@ -56,6 +57,7 @@ void void_reconfigure_base(AppData *app, const char *TARGETDIR) {
  * ------------------------------------------------------------------ */
 void void_remove_live_packages(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "[Void] Removing temporary live packages (xbps-remove)...", 0.70);
+    run_sync(app,"chroot %s xmirror --set https://repo-de.voidlinux.org/", TARGETDIR);
     run_sync(app, "chroot %s xbps-remove -Ry dialog xtools-minimal xmirror espeakup brltty 2>/dev/null", TARGETDIR);
 }
 
@@ -77,7 +79,7 @@ void void_reconfigure_locales(AppData *app, const char *TARGETDIR, const char *l
 void void_copy_xbpsd_config(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "[Void] Copying xbps.d configuration...", 0.85);
     run_sync(app, "mkdir -p %s/etc/xbps.d", TARGETDIR);
-    run_sync(app, "cp -f /etc/xbps.d/* %s/etc/xbps.d/ 2>/dev/null || true", TARGETDIR);
+   // run_sync(app, "cp -f /etc/xbps.d/* %s/etc/xbps.d/ 2>/dev/null || true", TARGETDIR);
 }
 
 /* ------------------------------------------------------------------ *

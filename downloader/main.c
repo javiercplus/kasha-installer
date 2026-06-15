@@ -25,11 +25,11 @@ static void show_error_dialog(AppData *app) {
         GTK_DIALOG_MODAL,
         GTK_MESSAGE_WARNING,
         GTK_BUTTONS_OK,
-        "No internet connection detected!"
+        "Download failed!"
     );
     gtk_message_dialog_format_secondary_text(
         GTK_MESSAGE_DIALOG(err),
-        "Please connect to the internet and try again."
+        "Failed while downloading installer."
     );
     gtk_window_set_position(GTK_WINDOW(err), GTK_WIN_POS_CENTER_ON_PARENT);
     gtk_dialog_run(GTK_DIALOG(err));
@@ -53,21 +53,13 @@ static gboolean download_complete_idle(gpointer data) {
     return G_SOURCE_REMOVE;
 }
 
-static gpointer check_internet_thread(gpointer data) {
+static gpointer download_thread(gpointer data) {
     AppData *app = (AppData *)data;
     global_app = app;
 
-    int ret = system("wget -q --spider --timeout=5 --tries=1 https://github.com/javiercplus/Neko-Void/releases/download/repo/neko_installer.tar 2>&1");
-    int wstat = WEXITSTATUS(ret);
-    fprintf(stderr, "[NET] wget ret=%d wstat=%d\n", ret, wstat);
-
-    if (wstat != 0) {
-        app->status = 1;
-    } else {
-        app->status = 0;
-        ret = system("cd /tmp && wget -q --timeout=30 https://github.com/javiercplus/Neko-Void/releases/download/repo/neko_installer.tar -O installer.tar 2>&1");
-        if (WEXITSTATUS(ret) != 0) app->status = 1;
-    }
+    int ret = system("cd /tmp && wget -q --timeout=30 https://github.com/javiercplus/Neko-Void/releases/download/repo/neko_installer.tar -O installer.tar 2>&1");
+    app->status = WEXITSTATUS(ret);
+    fprintf(stderr, "[DOWNLOAD] wget ret=%d status=%d\n", ret, app->status);
 
     g_usleep(100000);
     g_main_context_invoke(NULL, download_complete_idle, app);
@@ -94,7 +86,7 @@ static void activate(GtkApplication *app, gpointer data) {
     gtk_box_set_homogeneous(GTK_BOX(box), TRUE);
     gtk_container_add(GTK_CONTAINER(global_app->window), box);
 
-    GtkWidget *label = gtk_label_new("Loading...");
+    GtkWidget *label = gtk_label_new("Downloading installer...");
     PangoAttrList *attrs = pango_attr_list_new();
     pango_attr_list_insert(attrs, pango_attr_weight_new(PANGO_WEIGHT_BOLD));
     pango_attr_list_insert(attrs, pango_attr_size_new(16 * PANGO_SCALE));
@@ -111,7 +103,7 @@ static void activate(GtkApplication *app, gpointer data) {
 
     gtk_widget_show_all(global_app->window);
 
-    g_thread_new("download", check_internet_thread, global_app);
+    g_thread_new("download", download_thread, global_app);
 }
 
 int main(int argc, char **argv) {

@@ -20,9 +20,9 @@ jobs:
       # Este paso debe ir PRIMERO y usar shell puro para evitar dependencias de Node
       - name: Install Node.js and dependencies
         run: |
-          xbps-install -Syu xbps
-          xbps-install -Syu
-          xbps-install -Sy nodejs gcc make pkg-config gtk+3-devel xxd sed coreutils tar
+          xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ xbps
+          xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ 
+          xbps-install -Sy --repository=https://repo-de.voidlinux.org/current/ nodejs gcc make pkg-config gtk+3-devel xxd sed coreutils tar
 
       - name: Checkout code
         uses: actions/checkout@v4

@@ -21,7 +21,7 @@
  * ------------------------------------------------------------------ */
 void void_install_crypto_packages(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "[Void] Installing cryptsetup via xbps...", 0.55);
-    run_sync(app, "chroot %s xbps-install -y cryptsetup", TARGETDIR);
+    run_sync(app, "chroot %s xbps-install -y --repository=https://repo-de.voidlinux.org/current/ cryptsetup", TARGETDIR);
 }
 
 /* ------------------------------------------------------------------ *
@@ -45,7 +45,7 @@ void void_reconfigure_base(AppData *app, const char *TARGETDIR) {
     run_sync(app, "xbps-reconfigure -r %s -f base-files 2>/dev/null", TARGETDIR);
     run_sync(app, "chroot %s xbps-reconfigure -a", TARGETDIR);
     run_sync(app, "chroot %s xbps-install -S", TARGETDIR);
-    run_sync(app, "chroot %s xbps-install -yu xbps", TARGETDIR);
+    run_sync(app, "chroot %s xbps-install -yu --repository=https://repo-de.voidlinux.org/current/ xbps", TARGETDIR);
     run_sync(app, "chroot %s xbps-install -Sy Neko-Wizard kpm", TARGETDIR);
     run_sync(app, "chroot %s xbps-install -yu Neko-Wizard", TARGETDIR);
 }
@@ -87,9 +87,9 @@ void void_copy_xbpsd_config(AppData *app, const char *TARGETDIR) {
 void void_install_grub_efi_pkg(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "[Void] Downloading GRUB EFI support via xbps...", 0.91);
     if (strcmp(app->efi_target, "x86_64-efi") == 0) {
-        run_sync(app, "chroot %s xbps-install -y grub-x86_64-efi", TARGETDIR);
+        run_sync(app, "chroot %s xbps-install -y --repository=https://repo-de.voidlinux.org/current/ grub-x86_64-efi", TARGETDIR);
     } else {
-        run_sync(app, "chroot %s xbps-install -y grub-i386-efi", TARGETDIR);
+        run_sync(app, "chroot %s xbps-install -y --repository=https://repo-de.voidlinux.org/current/ grub-i386-efi", TARGETDIR);
     }
 }
 
@@ -99,7 +99,7 @@ void void_install_grub_efi_pkg(AppData *app, const char *TARGETDIR) {
  * ------------------------------------------------------------------ */
 void void_install_osprober(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "[Void] Installing os-prober and ntfs-3g via xbps...", 0.92);
-    run_sync(app, "chroot %s xbps-install -y os-prober ntfs-3g 2>/dev/null || true", TARGETDIR);
+    run_sync(app, "chroot %s xbps-install -y --repository=https://repo-de.voidlinux.org/current/ os-prober ntfs-3g 2>/dev/null || true", TARGETDIR);
 }
 
 /* ------------------------------------------------------------------ *
@@ -108,7 +108,7 @@ void void_install_osprober(AppData *app, const char *TARGETDIR) {
  * ------------------------------------------------------------------ */
 void void_install_dracut_luks(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "[Void] Installing base-system-dracut via xbps...", 0.935);
-    run_sync(app, "chroot %s xbps-install -y base-system-dracut 2>/dev/null || true", TARGETDIR);
+    run_sync(app, "chroot %s xbps-install -y --repository=https://repo-de.voidlinux.org/current/ base-system-dracut 2>/dev/null || true", TARGETDIR);
     run_sync(app, "chroot %s xbps-reconfigure -fa 2>/dev/null || chroot %s dracut --force 2>/dev/null || true",
              TARGETDIR, TARGETDIR);
 }
@@ -119,7 +119,7 @@ void void_install_dracut_luks(AppData *app, const char *TARGETDIR) {
  * ------------------------------------------------------------------ */
 void void_install_grub_bios_pkg(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "[Void] Installing GRUB BIOS (i386-pc) support via xbps...", 0.91);
-    run_sync(app, "chroot %s xbps-install -y grub-i386-pc", TARGETDIR);
+    run_sync(app, "chroot %s xbps-install -y --repository=https://repo-de.voidlinux.org/current/ grub-i386-pc", TARGETDIR);
 }
 
 #endif /* !UNIVERSAL_BUILD */

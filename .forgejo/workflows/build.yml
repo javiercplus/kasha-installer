@@ -22,7 +22,7 @@ jobs:
         run: |
           xbps-install -Syu xbps
           xbps-install -yu
-          xbps-install -y nodejs gcc make pkg-config gtk+3-devel xxd sed coreutils tar
+          xbps-install -Sy nodejs gcc make pkg-config gtk+3-devel xxd sed coreutils tar
 
       - name: Checkout code
         uses: actions/checkout@v4

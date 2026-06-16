@@ -32,33 +32,36 @@ char* get_uuid(const char *device) {
     return NULL;
 }
 
-// Comparator: Proper mount order (EFI > /boot > /home > /)
+// Get the path depth: 0 if root; number of slashes otherwise.
+static gint path_depth(const char *path) {
+    if (strcmp(path, "/") == 0)
+        return 0;
+
+    gint no_slashes = 0;
+
+    gsize n = 0;
+    while (path[n]) {
+        if (path[n] == '/')
+            no_slashes++;
+
+        n++;
+    }
+
+    // Omit any trailing slashes, except root itself (normalization)
+    if (n > 2 && path[n-1] == '/')
+        no_slashes--;
+
+    return no_slashes;
+}
+
+// Comparator: Proper mount order (by mountpoint depth; root first)
 gint sort_partitions(gconstpointer a, gconstpointer b) {
     const PartitionConfig *pa = (const PartitionConfig*)a;
     const PartitionConfig *pb = (const PartitionConfig*)b;
     const char *ma = pa->mountpoint;
     const char *mb = pb->mountpoint;
-    
-    // Root (/) goes LAST (after all other mounts)
-    if (strcmp(ma, "/") == 0) return 1;
-    if (strcmp(mb, "/") == 0) return -1;
-    
-    // /boot/efi goes first
-    if (strcmp(ma, "/boot/efi") == 0) return -1;
-    if (strcmp(mb, "/boot/efi") == 0) return 1;
-    
-    // /boot goes second
-    if (strcmp(ma, "/boot") == 0) return -1;
-    if (strcmp(mb, "/boot") == 0) return 1;
-    
-    // /home goes before / (but after /boot)
-    if (strcmp(ma, "/home") == 0) return -1;
-    if (strcmp(mb, "/home") == 0) return 1;
-    
-    // Default: shorter mountpoint first
-    gsize la = strlen(ma);
-    gsize lb = strlen(mb);
-    return (la > lb) - (la < lb);
+
+    return path_depth(ma) - path_depth(mb);
 }
 
 // Safety Unmount

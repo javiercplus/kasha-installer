@@ -331,7 +331,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
 int step_format_and_mount(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "Configuring partitions...", 0.2);
 
-    // SORT: Ensure proper mount order (Shortest mountpoint first: / before /home)
+    // SORT: Ensure proper mount order (by mountpoint depth; root first)
     app->part_config_list = g_slist_sort(app->part_config_list, sort_partitions);
 
     GSList *l = app->part_config_list;

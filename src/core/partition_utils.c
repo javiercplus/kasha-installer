@@ -99,7 +99,7 @@ char* get_partition_path(const char *disk, int part_num) {
 
 void populate_defaults(AppData *app, const char *disk_name) {
     /* Save the intended mode BEFORE reset (on_reset_partitions_clicked
-       clobbers install_mode to INSTALL_MODE_MANUAL) */
+       clears the partition list; we restore the mode afterwards) */
     InstallMode intended_mode = app->install_mode;
 
     on_reset_partitions_clicked(NULL, app);
@@ -308,6 +308,48 @@ glong get_disk_free_space_mb(const char *disk_name) {
 }
 
 /* ------------------------------------------------------------------ *
+ *  get_disk_partition_table_type                                       *
+ *  Returns "gpt", "dos" (MBR), or "unknown".                          *
+ *  Caller must g_free() the result.                                   *
+ * ------------------------------------------------------------------ */
+char* get_disk_partition_table_type(const char *disk_name) {
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd),
+        "lsblk -ndo PTTYPE /dev/%s 2>/dev/null", disk_name);
+    FILE *fp = popen(cmd, "r");
+    if (!fp) return g_strdup("unknown");
+
+    char buf[32] = {0};
+    if (fgets(buf, sizeof(buf), fp)) {
+        buf[strcspn(buf, "\n")] = 0;
+    }
+    pclose(fp);
+
+    if (strlen(buf) > 0) return g_strdup(buf);
+    return g_strdup("unknown");
+}
+
+/* ------------------------------------------------------------------ *
+ *  get_mbr_primary_count                                               *
+ *  Count primary partitions on an MBR disk (max 4).                   *
+ * ------------------------------------------------------------------ */
+int get_mbr_primary_count(const char *disk_name) {
+    char cmd[256];
+    snprintf(cmd, sizeof(cmd),
+        "sfdisk -l /dev/%s 2>/dev/null | grep -c '^/dev/'", disk_name);
+    FILE *fp = popen(cmd, "r");
+    if (!fp) return -1;
+
+    char buf[16];
+    int count = 0;
+    if (fgets(buf, sizeof(buf), fp)) {
+        count = atoi(buf);
+    }
+    pclose(fp);
+    return count;
+}
+
+/* ------------------------------------------------------------------ *
  *  find_largest_resizable_partition                                    *
  *  Find the last large partition with a supported fs (ext4/ntfs).     *
  *  Returns allocated device path or NULL.                             *
@@ -328,9 +370,10 @@ char* find_largest_resizable_partition(const char *disk_name) {
         char name[64] = {0}, fstype[32] = {0};
         sscanf(line, "%63s %31s", name, fstype);
 
-        /* Only consider resizable filesystems */
+        /* Only consider resizable filesystems (ext, ntfs, btrfs, xfs) */
         if (strcmp(fstype, "ext4") != 0 && strcmp(fstype, "ext3") != 0 &&
-            strcmp(fstype, "ext2") != 0 && strcmp(fstype, "ntfs") != 0) {
+            strcmp(fstype, "ext2") != 0 && strcmp(fstype, "ntfs") != 0 &&
+            strcmp(fstype, "btrfs") != 0 && strcmp(fstype, "xfs") != 0) {
             continue;
         }
 
@@ -424,6 +467,26 @@ int resize_existing_partition(AppData *app, const char *device,
             log_to_ui(app, "ERROR: NTFS resize failed!", 0.0);
             return -1;
         }
+    }
+    else if (strcmp(fstype, "btrfs") == 0) {
+        /* btrfs must be mounted to resize — mount temporarily */
+        const char *tmp_mount = "/tmp/kasha_btrfs_resize";
+        run_sync(app, "mkdir -p %s", tmp_mount);
+        log_to_ui_printf(app, "Mounting %s temporarily for btrfs resize...", device);
+        if (run_sync(app, "mount %s %s", device, tmp_mount) != 0) {
+            log_to_ui(app, "ERROR: Could not mount btrfs partition for resize!", 0.0);
+            return -1;
+        }
+        long long new_bytes = (long long)new_size_mb * 1024LL * 1024LL;
+        log_to_ui_printf(app, "Resizing btrfs on %s to %ldMB...", device, new_size_mb);
+        if (run_sync(app, "btrfs filesystem resize %lld %s", new_bytes, tmp_mount) != 0) {
+            log_to_ui(app, "ERROR: btrfs resize failed!", 0.0);
+            run_sync(app, "umount %s 2>/dev/null || true", tmp_mount);
+            run_sync(app, "rmdir %s 2>/dev/null || true", tmp_mount);
+            return -1;
+        }
+        run_sync(app, "umount %s 2>/dev/null || true", tmp_mount);
+        run_sync(app, "rmdir %s 2>/dev/null || true", tmp_mount);
     }
     else {
         log_to_ui_printf(app, "ERROR: Unsupported filesystem '%s' for resize!",

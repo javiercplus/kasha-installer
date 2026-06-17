@@ -157,6 +157,30 @@ int step_partitioning(AppData *app, const char *disk_name) {
             log_to_ui_printf(app, "Reusing existing EFI partition: %s", app->detected_efi_partition);
         }
 
+        // --- MBR validation: check partition table type and slot availability ---
+        char *pt_type = get_disk_partition_table_type(disk_name);
+        gboolean is_mbr = (pt_type && strcmp(pt_type, "dos") == 0);
+        log_to_ui_printf(app, "Partition table type: %s", pt_type ? pt_type : "unknown");
+
+        if (is_mbr) {
+            int primary_count = get_mbr_primary_count(disk_name);
+            int slots_needed = 1; // root partition
+            if (need_new_efi) slots_needed++; // should not happen on MBR, but safety
+
+            log_to_ui_printf(app, "MBR: %d primary partitions found, need %d more slot(s)",
+                             primary_count, slots_needed);
+
+            if (primary_count + slots_needed > 4) {
+                log_to_ui_printf(app,
+                    "ERROR: MBR disk already has %d primary partitions (max 4). "
+                    "Cannot add %d more. Use GParted to free a partition slot, "
+                    "or convert the disk to GPT.", primary_count, slots_needed);
+                g_free(pt_type);
+                return -1;
+            }
+        }
+        g_free(pt_type);
+
         // Step 1: Check if there's already enough free space
         glong free_space_mb = get_disk_free_space_mb(disk_name);
         glong min_needed_mb = 7 * 1024; // 7GB minimum for Neko-Void root
@@ -172,19 +196,48 @@ int step_partitioning(AppData *app, const char *disk_name) {
             char *resize_target = find_largest_resizable_partition(disk_name);
             if (!resize_target) {
                 log_to_ui(app,
-                    "ERROR: No resizable partition found! "
-                    "Use GParted or manual partitioning.", 0.0);
+                    "ERROR: No resizable partition found on this disk! "
+                    "Please free up space manually using GParted or "
+                    "your existing OS disk management tool before trying "
+                    "dual boot installation.", 0.0);
                 return -1;
             }
+
+            // Check filesystem type of the resize target
+            char target_fstype[64];
+            get_partition_fstype(resize_target, target_fstype, sizeof(target_fstype));
 
             glong part_size = get_partition_size_mb(resize_target);
             glong min_size  = get_fs_min_size_mb(resize_target);
 
+            // For btrfs/xfs: get_fs_min_size_mb returns -1 (unsupported)
+            // Use a conservative estimate: 50% of current usage or 2GB minimum
             if (min_size < 0) {
-                log_to_ui_printf(app,
-                    "ERROR: Cannot determine minimum size for %s", resize_target);
-                g_free(resize_target);
-                return -1;
+                if (strcmp(target_fstype, "btrfs") == 0 ||
+                    strcmp(target_fstype, "xfs") == 0) {
+                    // Cannot reliably shrink btrfs/xfs in-place without btrfs tools
+                    // or xfs_growfs (xfs cannot shrink at all)
+                    if (strcmp(target_fstype, "xfs") == 0) {
+                        log_to_ui_printf(app,
+                            "ERROR: Partition %s uses XFS which cannot be shrunk. "
+                            "Please free up space manually using GParted or "
+                            "your existing OS disk management tool.", resize_target);
+                        g_free(resize_target);
+                        return -1;
+                    }
+                    // btrfs: estimate minimum as 50% of current size
+                    min_size = part_size / 2;
+                    if (min_size < 2048) min_size = 2048; // 2GB floor
+                    log_to_ui_printf(app,
+                        "Filesystem %s on %s: using estimated minimum %ld MB",
+                        target_fstype, resize_target, min_size);
+                } else {
+                    log_to_ui_printf(app,
+                        "ERROR: Cannot determine minimum size for %s (%s). "
+                        "Please free up space manually.", resize_target, target_fstype);
+                    g_free(resize_target);
+                    return -1;
+                }
             }
 
             /* Safety margin: leave 512MB above fs minimum for the existing OS */
@@ -194,7 +247,8 @@ int step_partitioning(AppData *app, const char *disk_name) {
             if (available_for_neko < min_needed_mb) {
                 log_to_ui_printf(app,
                     "ERROR: Not enough space to resize! "
-                    "Partition %s (%ldMB) needs %ldMB minimum free",
+                    "Partition %s (%ldMB) needs %ldMB minimum free. "
+                    "Please free up space manually using your existing OS.",
                     resize_target, part_size,
                     min_needed_mb + min_size + safety_margin);
                 g_free(resize_target);
@@ -216,6 +270,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
                 resize_target, part_size, new_partition_size,
                 part_size - new_partition_size);
 
+            // resize_existing_partition handles ext2/3/4, ntfs, and btrfs
             if (resize_existing_partition(app, resize_target,
                                           new_partition_size) != 0) {
                 log_to_ui(app, "ERROR: Partition resize failed!", 0.0);
@@ -302,6 +357,14 @@ int step_partitioning(AppData *app, const char *disk_name) {
                 }
             }
             l = l->next;
+        }
+
+        // Step 5: Set boot flag on root partition for MBR/Legacy
+        if (!app->is_efi) {
+            // Find the root partition number
+            int root_part_num = need_new_efi ? new_part_base + 1 : new_part_base;
+            log_to_ui_printf(app, "Setting boot flag on partition %d (MBR/Legacy)...", root_part_num);
+            run_sync(app, "sfdisk --activate %s %d 2>/dev/null || true", disk_dev, root_part_num);
         }
 
         // Verify partition device nodes were actually created
@@ -755,7 +818,7 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         const char *all_groups[] = {
             "wheel", "floppy", "audio", "video", "cdrom", "optical",
             "storage", "network", "kvm", "input", "plugdev", "users",
-            "xbuilder", "render", "fuse", "disk", NULL
+            "xbuilder", "render", "fuse", "disk","nopasswdlogin", NULL
         };
 
         for (int i = 0; all_groups[i] != NULL; i++) {
@@ -841,8 +904,10 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
             // Check if SDDM is present on the target
             char sddm_path[512];
             char lightdm_conf_path[512];
+            char emptty_conf_path[512];
             snprintf(sddm_path, sizeof(sddm_path), "%s/usr/bin/sddm", TARGETDIR);
             snprintf(lightdm_conf_path, sizeof(lightdm_conf_path), "%s/etc/lightdm/lightdm.conf", TARGETDIR);
+            snprintf(emptty_conf_path, sizeof(emptty_conf_path), "%s/etc/emptty/conf", TARGETDIR);
             if (access(sddm_path, F_OK) == 0) {
                 log_to_ui(app, "Configuring SDDM autologin...", 0.87);
                 // Create sddm.conf.d directory if it doesn't exist
@@ -854,12 +919,21 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
                 run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
                 run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf", TARGETDIR, user_login, TARGETDIR);
             }
+
+            // emptty (independent - can coexist with graphical DMs)
+            if (access(emptty_conf_path, F_OK) == 0) {
+                log_to_ui(app, "Configuring emptty autologin...", 0.87);
+                run_sync(app, "sed -i 's/^#\\?DEFAULT_USER=.*/DEFAULT_USER=%s/' %s/etc/emptty/conf", user_login, TARGETDIR);
+                run_sync(app, "sed -i 's/^#\\?AUTOLOGIN=.*/AUTOLOGIN=true/' %s/etc/emptty/conf", TARGETDIR);
+            }
         } else {
             // Ensure autologin is explicitly disabled if the user unchecked the box
             // SDDM
             run_sync(app, "rm -f %s/etc/sddm.conf.d/autologin.conf", TARGETDIR);
             // LightDM
             run_sync(app, "sed -i '/^autologin-user=/d' %s/etc/lightdm/lightdm.conf 2>/dev/null || true", TARGETDIR);
+            // emptty
+            run_sync(app, "sed -i 's/^#\\?AUTOLOGIN=.*/AUTOLOGIN=false/' %s/etc/emptty/conf 2>/dev/null || true", TARGETDIR);
         }
 
         // Privilege Manager: doas or sudo
@@ -977,7 +1051,7 @@ if (has_crypto) {
         // Mount other partitions so os-prober can detect them
         log_to_ui(app, "Scanning for other operating systems...", 0.925);
         run_sync(app, "mkdir -p /tmp/kasha_osprobe");
-        
+
         // Scan all partitions on the system for other OS
         char probe_cmd[512];
         snprintf(probe_cmd, sizeof(probe_cmd),

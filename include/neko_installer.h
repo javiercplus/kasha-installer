@@ -164,6 +164,8 @@ glong get_fs_min_size_mb(const char *device);
 glong get_disk_free_space_mb(const char *disk_name);
 char* find_largest_resizable_partition(const char *disk_name);
 int resize_existing_partition(AppData *app, const char *device, glong new_size_mb);
+char* get_disk_partition_table_type(const char *disk_name);
+int get_mbr_primary_count(const char *disk_name);
 
 
 // ui_partition.c

@@ -406,8 +406,16 @@ void on_manual_check_toggled(GtkToggleButton *toggle, AppData *app) {
     gboolean manual = gtk_toggle_button_get_active(toggle);
     gtk_widget_set_sensitive(app->frame_install_parts, manual);
     
-    if (!manual && app->selected_disk) {
-        // Switching back to auto: reset to defaults
+    if (manual) {
+        // Switching to manual mode
+        app->install_mode = INSTALL_MODE_MANUAL;
+    } else if (app->selected_disk) {
+        // Switching back to auto: restore mode from radio button and reset to defaults
+        if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->radio_alongside))) {
+            app->install_mode = INSTALL_MODE_DUAL_BOOT;
+        } else {
+            app->install_mode = INSTALL_MODE_ERASE;
+        }
         populate_defaults(app, app->selected_disk);
         refresh_partition_list_ui(app);
     }

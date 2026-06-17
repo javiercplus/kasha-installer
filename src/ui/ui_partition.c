@@ -309,7 +309,11 @@ if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
              return;
          }
          else if (dev_short && mp && strlen(mp) > 0) {
-            app->install_mode = INSTALL_MODE_MANUAL;
+            // Only switch to manual mode if the manual partitioning checkbox is active
+            if (app->chk_manual_partitions &&
+                gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_manual_partitions))) {
+                app->install_mode = INSTALL_MODE_MANUAL;
+            }
 
             gchar *full_dev = g_strdup_printf("/dev/%s", dev_short);
 
@@ -409,7 +413,7 @@ void on_delete_partition_clicked(GtkWidget *widget, gpointer user_data) {
         
         PartitionConfig *conf = find_config_by_device(app, dev);
         if (conf) {
-            app->install_mode = INSTALL_MODE_MANUAL;
+            // Don't change install_mode — respect the user's radio button selection
             gtk_list_store_remove(GTK_LIST_STORE(model), &iter);
             remove_partition_config(app, conf);
         }
@@ -418,7 +422,9 @@ void on_delete_partition_clicked(GtkWidget *widget, gpointer user_data) {
 }
 
 void on_reset_partitions_clicked(GtkWidget *widget, AppData *app) {
-    app->install_mode = INSTALL_MODE_MANUAL;
+    // Preserve the current install_mode — it will be restored by populate_defaults if called from there,
+    // or it should reflect the radio button selection if called from the UI directly
+    // (populate_defaults already saves and restores the intended_mode)
     
     GtkListStore *store = GTK_LIST_STORE(gtk_tree_view_get_model(GTK_TREE_VIEW(app->mount_list)));
     gtk_list_store_clear(store);

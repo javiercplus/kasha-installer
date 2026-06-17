@@ -164,6 +164,7 @@ We welcome patches, new translations, and UI improvements. Please check out our 
 
 ## Maintainers
 * [JavierC](https://github.com/javiercplus) - Creator & Lead Developer
+* [Crow_rei](https://codeberg.org/Crow_rei) - Documentation Lead.
 
 ## License
 This project is licensed under the [BSD 3-Clause License](LICENSE) (see `LICENSE` file for details).

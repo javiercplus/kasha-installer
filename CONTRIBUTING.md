@@ -4,7 +4,7 @@ First of all, **thank you for your interest in contributing!** This is an active
 
 > **Important note:** Kasha Installer is in an organizational phase. The priority right now is to **document, structure, and report**, not to optimize code.
 > 
-> **Documentation Lead:** `Crow_rei` is currently in charge of the documentation and project structuring.
+> **Documentation Lead:** `Crow_rei` is currently in charge of the documentation
 
 ---
 

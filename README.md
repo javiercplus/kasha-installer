@@ -28,19 +28,23 @@ Kasha Installer defaults to a highly automated flow designed to reduce friction 
 
 ### Intuitive User Interface
 ![Welcome Screen](assets/welcome.png)
+
 *A clean, localized welcome interface guiding the user through the installation process.*
 
 ### Flexible Installation Modes
 ![Installation Type](assets/installation_type.png)
+
 *Support for full disk erasure, dual-boot resizing, and granular manual partitioning workflows.*
 
 ### Automated Bootloader Configuration
 ![Bootloader Configuration](assets/bootloader.png)
+
 *Automatic GRUB installation and configuration for both EFI and BIOS systems.*
 
 ### Seamless System & User Setup
 ![System Configuration](assets/system.png)
 ![User Setup](assets/users.png)
+
 *Timezone, locale, and user account management, including options for Auto-Login and privilege manager selection (`doas` vs `sudo`).*
 
 ### Advanced Security

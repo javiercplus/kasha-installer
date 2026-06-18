@@ -218,7 +218,7 @@ gint sort_partitions(gconstpointer a, gconstpointer b); // exposed for steps if 
 void unmount_safety(AppData *app);
 void generate_fstab(AppData *app, const char *target_dir);
 void generate_crypttab(AppData *app, const char *target_dir);
-void set_safe_password(AppData *app, const gchar *username, const gchar *password, const gchar *target_dir);
+gboolean set_safe_password(AppData *app, const gchar *username, const gchar *password, const gchar *target_dir);
 
 // installer_steps.c
 int step_partitioning(AppData *app, const char *disk_name);

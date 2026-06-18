@@ -677,10 +677,14 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
 
     // REMOVE LIVE USER FIRST (before creating new user to avoid UID conflicts)
     log_to_ui(app, "Removing live user (anon) from target system...", 0.72);
-    run_sync(app, "chroot %s userdel -r anon 2>/dev/null", TARGETDIR);
-    run_sync(app, "rm -f %s/etc/sudoers.d/99-void-live", TARGETDIR);
+    if (run_sync(app, "chroot %s userdel anon 2>/dev/null", TARGETDIR) != 0) {
+        log_to_ui(app, "WARNING: userdel anon failed, forcing removal...", 0.72);
+    }
+    run_sync(app, "rm -rf %s/home/anon 2>/dev/null || true", TARGETDIR);
+    run_sync(app, "rm -f %s/var/spool/mail/anon 2>/dev/null || true", TARGETDIR);
+    run_sync(app, "rm -f %s/etc/sudoers.d/99-void-live 2>/dev/null || true", TARGETDIR);
     run_sync(app, "sed -i 's|GETTY_ARGS=\"--noclear -a anon\"|GETTY_ARGS=\"--noclear\"|g' %s/etc/sv/agetty-tty1/conf", TARGETDIR);
-    run_sync(app, "rm -f %s/etc/polkit-1/rules.d/void-live.rules", TARGETDIR);
+    run_sync(app, "rm -f %s/etc/polkit-1/rules.d/void-live.rules 2>/dev/null || true", TARGETDIR);
 
     // CLEANUP CLONED LIVE STATE
     log_to_ui(app, "Cleaning up machine-id and network state...", 0.73);
@@ -805,7 +809,9 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
 
     // ROOT USER
     log_to_ui(app, "Setting Root Password (SHA512)...", 0.80);
-    set_safe_password(app, "root", root_pass, TARGETDIR);
+    if (!set_safe_password(app, "root", root_pass, TARGETDIR)) {
+        return -1;
+    }
 
     // Copy /etc/skel files for root
     run_sync(app, "cp %s/etc/skel/.[bix]* %s/root/ 2>/dev/null", TARGETDIR, TARGETDIR);
@@ -847,34 +853,43 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         log_to_ui_printf(app, "Using groups: %s", valid_groups);
 
         // Step 3: Create the user
-        char useradd_cmd[1024];
+        gchar *safe_fullname = NULL;
         if (user_fullname && strlen(user_fullname) > 0) {
-            snprintf(useradd_cmd, sizeof(useradd_cmd),
-                "chroot %s useradd -m -c \"%s\" -G %s -s /bin/bash %s",
-                TARGETDIR, user_fullname, valid_groups, user_login);
+            safe_fullname = g_shell_quote(user_fullname);
+        }
+
+        gchar *useradd_cmd = NULL;
+        if (safe_fullname) {
+            useradd_cmd = g_strdup_printf(
+                "chroot %s useradd -m -c %s -G %s -s /bin/bash %s",
+                TARGETDIR, safe_fullname, valid_groups, user_login);
         } else {
-            snprintf(useradd_cmd, sizeof(useradd_cmd),
+            useradd_cmd = g_strdup_printf(
                 "chroot %s useradd -m -G %s -s /bin/bash %s",
                 TARGETDIR, valid_groups, user_login);
         }
 
+        g_free(safe_fullname);
+
         log_to_ui(app, useradd_cmd, -1);
         int add_result = system(useradd_cmd);
+        g_free(useradd_cmd);
         if (WEXITSTATUS(add_result) != 0) {
-            log_to_ui(app, "ERROR: useradd failed!", 0.0);
+            log_to_ui(app, "ERROR: useradd failed! Aborting configuration.", 0.0);
+            return -1;
         }
 
         log_to_ui(app, "Setting User Password (SHA512)...", 0.84);
-        set_safe_password(app, user_login, user_pass, TARGETDIR);
+        if (!set_safe_password(app, user_login, user_pass, TARGETDIR)) {
+            return -1;
+        }
 
         // Verify user was created
-        char verify_cmd[256];
-        snprintf(verify_cmd, sizeof(verify_cmd), "chroot %s id %s", TARGETDIR, user_login);
-        if (system(verify_cmd) == 0) {
-            log_to_ui_printf(app, "User %s created successfully.", user_login);
-        } else {
-            log_to_ui_printf(app, "ERROR: User %s not found!", user_login);
+        if (run_sync(app, "chroot %s id %s", TARGETDIR, user_login) != 0) {
+            log_to_ui_printf(app, "ERROR: User %s not found after creation!", user_login);
+            return -1;
         }
+        log_to_ui_printf(app, "User %s created successfully.", user_login);
 
         // Neko Void customizations
         log_to_ui(app, "Applying Neko Void customizations...", 0.85);

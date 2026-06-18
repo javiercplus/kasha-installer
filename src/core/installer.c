@@ -253,19 +253,18 @@ int run_sync(AppData *app, const char *fmt, ...) {
     return -1;
 }
 
-void set_safe_password(AppData *app, const gchar *username, const gchar *password, const gchar *target_dir) {
+gboolean set_safe_password(AppData *app, const gchar *username, const gchar *password, const gchar *target_dir) {
     char target_tmp[256];
     snprintf(target_tmp, sizeof(target_tmp), "%s/tmp/.kasha_%s", target_dir, username);
     
     FILE *fp = fopen(target_tmp, "w");
-    if (fp) {
-        fprintf(fp, "%s:%s\n", username, password);
-        fclose(fp);
-        chmod(target_tmp, 0600); 
-    } else {
+    if (!fp) {
         log_to_ui(app, "ERROR: Cannot create password file in target.", 0.0);
-        return;
+        return FALSE;
     }
+    fprintf(fp, "%s:%s\n", username, password);
+    fclose(fp);
+    chmod(target_tmp, 0600);
     
     char cmd_chroot[512];
     snprintf(cmd_chroot, sizeof(cmd_chroot), "chroot %s chpasswd -c SHA512 < %s", target_dir, target_tmp);
@@ -275,7 +274,9 @@ void set_safe_password(AppData *app, const gchar *username, const gchar *passwor
     
     if (ret != 0) {
         log_to_ui(app, "ERROR: Failed to set password.", 0.0);
+        return FALSE;
     }
+    return TRUE;
 }
 
 gpointer install_thread(gpointer data) {

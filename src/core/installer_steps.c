@@ -915,14 +915,15 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         run_sync(app, "chroot %s chown -R %s:%s /home/%s 2>/dev/null || true", TARGETDIR, user_login, user_login, user_login);
 
         // Autologin
+        char emptty_conf_path[512];
+        snprintf(emptty_conf_path, sizeof(emptty_conf_path), "%s/etc/emptty/conf", TARGETDIR);
+
         if (autologin) {
             // Check if SDDM is present on the target
             char sddm_path[512];
             char lightdm_conf_path[512];
-            char emptty_conf_path[512];
             snprintf(sddm_path, sizeof(sddm_path), "%s/usr/bin/sddm", TARGETDIR);
             snprintf(lightdm_conf_path, sizeof(lightdm_conf_path), "%s/etc/lightdm/lightdm.conf", TARGETDIR);
-            snprintf(emptty_conf_path, sizeof(emptty_conf_path), "%s/etc/emptty/conf", TARGETDIR);
             if (access(sddm_path, F_OK) == 0) {
                 log_to_ui(app, "Configuring SDDM autologin...", 0.87);
                 // Create sddm.conf.d directory if it doesn't exist
@@ -948,7 +949,12 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
             // LightDM
             run_sync(app, "sed -i '/^autologin-user=/d' %s/etc/lightdm/lightdm.conf 2>/dev/null || true", TARGETDIR);
             // emptty
-            run_sync(app, "sed -i 's/^#\\?AUTOLOGIN=.*/AUTOLOGIN=false/' %s/etc/emptty/conf 2>/dev/null || true", TARGETDIR);
+            if (access(emptty_conf_path, F_OK) == 0) {
+                run_sync(app, "sed -i 's/^#\\?DEFAULT_USER=.*/#DEFAULT_USER=/' %s/etc/emptty/conf", TARGETDIR);
+                run_sync(app, "sed -i 's/^#\\?AUTOLOGIN=.*/AUTOLOGIN=false/' %s/etc/emptty/conf", TARGETDIR);
+            }
+            // Remove nopasswdlogin group (only needed for autologin)
+            run_sync(app, "chroot %s groupdel nopasswdlogin 2>/dev/null || true", TARGETDIR);
         }
 
         // Privilege Manager: doas or sudo

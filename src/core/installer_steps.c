@@ -821,10 +821,12 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         log_to_ui(app, "Creating user account...", 0.82);
 
         // Step 1: Ensure ALL required groups exist
+        // Note: nopasswdlogin is NOT included here — it is only added conditionally
+        // when autologin is enabled (it grants password-bypass via PAM for emptty)
         const char *all_groups[] = {
             "wheel", "floppy", "audio", "video", "cdrom", "optical",
             "storage", "network", "kvm", "input", "plugdev", "users",
-            "xbuilder", "render", "fuse", "disk","nopasswdlogin", NULL
+            "xbuilder", "render", "fuse", "disk", NULL
         };
 
         for (int i = 0; all_groups[i] != NULL; i++) {
@@ -937,6 +939,9 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
             }
 
             // emptty (independent - can coexist with graphical DMs)
+            // Add user to nopasswdlogin group (required by emptty/PAM for password bypass)
+            run_sync(app, "chroot %s getent group nopasswdlogin > /dev/null 2>/dev/null || chroot %s groupadd -r nopasswdlogin", TARGETDIR, TARGETDIR);
+            run_sync(app, "chroot %s usermod -aG nopasswdlogin %s", TARGETDIR, user_login);
             if (access(emptty_conf_path, F_OK) == 0) {
                 log_to_ui(app, "Configuring emptty autologin...", 0.87);
                 run_sync(app, "sed -i 's/^#\\?DEFAULT_USER=.*/DEFAULT_USER=%s/' %s/etc/emptty/conf", user_login, TARGETDIR);
@@ -948,12 +953,14 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
             run_sync(app, "rm -f %s/etc/sddm.conf.d/autologin.conf", TARGETDIR);
             // LightDM
             run_sync(app, "sed -i '/^autologin-user=/d' %s/etc/lightdm/lightdm.conf 2>/dev/null || true", TARGETDIR);
-            // emptty
+            // emptty: disable autologin in config AND ensure user is NOT in nopasswdlogin group
             if (access(emptty_conf_path, F_OK) == 0) {
                 run_sync(app, "sed -i 's/^#\\?DEFAULT_USER=.*/#DEFAULT_USER=/' %s/etc/emptty/conf", TARGETDIR);
                 run_sync(app, "sed -i 's/^#\\?AUTOLOGIN=.*/AUTOLOGIN=false/' %s/etc/emptty/conf", TARGETDIR);
             }
-            // Remove nopasswdlogin group (only needed for autologin)
+            // Remove user from nopasswdlogin group and delete the group entirely.
+            // This prevents emptty/PAM from bypassing the password prompt.
+            run_sync(app, "chroot %s gpasswd -d %s nopasswdlogin 2>/dev/null || true", TARGETDIR, user_login);
             run_sync(app, "chroot %s groupdel nopasswdlogin 2>/dev/null || true", TARGETDIR);
         }
 

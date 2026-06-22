@@ -1,7 +1,7 @@
-# Template file for 'kasha-installer'
+# Template file for 'Kasha-Installer'
 pkgname=Kasha-Installer
 version=7.1
-revision=1
+revision=2
 build_style=gnu-makefile
 hostmakedepends="pkg-config xxd"
 makedepends="gtk+3-devel"
@@ -14,15 +14,36 @@ distfiles="https://codeberg.org/javiercplus/Kasha-Installer/archive/${version}.t
 checksum=0909cc752f6176d0ef7998b55a4ee564bd282541039bcda61e5a8d2a7601e34e
 
 post_patch() {
-	# Modifica el Makefile para anexar (+=) a CFLAGS en lugar de sobrescribir (=)
-	# Esto preserva -Iinclude y las banderas de GTK generadas por pkg-config
+	# Convertir asignaciones a anexos
 	vsed -i Makefile \
-		-e 's/CFLAGS =/CFLAGS +=/g' \
-		-e 's/CFLAGS=/CFLAGS+=/g' \
-		-e 's/LDFLAGS =/LDFLAGS +=/g' \
-		-e 's/LDFLAGS=/LDFLAGS+=/g'
+		-e 's/^CFLAGS =/CFLAGS +=/g' \
+		-e 's/^CFLAGS=/CFLAGS+=/g' \
+		-e 's/^LDFLAGS =/LDFLAGS +=/g' \
+		-e 's/^LDFLAGS=/LDFLAGS+=/g'
+	
+	# Buscar el header y añadir -I correspondiente
+	if [ -f include/neko_installer.h ]; then
+		vsed -i Makefile -e '/^CFLAGS +=/ s/$/ -Iinclude/'
+	elif [ -f src/neko_installer.h ]; then
+		vsed -i Makefile -e '/^CFLAGS +=/ s/$/ -Isrc/'
+	else
+		# Si está en la raíz, añadir -I.
+		vsed -i Makefile -e '/^CFLAGS +=/ s/$/ -I./'
+	fi
 }
 
 do_install() {
+	# Binario principal
 	vbin neko_installer
+	
+	# Instalar recursos si existen
+	if [ -d data ]; then
+		vmkdir usr/share/kasha
+		cp -r data/* ${DESTDIR}/usr/share/kasha/
+	fi
+	
+	# Archivo .desktop si existe
+	if [ -f Kasha-Installer.desktop ]; then
+		vinstall Kasha-Installer.desktop 644 usr/share/applications
+	fi
 }

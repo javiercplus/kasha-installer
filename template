@@ -11,7 +11,7 @@ maintainer="Local User <user@example.com>"
 license="Unknown" # Reemplazar con la licencia correspondiente del proyecto
 homepage="https://codeberg.org/javiercplus/Kasha-Installer"
 distfiles="https://codeberg.org/javiercplus/Kasha-Installer/archive/${version}.tar.gz"
-checksum=0000000000000000000000000000000000000000000000000000000000000000
+checksum=0909cc752f6176d0ef7998b55a4ee564bd282541039bcda61e5a8d2a7601e34e
 
 # Se asume que el Makefile genera un binario llamado neko_installer
 # y que no posee una regla 'make install'.

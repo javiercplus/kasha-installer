@@ -1,8 +1,8 @@
 # Template file for 'Kasha-Installer'
 pkgname=Kasha-Installer
 version=7.1
-revision=2
-build_style=gnu-makefile
+revision=3
+build_style=gnu-configure
 hostmakedepends="pkg-config xxd"
 makedepends="gtk+3-devel"
 depends="bash grub sed cryptsetup xxd"
@@ -13,36 +13,52 @@ homepage="https://codeberg.org/javiercplus/Kasha-Installer"
 distfiles="https://codeberg.org/javiercplus/Kasha-Installer/archive/${version}.tar.gz"
 checksum=0909cc752f6176d0ef7998b55a4ee564bd282541039bcda61e5a8d2a7601e34e
 
-post_patch() {
-	# Convertir asignaciones a anexos
-	vsed -i Makefile \
-		-e 's/^CFLAGS =/CFLAGS +=/g' \
-		-e 's/^CFLAGS=/CFLAGS+=/g' \
-		-e 's/^LDFLAGS =/LDFLAGS +=/g' \
-		-e 's/^LDFLAGS=/LDFLAGS+=/g'
+do_configure() {
+	# No hay nada que configurar
+	:
+}
+
+do_build() {
+	cd ${wrksrc}
 	
-	# Buscar el header y añadir -I correspondiente
-	if [ -f include/neko_installer.h ]; then
-		vsed -i Makefile -e '/^CFLAGS +=/ s/$/ -Iinclude/'
-	elif [ -f src/neko_installer.h ]; then
-		vsed -i Makefile -e '/^CFLAGS +=/ s/$/ -Isrc/'
+	# Flags de GTK+
+	GTK_CFLAGS=$(pkg-config --cflags gtk+-3.0)
+	GTK_LIBS=$(pkg-config --libs gtk+-3.0)
+	
+	# Buscar el header (puede estar en varios lugares)
+	if [ -f "include/neko_installer.h" ]; then
+		HEADER_DIR="include"
+	elif [ -f "src/neko_installer.h" ]; then
+		HEADER_DIR="src"
 	else
-		# Si está en la raíz, añadir -I.
-		vsed -i Makefile -e '/^CFLAGS +=/ s/$/ -I./'
+		HEADER_DIR="."
 	fi
+	
+	CFLAGS="-fstack-clash-protection -D_FORTIFY_SOURCE=2 -mtune=generic -O2 -pipe -I${HEADER_DIR} ${GTK_CFLAGS}"
+	
+	# Crear directorio para objetos
+	mkdir -p obj
+	
+	# Compilar
+	for src in src/core/*.c src/ui/*.c; do
+		obj="obj/$(basename ${src%.c}.o)"
+		cc $CFLAGS -c "$src" -o "$obj"
+	done
+	
+	# Enlazar
+	cc -o neko_installer obj/*.o ${GTK_LIBS}
 }
 
 do_install() {
-	# Binario principal
+	cd ${wrksrc}
+	
 	vbin neko_installer
 	
-	# Instalar recursos si existen
 	if [ -d data ]; then
 		vmkdir usr/share/kasha
 		cp -r data/* ${DESTDIR}/usr/share/kasha/
 	fi
 	
-	# Archivo .desktop si existe
 	if [ -f Kasha-Installer.desktop ]; then
 		vinstall Kasha-Installer.desktop 644 usr/share/applications
 	fi

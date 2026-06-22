@@ -1,0 +1,20 @@
+# Template file for 'kasha-installer'
+pkgname=kasha-installer
+version=7.1
+revision=1
+build_style=gnu-makefile
+hostmakedepends="pkg-config xxd"
+makedepends="gtk+3-devel"
+depends="bash grub sed cryptsetup xxd"
+short_desc="Modular Linux system installer built with C and GTK+ 3.0"
+maintainer="Local User <user@example.com>"
+license="Unknown" # Reemplazar con la licencia correspondiente del proyecto
+homepage="https://codeberg.org/javiercplus/Kasha-Installer"
+distfiles="https://codeberg.org/javiercplus/Kasha-Installer/archive/${version}.tar.gz"
+checksum=0000000000000000000000000000000000000000000000000000000000000000
+
+# Se asume que el Makefile genera un binario llamado neko_installer
+# y que no posee una regla 'make install'.
+do_install() {
+	vbin neko_installer
+}

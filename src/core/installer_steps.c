@@ -690,7 +690,10 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
     log_to_ui(app, "Cleaning up machine-id and network state...", 0.73);
     run_sync(app, "rm -f %s/etc/machine-id", TARGETDIR);
     run_sync(app, "rm -f %s/var/lib/dbus/machine-id", TARGETDIR);
-    run_sync(app, "rm -f %s/etc/NetworkManager/system-connections/*", TARGETDIR);
+
+    // Copy NetworkManager WiFi/network connections from live system
+    run_sync(app, "mkdir -p %s/etc/NetworkManager/system-connections", TARGETDIR);
+    run_sync(app, "cp -rf /etc/NetworkManager/system-connections/* %s/etc/NetworkManager/system-connections/ 2>/dev/null || true", TARGETDIR);
 
 
     // CONFIGURATION (Hostname, Locale)

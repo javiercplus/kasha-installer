@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://codeberg.org/javiercplus/Kasha-Installer/raw/branch/main/assets/kasha.png" alt="Kasha Installer Logo" width="200"/>
+  <img src="https://codeberg.org/javiercplus/Kasha-Installer/raw/branch/main/assets/kasha-white.png" alt="Kasha Installer Logo" width="200"/>
 </p>
 
 <p align="center">

@@ -4,10 +4,10 @@
 
 <p align="center">
   <a href="https://codeberg.org/javiercplus/Kasha-Installer">
-    <img src="https://img.shields.io/badge/build-manual-lightgrey?logo=codeberg" alt="Build">
+    <img src="https://img.shields.io/badge/build-ci-lightgrey?logo=codeberg" alt="Build">
   </a>
   <a href="https://codeberg.org/javiercplus/Kasha-Installer/releases">
-    <img src="https://img.shields.io/badge/release-v0.1.0-blue?logo=codeberg" alt="Release">
+    <img src="https://img.shields.io/badge/release-v7.1.0-blue?logo=codeberg" alt="Release">
   </a>
   <a href="https://codeberg.org/javiercplus/Kasha-Installer/src/branch/main/LICENSE">
     <img src="https://img.shields.io/badge/license-BSD--3--Clause-blue?logo=open-source-initiative&logoColor=white" alt="License">

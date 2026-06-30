@@ -1,10 +1,17 @@
 <p align="center">
   <img src="include/logo.png" alt="Kasha Installer Logo" width="200"/>
 </p>
+
 <p align="center">
-  <a href="https://github.com/javiercplus/Kasha-Installer/actions"><img src="https://img.shields.io/github/actions/workflow/status/javiercplus/Kasha-Installer/build.yml?branch=main" alt="Build Status"></a>
-  <a href="https://github.com/javiercplus/Kasha-Installer/releases"><img src="https://img.shields.io/github/v/release/javiercplus/Kasha-Installer" alt="Release"></a>
-  <a href="https://github.com/javiercplus/Kasha-Installer/blob/main/LICENSE"><img src="https://img.shields.io/github/license/javiercplus/Kasha-Installer" alt="License"></a>
+  <a href="https://codeberg.org/javiercplus/Kasha-Installer">
+    <img src="https://img.shields.io/badge/build-manual-lightgrey?logo=codeberg" alt="Build">
+  </a>
+  <a href="https://codeberg.org/javiercplus/Kasha-Installer/releases">
+    <img src="https://img.shields.io/badge/release-v0.1.0-blue?logo=codeberg" alt="Release">
+  </a>
+  <a href="https://codeberg.org/javiercplus/Kasha-Installer/src/branch/main/LICENSE">
+    <img src="https://img.shields.io/badge/license-BSD--3--Clause-blue?logo=open-source-initiative&logoColor=white" alt="License">
+  </a>
 </p>
 <p align="center">
   <strong>A modular, fast, and feature-rich Linux system installer built with C and GTK+ 3.0.</strong>

@@ -47,8 +47,7 @@ void void_reconfigure_base(AppData *app, const char *TARGETDIR) {
     run_sync(app, "chroot %s xbps-reconfigure -a", TARGETDIR);
     run_sync(app, "chroot %s xbps-install -S", TARGETDIR);
     run_sync(app, "chroot %s xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ xbps", TARGETDIR);
-    run_sync(app, "chroot %s xbps-install -Sy --repository=https://repo-de.voidlinux.org/current/ kpm", TARGETDIR);
-    run_sync(app, "chroot %s xbps-install -yu --repository=https://repo-de.voidlinux.org/current/ Neko-Wizard", TARGETDIR);
+    run_sync(app, "chroot %s xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ kpm xmirror Neko-Wizard", TARGETDIR);
 }
 
 /* ------------------------------------------------------------------ *

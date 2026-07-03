@@ -56,7 +56,7 @@ void void_reconfigure_base(AppData *app, const char *TARGETDIR) {
  * ------------------------------------------------------------------ */
 void void_remove_live_packages(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "[Void] Removing temporary live packages (xbps-remove)...", 0.70);
-    run_sync(app,"chroot %s xmirror --set https://mirror.vofr.net/voidlinux/", TARGETDIR);
+    run_sync(app,"chroot %s xmirror --set https://mirrors.summithq.com/voidlinux/", TARGETDIR);
     run_sync(app, "chroot %s xbps-remove -Ry dialog xtools-minimal espeakup brltty 2>/dev/null", TARGETDIR);
 }
 

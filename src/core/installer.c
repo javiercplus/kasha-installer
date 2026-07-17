@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/wait.h>
+#include <ctype.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -233,6 +234,43 @@ void log_to_ui_printf(AppData *app, const char *fmt, ...) {
     g_free(msg);
 }
 
+
+// Validates and normalizes hostname to lowercase only
+const gchar *validate_and_normalize_hostname(const gchar *raw_hostname) {
+    if (!raw_hostname || strlen(raw_hostname) == 0) {
+        log_to_ui(NULL, "ERROR: Hostname cannot be empty.", 0.0);
+        return "localhost"; // Default fallback
+    }
+
+    // Check for invalid characters (only allow alphanumeric, hyphen, and dot)
+    for (int i = 0; raw_hostname[i]; i++) {
+        if (!((raw_hostname[i] >= 'a' && raw_hostname[i] <= 'z') || 
+              (raw_hostname[i] >= '0' && raw_hostname[i] <= '9') || 
+              raw_hostname[i] == '-' || raw_hostname[i] == '.' || 
+              raw_hostname[i] == '_')) {
+            log_to_ui(NULL, "ERROR: Hostname contains invalid characters. Only lowercase letters, numbers, hyphens, dots, and underscores are allowed.", 0.0);
+            return "localhost"; // Default fallback
+        }
+    }
+
+    // Convert hostname to lowercase
+    gchar *hostname = g_strdup(raw_hostname);
+    for (int i = 0; hostname[i]; i++) {
+        if (hostname[i] >= 'A' && hostname[i] <= 'Z') {
+            hostname[i] = tolower(hostname[i]);
+        }
+    }
+
+    // Check if hostname starts or ends with a hyphen or dot (invalid)
+    if (strlen(hostname) > 1 && (hostname[0] == '-' || hostname[0] == '.' || hostname[strlen(hostname) - 1] == '-' || hostname[strlen(hostname) - 1] == '.')) {
+        log_to_ui(NULL, "ERROR: Hostname cannot start or end with a hyphen or dot.", 0.0);
+        g_free(hostname);
+        return "localhost"; // Default fallback
+    }
+
+    return hostname;
+}
+
 int run_sync(AppData *app, const char *fmt, ...) {
     char cmd[1024];
     va_list args;
@@ -321,7 +359,8 @@ gpointer install_thread(gpointer data) {
     const gchar *user_login = gtk_entry_get_text(GTK_ENTRY(app->user_login_entry));
     const gchar *user_pass = gtk_entry_get_text(GTK_ENTRY(app->user_pass_entry));
     const gchar *user_fullname = gtk_entry_get_text(GTK_ENTRY(app->user_fullname_entry));
-    const gchar *hostname = gtk_entry_get_text(GTK_ENTRY(app->hostname_entry));
+    const gchar *raw_hostname = gtk_entry_get_text(GTK_ENTRY(app->hostname_entry));
+    const gchar *hostname = validate_and_normalize_hostname(raw_hostname);
     gchar *locale_selected = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->locale_combo));
     const gchar *locale = (locale_selected && strlen(locale_selected) > 0) ? locale_selected : "en_US.UTF-8";
     gboolean autologin_enabled = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->autologin_check));
@@ -366,11 +405,15 @@ gpointer install_thread(gpointer data) {
         app->installing = FALSE; return NULL;
     }
     
+    gchar *normalized_hostname = (gchar *)hostname;
     if (step_configure_system(app, TARGETDIR, hostname, locale, root_pass, user_login, user_fullname, user_pass, autologin_enabled) != 0) {
         stop_progress_pulse(app);
         log_to_ui(app, "ERROR: System configuration failed!", 0.0);
-        app->installing = FALSE; return NULL;
+        app->installing = FALSE;
+        g_free(normalized_hostname); // Liberar memoria
+        return NULL;
     }
+    g_free(normalized_hostname); // Liberar memoria
     
     if (step_install_bootloader(app, TARGETDIR, disk_name) != 0) {
         stop_progress_pulse(app);

@@ -978,7 +978,8 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
                      TARGETDIR, TARGETDIR);
 
             // 2. Install opendoas
-            run_sync(app, "chroot %s xbps-install -Sy opendoas 2>/dev/null || true", TARGETDIR);
+            run_sync(app, "chroot %s xbps-install -Syu  --repository=https://repo-de.voidlinux.org/current/ 2>/dev/null || true", TARGETDIR);
+            run_sync(app, "chroot %s xbps-install -Sy --repository=https://repo-de.voidlinux.org/current/ opendoas 2>/dev/null || true", TARGETDIR);
 
             // 3. Configure doas.conf
             run_sync(app, "printf '# doas configuration\npermit persist :wheel\n' > %s/etc/doas.conf", TARGETDIR);
@@ -994,6 +995,8 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         } else {
             // Traditional sudo
             log_to_ui(app, "Configuring sudo...", 0.88);
+            run_sync(app, "chroot %s xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ 2>/dev/null || true", TARGETDIR);
+            run_sync(app, "chroot %s xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ sudo 2>/dev/null || true", TARGETDIR);
             run_sync(app, "echo '%%wheel ALL=(ALL:ALL) ALL' > %s/etc/sudoers.d/wheel", TARGETDIR);
             run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
         }

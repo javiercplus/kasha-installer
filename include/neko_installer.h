@@ -191,6 +191,7 @@ void on_country_changed(GtkComboBox *widget, AppData *app);
 void on_timezone_area_changed(GtkComboBox *widget, AppData *app);
 void on_kbd_layout_changed(GtkComboBox *widget, AppData *app);
 void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data);
+void on_insert_text_hostname(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data);
 void launch_gparted(GtkWidget *widget, AppData *app);
 void on_reboot_clicked(GtkWidget *widget, AppData *app);
 void on_popup_reboot(GtkDialog *dialog, gint response_id, gpointer user_data);

@@ -390,8 +390,61 @@ void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_te
         gtk_editable_insert_text(editable, filtered->str, (gint)filtered->len, position);
         g_signal_handlers_unblock_by_func(editable, on_insert_text_username, data);
     }
-
     g_string_free(filtered, TRUE);
+    g_free(lower_text);
+}
+
+
+// Callback para validar y convertir el hostname a minúsculas en tiempo real
+void on_insert_text_hostname(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data) {
+    /* Convertir el texto insertado a minúsculas */
+    gchar *lower_text = g_utf8_strdown(new_text, new_text_length);
+    gint lower_len = (gint)strlen(lower_text);
+
+    /* Obtener el contenido actual */
+    const gchar *current = gtk_entry_get_text(GTK_ENTRY(editable));
+    gint current_len = (gint)strlen(current);
+    gint insert_pos = *position;
+
+    /* Filtrar: solo permitir caracteres válidos para hostname [a-z0-9.-_]
+     * El hostname no puede empezar ni terminar con un punto o guión */
+    GString *filtered = g_string_sized_new(lower_len);
+    const gchar *p = lower_text;
+    while (*p) {
+        gunichar ch = g_utf8_get_char(p);
+        gboolean valid = FALSE;
+
+        if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+            valid = TRUE;
+        } else if (ch == '_') {
+            valid = TRUE;
+        } else if (ch == '-') {
+            /* Guión permitido solo si no es el primer carácter */
+            if (current_len > 0 || filtered->len > 0 || insert_pos > 0) {
+                valid = TRUE;
+            }
+        } else if (ch == '.') {
+            /* Punto permitido solo si no es el primer carácter y no es el último */
+            if (current_len > 0 || filtered->len > 0 || insert_pos > 0) {
+                valid = TRUE;
+            }
+        }
+
+        if (valid) {
+            g_string_append_unichar(filtered, ch);
+        }
+        p = g_utf8_next_char(p);
+    }
+
+    /* Detener la emisión original y insertar la versión sanitizada */
+    g_signal_stop_emission_by_name(editable, "insert-text");
+
+    if (filtered->len > 0) {
+        g_signal_handlers_block_by_func(editable, on_insert_text_hostname, data);
+        gtk_editable_insert_text(editable, filtered->str, (gint)filtered->len, position);
+        g_signal_handlers_unblock_by_func(editable, on_insert_text_hostname, data);
+    }
+    g_string_free(filtered, 1);
     g_free(lower_text);
 }
 

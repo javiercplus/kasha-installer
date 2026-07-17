@@ -572,6 +572,7 @@ void build_ui(AppData *app) {
     // Hostname
     gtk_box_pack_start(GTK_BOX(page_sys), create_form_row("Hostname:", &app->hostname_entry, &app->lbl_hostname), FALSE, FALSE, 0);
     gtk_entry_set_text(GTK_ENTRY(app->hostname_entry), "neko-void");
+    g_signal_connect(app->hostname_entry, "insert-text", G_CALLBACK(on_insert_text_hostname), NULL);
 
     // Country
     {

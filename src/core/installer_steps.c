@@ -981,7 +981,7 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
             run_sync(app, "chroot %s xbps-install -Sy --repository=https://repo-de.voidlinux.org/current/ opendoas", TARGETDIR);
 
             // 3. Configure doas.conf
-            run_sync(app, "printf '# doas configuration\npermit persist :wheel\n' > %s/etc/doas.conf", TARGETDIR);
+            run_sync(app, "printf '# doas configuration\npermit persist keepenv :wheel\n' > %s/etc/doas.conf", TARGETDIR);
             run_sync(app, "chmod 0400 %s/etc/doas.conf", TARGETDIR);
 
             // 4. Remove sudo (will be ignored by xbps from now on)

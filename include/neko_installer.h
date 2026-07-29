@@ -145,6 +145,13 @@ typedef struct {
     GtkWidget *chk_desktop_mate;
     GtkWidget *chk_desktop_labwc;
     GtkWidget *chk_desktop_lxqt;
+    GtkWidget *lbl_d_xfce_desc;
+    GtkWidget *lbl_d_niri_desc;
+    GtkWidget *lbl_d_kde_desc;
+    GtkWidget *lbl_d_icejwm_desc;
+    GtkWidget *lbl_d_mate_desc;
+    GtkWidget *lbl_d_labwc_desc;
+    GtkWidget *lbl_d_lxqt_desc;
     gchar *selected_desktop;
 #endif
 

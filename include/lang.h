@@ -86,6 +86,13 @@ typedef struct {
     // Desktop
     const char *desktop_title;
     const char *desktop_desc;
+    const char *d_xfce_desc;
+    const char *d_niri_desc;
+    const char *d_kde_desc;
+    const char *d_icejwm_desc;
+    const char *d_mate_desc;
+    const char *d_labwc_desc;
+    const char *d_lxqt_desc;
     
     // Partition dialog
     const char *select_partition;

@@ -87,6 +87,13 @@ static const LangInfo lang_ja = {
     // Desktop
     .desktop_title = "デスクトップ環境",
     .desktop_desc = "インストールするデスクトップ環境を選択してください (任意):",
+    .d_xfce_desc = "軽量かつ安定。古いハードウェアに最適です。",
+    .d_niri_desc = "スクロールタイリング型のモダンな Wayland コンポジタ。",
+    .d_kde_desc = "高機能でカスタマイズ性が高い。強力なツール群。",
+    .d_icejwm_desc = "非常に軽く、高速で省リソースなウィンドウマネージャ。",
+    .d_mate_desc = "伝統的なデスクトップ、GNOME 2 の後継。",
+    .d_labwc_desc = "スタッキング型 Wayland コンポジタ、Openbox 風。",
+    .d_lxqt_desc = "Qt ベースの軽量デスクトップ環境。",
 
     // Partition dialog
     .select_partition = "パーティションを選択:",

@@ -87,6 +87,13 @@ static const LangInfo lang_es = {
     // Desktop
     .desktop_title = "Entorno de Escritorio",
     .desktop_desc = "Seleccione un entorno de escritorio para instalar (opcional):",
+    .d_xfce_desc = "Ligero y estable. Ideal para hardware antiguo.",
+    .d_niri_desc = "Compositor Wayland moderno con mosaico desplazable.",
+    .d_kde_desc = "Completo y personalizable. Herramientas potentes.",
+    .d_icejwm_desc = "Gestor de ventanas muy ligero, rápido y austero.",
+    .d_mate_desc = "Escritorio tradicional, continuación de GNOME 2.",
+    .d_labwc_desc = "Compositor Wayland apilado, inspirado en Openbox.",
+    .d_lxqt_desc = "Entorno de escritorio ligero basado en Qt.",
     
     // Partition dialog
     .select_partition = "Seleccionar partición:",

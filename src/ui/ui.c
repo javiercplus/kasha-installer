@@ -27,6 +27,26 @@ void load_custom_css() {
         "#console_view text {"
         "  background-color: #1e1e1e;"
         "  color: #e0e0e0;"
+        "}"
+        /* Desktop selection cards */
+        ".desktop-row {"
+        "  padding: 10px 14px;"
+        "  border-radius: 8px;"
+        "  background-color: alpha(@theme_fg_color, 0.04);"
+        "  transition: background-color 150ms ease;"
+        "}"
+        ".desktop-row:checked {"
+        "  background-color: alpha(@theme_selected_bg_color, 0.18);"
+        "}"
+        ".desktop-row:hover {"
+        "  background-color: alpha(@theme_fg_color, 0.08);"
+        "}"
+        ".desktop-name {"
+        "  font-weight: bold;"
+        "}"
+        ".desktop-desc {"
+        "  color: alpha(@theme_fg_color, 0.65);"
+        "  font-size: 9pt;"
         "}";
 
     GError *error = NULL;
@@ -111,6 +131,13 @@ const char* get_loc(const char *key, int lang) {
     if (strcmp(key, "tab_desktop") == 0) return li->tab_desktop;
     if (strcmp(key, "desktop_title") == 0) return li->desktop_title;
     if (strcmp(key, "desktop_desc") == 0) return li->desktop_desc;
+    if (strcmp(key, "d_xfce_desc") == 0) return li->d_xfce_desc;
+    if (strcmp(key, "d_niri_desc") == 0) return li->d_niri_desc;
+    if (strcmp(key, "d_kde_desc") == 0) return li->d_kde_desc;
+    if (strcmp(key, "d_icejwm_desc") == 0) return li->d_icejwm_desc;
+    if (strcmp(key, "d_mate_desc") == 0) return li->d_mate_desc;
+    if (strcmp(key, "d_labwc_desc") == 0) return li->d_labwc_desc;
+    if (strcmp(key, "d_lxqt_desc") == 0) return li->d_lxqt_desc;
     if (strcmp(key, "priv_title") == 0) return li->priv_title;
     if (strcmp(key, "priv_desc") == 0) return li->priv_desc;
     if (strcmp(key, "priv_sudo_label") == 0) return li->priv_sudo_label;
@@ -223,6 +250,13 @@ void update_ui_language(AppData *app) {
     if(app->lbl_desktop_title) gtk_label_set_markup(GTK_LABEL(app->lbl_desktop_title),
         g_strdup_printf("<b><span size='large'>%s</span></b>", get_loc("desktop_title", lang)));
     if(app->lbl_desktop_desc) gtk_label_set_text(GTK_LABEL(app->lbl_desktop_desc), get_loc("desktop_desc", lang));
+    if(app->lbl_d_xfce_desc)   gtk_label_set_text(GTK_LABEL(app->lbl_d_xfce_desc),   get_loc("d_xfce_desc",   lang));
+    if(app->lbl_d_niri_desc)   gtk_label_set_text(GTK_LABEL(app->lbl_d_niri_desc),   get_loc("d_niri_desc",   lang));
+    if(app->lbl_d_kde_desc)    gtk_label_set_text(GTK_LABEL(app->lbl_d_kde_desc),    get_loc("d_kde_desc",    lang));
+    if(app->lbl_d_icejwm_desc) gtk_label_set_text(GTK_LABEL(app->lbl_d_icejwm_desc), get_loc("d_icejwm_desc", lang));
+    if(app->lbl_d_mate_desc)   gtk_label_set_text(GTK_LABEL(app->lbl_d_mate_desc),   get_loc("d_mate_desc",   lang));
+    if(app->lbl_d_labwc_desc)  gtk_label_set_text(GTK_LABEL(app->lbl_d_labwc_desc),  get_loc("d_labwc_desc",  lang));
+    if(app->lbl_d_lxqt_desc)   gtk_label_set_text(GTK_LABEL(app->lbl_d_lxqt_desc),   get_loc("d_lxqt_desc",   lang));
 #endif
 
     // Common
@@ -403,46 +437,97 @@ GtkWidget* create_welcome_page(AppData *app) {
 }
 
 #ifdef HAS_DESKTOP_TAB
+/* Build one selectable desktop row: a check button carrying a name + a
+ * description label. The returned widget is the row container; the actual
+ * GtkCheckButton is stored in *chk_out and the description label in *desc_out. */
+static GtkWidget* build_desktop_row(const char *name, const char *desc,
+                                    GtkWidget **chk_out, GtkWidget **desc_out) {
+    GtkWidget *row = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 10);
+    gtk_widget_set_margin_bottom(row, 6);
+
+    GtkWidget *check = gtk_check_button_new_with_label(name);
+    GtkStyleContext *ctx = gtk_widget_get_style_context(check);
+    gtk_style_context_add_class(ctx, "desktop-row");
+    gtk_widget_set_valign(check, GTK_ALIGN_CENTER);
+    gtk_box_pack_start(GTK_BOX(row), check, FALSE, FALSE, 0);
+
+    GtkWidget *dsc = gtk_label_new(desc);
+    gtk_label_set_xalign(GTK_LABEL(dsc), 1.0);
+    gtk_label_set_line_wrap(GTK_LABEL(dsc), TRUE);
+    gtk_label_set_max_width_chars(GTK_LABEL(dsc), 55);
+    GtkStyleContext *dctx = gtk_widget_get_style_context(dsc);
+    gtk_style_context_add_class(dctx, "desktop-desc");
+    gtk_widget_set_hexpand(dsc, TRUE);
+    gtk_widget_set_valign(dsc, GTK_ALIGN_CENTER);
+    gtk_widget_set_margin_end(dsc, 4);
+    gtk_box_pack_start(GTK_BOX(row), dsc, TRUE, TRUE, 0);
+
+    *chk_out = check;
+    *desc_out = dsc;
+    return row;
+}
+
 static GtkWidget* create_desktop_page(AppData *app) {
-    GtkWidget *page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
+    GtkWidget *page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 12);
     gtk_container_set_border_width(GTK_CONTAINER(page), 20);
 
     app->lbl_desktop_title = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(app->lbl_desktop_title),
         "<b><span size='large'>Desktop Environment</span></b>");
     gtk_widget_set_halign(app->lbl_desktop_title, GTK_ALIGN_CENTER);
-    gtk_widget_set_margin_bottom(app->lbl_desktop_title, 5);
+    gtk_widget_set_margin_bottom(app->lbl_desktop_title, 2);
     gtk_box_pack_start(GTK_BOX(page), app->lbl_desktop_title, FALSE, FALSE, 0);
 
     app->lbl_desktop_desc = gtk_label_new("Select a desktop environment to install (optional):");
     gtk_widget_set_halign(app->lbl_desktop_desc, GTK_ALIGN_CENTER);
-    gtk_widget_set_margin_bottom(app->lbl_desktop_desc, 15);
+    gtk_widget_set_margin_bottom(app->lbl_desktop_desc, 10);
     gtk_box_pack_start(GTK_BOX(page), app->lbl_desktop_desc, FALSE, FALSE, 0);
 
-    app->chk_desktop_xfce  = gtk_check_button_new_with_label("Xfce");
-    app->chk_desktop_niri  = gtk_check_button_new_with_label("Niri");
-    app->chk_desktop_kde   = gtk_check_button_new_with_label("KDE Plasma");
-    app->chk_desktop_icejwm= gtk_check_button_new_with_label("IceJWM");
-    app->chk_desktop_mate  = gtk_check_button_new_with_label("MATE");
-    app->chk_desktop_labwc = gtk_check_button_new_with_label("Labwc");
-    app->chk_desktop_lxqt  = gtk_check_button_new_with_label("LXQt");
+    /* Scrollable list of desktop options */
+    GtkWidget *scrolled = gtk_scrolled_window_new(NULL, NULL);
+    gtk_widget_set_vexpand(scrolled, TRUE);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled),
+                                   GTK_POLICY_NEVER, GTK_POLICY_AUTOMATIC);
 
-    GtkWidget *grid = gtk_grid_new();
-    gtk_grid_set_column_spacing(GTK_GRID(grid), 30);
-    gtk_grid_set_row_spacing(GTK_GRID(grid), 8);
-    gtk_widget_set_halign(grid, GTK_ALIGN_CENTER);
-    gtk_widget_set_valign(grid, GTK_ALIGN_CENTER);
-    gtk_widget_set_vexpand(grid, TRUE);
+    GtkWidget *list_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
+    gtk_widget_set_margin_start(list_box, 6);
+    gtk_widget_set_margin_end(list_box, 6);
+    gtk_container_add(GTK_CONTAINER(scrolled), list_box);
 
-    gtk_grid_attach(GTK_GRID(grid), app->chk_desktop_xfce,  0, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), app->chk_desktop_niri,  1, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), app->chk_desktop_kde,   2, 0, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), app->chk_desktop_icejwm,0, 1, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), app->chk_desktop_mate,  1, 1, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), app->chk_desktop_labwc, 2, 1, 1, 1);
-    gtk_grid_attach(GTK_GRID(grid), app->chk_desktop_lxqt,  0, 2, 1, 1);
+    GtkWidget *row;
+    row = build_desktop_row("Xfce", get_loc("d_xfce_desc", app->current_lang),
+                            &app->chk_desktop_xfce, &app->lbl_d_xfce_desc);
+    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
+    row = build_desktop_row("Niri", get_loc("d_niri_desc", app->current_lang),
+                            &app->chk_desktop_niri, &app->lbl_d_niri_desc);
+    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
+    row = build_desktop_row("KDE Plasma", get_loc("d_kde_desc", app->current_lang),
+                            &app->chk_desktop_kde, &app->lbl_d_kde_desc);
+    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
+    row = build_desktop_row("IceJWM", get_loc("d_icejwm_desc", app->current_lang),
+                            &app->chk_desktop_icejwm, &app->lbl_d_icejwm_desc);
+    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
+    row = build_desktop_row("MATE", get_loc("d_mate_desc", app->current_lang),
+                            &app->chk_desktop_mate, &app->lbl_d_mate_desc);
+    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
+    row = build_desktop_row("Labwc", get_loc("d_labwc_desc", app->current_lang),
+                            &app->chk_desktop_labwc, &app->lbl_d_labwc_desc);
+    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
+    row = build_desktop_row("LXQt", get_loc("d_lxqt_desc", app->current_lang),
+                            &app->chk_desktop_lxqt, &app->lbl_d_lxqt_desc);
+    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
 
-    gtk_box_pack_start(GTK_BOX(page), grid, TRUE, TRUE, 0);
+    /* Center the list within the available width */
+    GtkWidget *center = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    GtkWidget *spacer_l = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_widget_set_hexpand(spacer_l, TRUE);
+    GtkWidget *spacer_r = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
+    gtk_widget_set_hexpand(spacer_r, TRUE);
+    gtk_box_pack_start(GTK_BOX(center), spacer_l, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(center), scrolled, TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(center), spacer_r, TRUE, TRUE, 0);
+
+    gtk_box_pack_start(GTK_BOX(page), center, TRUE, TRUE, 0);
 
     app->selected_desktop = NULL;
 

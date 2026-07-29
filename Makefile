@@ -5,6 +5,7 @@ TARGET = neko_installer
 CC     = gcc
 CFLAGS = -Wall -Wextra -g `pkg-config --cflags gtk+-3.0` -Iinclude
 LIBS   = `pkg-config --libs gtk+-3.0` -lpthread
+DESKTOP_FLAG = -DHAS_DESKTOP_TAB
 
 # -----------------------------------------------------------------------
 # Shared source files (both builds)
@@ -29,8 +30,11 @@ SRCS_COMMON = src/core/main.c \
 # -----------------------------------------------------------------------
 SRCS_VOID = src/core/installer_steps_void.c
 
-# Build normal: common + Void module
-SRCS = $(SRCS_COMMON) $(SRCS_VOID)
+# Desktop setup module (normal build only)
+SRCS_DESKTOP = src/core/desktops-setup.c
+
+# Build normal: common + Void module + Desktop
+SRCS = $(SRCS_COMMON) $(SRCS_VOID) $(SRCS_DESKTOP)
 OBJS = $(SRCS:.c=.o)
 
 # Build universal: objects in build/universal/ to avoid mixing flags
@@ -48,7 +52,7 @@ $(TARGET): $(OBJS)
 
 # Compile .c -> .o (normal build, without -DUNIVERSAL_BUILD)
 %.o: %.c include/neko_installer.h include/lang.h include/country_data.h
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DESKTOP_FLAG) -c $< -o $@
 
 # --- Universal build (without xbps / Void Linux) ---
 $(BUILDDIR_UNI):

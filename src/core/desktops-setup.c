@@ -2,7 +2,7 @@
  * Logic for install desktops
  */
 
-#ifndef UNIVERSAL_BUILD   /* Guard in case it is included manually */
+#ifdef HAS_DESKTOP_TAB
 #include "neko_installer.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -43,3 +43,4 @@ void void_labwc(AppData *app, const char *TARGETDIR) {
 void void_lxqt(AppData *app, const char *TARGETDIR) {
     install_desktop(app, TARGETDIR, "lxqt");
 }
+#endif /* HAS_DESKTOP_TAB */

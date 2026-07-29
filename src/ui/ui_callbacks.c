@@ -55,7 +55,14 @@ static const char* validate_tab(AppData *app, guint page_num) {
         }
         break;
 
+#ifdef HAS_DESKTOP_TAB
+    case 5: // Desktop — always valid (optional)
+        break;
+
+    case 6: // Users — username, password, confirm and root password must be filled
+#else
     case 5: // Users — username, password, confirm and root password must be filled
+#endif
         {
             const gchar *username  = gtk_entry_get_text(GTK_ENTRY(app->user_login_entry));
             const gchar *password  = gtk_entry_get_text(GTK_ENTRY(app->user_pass_entry));
@@ -119,7 +126,11 @@ static void update_nav_buttons(AppData *app, guint page_num) {
     // Install button: only enabled on the last tab AND all prior tabs valid
     if (on_last) {
         gboolean all_valid = TRUE;
+#ifdef HAS_DESKTOP_TAB
+        for (guint i = 2; i <= 6; i++) {
+#else
         for (guint i = 2; i <= 5; i++) {
+#endif
             if (validate_tab(app, i) != NULL) {
                 all_valid = FALSE;
                 break;

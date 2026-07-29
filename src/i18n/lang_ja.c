@@ -80,8 +80,13 @@ static const LangInfo lang_ja = {
     .tab_partitions = "パーティション",
     .tab_bootloader = "ブート",
     .tab_system = "システム",
+    .tab_desktop = "デスクトップ",
     .tab_users = "ユーザー",
     .tab_install = "インストール",
+    
+    // Desktop
+    .desktop_title = "デスクトップ環境",
+    .desktop_desc = "インストールするデスクトップ環境を選択してください (任意):",
 
     // Partition dialog
     .select_partition = "パーティションを選択:",

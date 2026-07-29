@@ -80,8 +80,13 @@ static const LangInfo lang_en = {
     .tab_partitions = "Partitions",
     .tab_bootloader = "Bootloader",
     .tab_system = "System",
+    .tab_desktop = "Desktop",
     .tab_users = "Users",
     .tab_install = "Install",
+    
+    // Desktop
+    .desktop_title = "Desktop Environment",
+    .desktop_desc = "Select a desktop environment to install (optional):",
     
     // Partition dialog
     .select_partition = "Select Partition:",

@@ -134,6 +134,20 @@ typedef struct {
     GtkWidget *chk_manual_partitions;
     GtkWidget *frame_install_parts;
 
+#ifdef HAS_DESKTOP_TAB
+    // Desktop Tab
+    GtkWidget *lbl_desktop_title;
+    GtkWidget *lbl_desktop_desc;
+    GtkWidget *chk_desktop_xfce;
+    GtkWidget *chk_desktop_niri;
+    GtkWidget *chk_desktop_kde;
+    GtkWidget *chk_desktop_icejwm;
+    GtkWidget *chk_desktop_mate;
+    GtkWidget *chk_desktop_labwc;
+    GtkWidget *chk_desktop_lxqt;
+    gchar *selected_desktop;
+#endif
+
 } AppData;
 
 typedef struct {
@@ -243,5 +257,16 @@ void void_install_grub_bios_pkg(AppData *app, const char *TARGETDIR);
 void void_install_osprober(AppData *app, const char *TARGETDIR);
 void void_install_dracut_luks(AppData *app, const char *TARGETDIR);
 #endif /* !UNIVERSAL_BUILD */
+
+// desktops-setup.c  (normal build only, guarded by HAS_DESKTOP_TAB)
+#ifdef HAS_DESKTOP_TAB
+void void_xfce(AppData *app, const char *TARGETDIR);
+void void_niri(AppData *app, const char *TARGETDIR);
+void void_kde(AppData *app, const char *TARGETDIR);
+void void_icejwm(AppData *app, const char *TARGETDIR);
+void void_mate(AppData *app, const char *TARGETDIR);
+void void_labwc(AppData *app, const char *TARGETDIR);
+void void_lxqt(AppData *app, const char *TARGETDIR);
+#endif /* HAS_DESKTOP_TAB */
 
 #endif /* NEKO_INSTALLER_H */

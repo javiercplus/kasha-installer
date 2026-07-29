@@ -79,8 +79,13 @@ typedef struct {
     const char *tab_partitions;
     const char *tab_bootloader;
     const char *tab_system;
+    const char *tab_desktop;
     const char *tab_users;
     const char *tab_install;
+    
+    // Desktop
+    const char *desktop_title;
+    const char *desktop_desc;
     
     // Partition dialog
     const char *select_partition;

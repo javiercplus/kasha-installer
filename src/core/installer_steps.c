@@ -810,6 +810,44 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         run_sync(app, "ln -sf /usr/share/zoneinfo/UTC %s/etc/localtime", TARGETDIR);
     }
 
+#ifdef HAS_DESKTOP_TAB
+    // INSTALL DESKTOP ENVIRONMENT (before /etc/skel copy and user creation)
+    g_free(app->selected_desktop);
+    app->selected_desktop = NULL;
+    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_xfce)))
+        app->selected_desktop = g_strdup("xfce");
+    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_niri)))
+        app->selected_desktop = g_strdup("niri");
+    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_kde)))
+        app->selected_desktop = g_strdup("kde");
+    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_icejwm)))
+        app->selected_desktop = g_strdup("icejwm");
+    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_mate)))
+        app->selected_desktop = g_strdup("mate");
+    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_labwc)))
+        app->selected_desktop = g_strdup("labwc");
+    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_lxqt)))
+        app->selected_desktop = g_strdup("lxqt");
+
+    if (app->selected_desktop && app->selected_desktop[0] != '\0') {
+        log_to_ui_printf(app, "Installing desktop environment: %s", app->selected_desktop);
+        if (strcmp(app->selected_desktop, "xfce") == 0)
+            void_xfce(app, TARGETDIR);
+        else if (strcmp(app->selected_desktop, "niri") == 0)
+            void_niri(app, TARGETDIR);
+        else if (strcmp(app->selected_desktop, "kde") == 0)
+            void_kde(app, TARGETDIR);
+        else if (strcmp(app->selected_desktop, "icejwm") == 0)
+            void_icejwm(app, TARGETDIR);
+        else if (strcmp(app->selected_desktop, "mate") == 0)
+            void_mate(app, TARGETDIR);
+        else if (strcmp(app->selected_desktop, "labwc") == 0)
+            void_labwc(app, TARGETDIR);
+        else if (strcmp(app->selected_desktop, "lxqt") == 0)
+            void_lxqt(app, TARGETDIR);
+    }
+#endif
+
     // ROOT USER
     log_to_ui(app, "Setting Root Password (SHA512)...", 0.80);
     if (!set_safe_password(app, "root", root_pass, TARGETDIR)) {

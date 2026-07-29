@@ -105,8 +105,12 @@ const char* get_loc(const char *key, int lang) {
     if (strcmp(key, "tab_partitions") == 0) return li->tab_partitions;
     if (strcmp(key, "tab_bootloader") == 0) return li->tab_bootloader;
     if (strcmp(key, "tab_system") == 0) return li->tab_system;
+    if (strcmp(key, "tab_desktop") == 0) return li->tab_desktop;
     if (strcmp(key, "tab_users") == 0) return li->tab_users;
     if (strcmp(key, "tab_privilege") == 0) return li->tab_privilege;
+    if (strcmp(key, "tab_desktop") == 0) return li->tab_desktop;
+    if (strcmp(key, "desktop_title") == 0) return li->desktop_title;
+    if (strcmp(key, "desktop_desc") == 0) return li->desktop_desc;
     if (strcmp(key, "priv_title") == 0) return li->priv_title;
     if (strcmp(key, "priv_desc") == 0) return li->priv_desc;
     if (strcmp(key, "priv_sudo_label") == 0) return li->priv_sudo_label;
@@ -214,20 +218,34 @@ void update_ui_language(AppData *app) {
     if(app->lbl_priv_sudo_desc) gtk_label_set_text(GTK_LABEL(app->lbl_priv_sudo_desc), get_loc("priv_sudo_desc", lang));
     if(app->lbl_priv_doas_desc) gtk_label_set_text(GTK_LABEL(app->lbl_priv_doas_desc), get_loc("priv_doas_desc", lang));
 
+#ifdef HAS_DESKTOP_TAB
+    // Desktop
+    if(app->lbl_desktop_title) gtk_label_set_markup(GTK_LABEL(app->lbl_desktop_title),
+        g_strdup_printf("<b><span size='large'>%s</span></b>", get_loc("desktop_title", lang)));
+    if(app->lbl_desktop_desc) gtk_label_set_text(GTK_LABEL(app->lbl_desktop_desc), get_loc("desktop_desc", lang));
+#endif
+
     // Common
     if(!app->installing) gtk_button_set_label(GTK_BUTTON(app->btn_install), get_loc("install_btn", lang));
     gtk_button_set_label(GTK_BUTTON(app->btn_back), get_loc("back", lang));
     gtk_button_set_label(GTK_BUTTON(app->btn_next), get_loc("next", lang));
 
-    // Update Tab Labels (8 tabs)
+    // Update Tab Labels
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 0), get_loc("tab_welcome", lang));
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 1), get_loc("tab_install_type", lang));
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 2), get_loc("tab_partitions", lang));
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 3), get_loc("tab_bootloader", lang));
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 4), get_loc("tab_system", lang));
+#ifdef HAS_DESKTOP_TAB
+    gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 5), get_loc("tab_desktop", lang));
+    gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 6), get_loc("tab_users", lang));
+    gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 7), get_loc("tab_privilege", lang));
+    gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 8), get_loc("tab_install", lang));
+#else
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 5), get_loc("tab_users", lang));
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 6), get_loc("tab_privilege", lang));
     gtk_notebook_set_tab_label_text(GTK_NOTEBOOK(app->notebook), gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), 7), get_loc("tab_install", lang));
+#endif
 }
 
 void on_lang_changed(GtkComboBox *widget, AppData *app) {
@@ -383,6 +401,54 @@ GtkWidget* create_welcome_page(AppData *app) {
 
     return align_box;
 }
+
+#ifdef HAS_DESKTOP_TAB
+static GtkWidget* create_desktop_page(AppData *app) {
+    GtkWidget *page = gtk_box_new(GTK_ORIENTATION_VERTICAL, 15);
+    gtk_container_set_border_width(GTK_CONTAINER(page), 20);
+
+    app->lbl_desktop_title = gtk_label_new(NULL);
+    gtk_label_set_markup(GTK_LABEL(app->lbl_desktop_title),
+        "<b><span size='large'>Desktop Environment</span></b>");
+    gtk_widget_set_halign(app->lbl_desktop_title, GTK_ALIGN_CENTER);
+    gtk_widget_set_margin_bottom(app->lbl_desktop_title, 5);
+    gtk_box_pack_start(GTK_BOX(page), app->lbl_desktop_title, FALSE, FALSE, 0);
+
+    app->lbl_desktop_desc = gtk_label_new("Select a desktop environment to install (optional):");
+    gtk_widget_set_halign(app->lbl_desktop_desc, GTK_ALIGN_CENTER);
+    gtk_widget_set_margin_bottom(app->lbl_desktop_desc, 15);
+    gtk_box_pack_start(GTK_BOX(page), app->lbl_desktop_desc, FALSE, FALSE, 0);
+
+    app->chk_desktop_xfce  = gtk_check_button_new_with_label("Xfce");
+    app->chk_desktop_niri  = gtk_check_button_new_with_label("Niri");
+    app->chk_desktop_kde   = gtk_check_button_new_with_label("KDE Plasma");
+    app->chk_desktop_icejwm= gtk_check_button_new_with_label("IceJWM");
+    app->chk_desktop_mate  = gtk_check_button_new_with_label("MATE");
+    app->chk_desktop_labwc = gtk_check_button_new_with_label("Labwc");
+    app->chk_desktop_lxqt  = gtk_check_button_new_with_label("LXQt");
+
+    GtkWidget *grid = gtk_grid_new();
+    gtk_grid_set_column_spacing(GTK_GRID(grid), 30);
+    gtk_grid_set_row_spacing(GTK_GRID(grid), 8);
+    gtk_widget_set_halign(grid, GTK_ALIGN_CENTER);
+    gtk_widget_set_valign(grid, GTK_ALIGN_CENTER);
+    gtk_widget_set_vexpand(grid, TRUE);
+
+    gtk_grid_attach(GTK_GRID(grid), app->chk_desktop_xfce,  0, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), app->chk_desktop_niri,  1, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), app->chk_desktop_kde,   2, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), app->chk_desktop_icejwm,0, 1, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), app->chk_desktop_mate,  1, 1, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), app->chk_desktop_labwc, 2, 1, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), app->chk_desktop_lxqt,  0, 2, 1, 1);
+
+    gtk_box_pack_start(GTK_BOX(page), grid, TRUE, TRUE, 0);
+
+    app->selected_desktop = NULL;
+
+    return page;
+}
+#endif /* HAS_DESKTOP_TAB */
 
 void build_ui(AppData *app) {
     load_custom_css();
@@ -708,7 +774,15 @@ void build_ui(AppData *app) {
 
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_sys, gtk_label_new("System"));
 
-    // --- TAB 4: USERS ---
+#ifdef HAS_DESKTOP_TAB
+    // --- TAB 5: DESKTOP ---
+    {
+        GtkWidget *page_desktop = create_desktop_page(app);
+        gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_desktop, gtk_label_new("Desktop"));
+    }
+#endif
+
+    // --- TAB 5/6: USERS ---
     GtkWidget *page_user = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
     gtk_container_set_border_width(GTK_CONTAINER(page_user), 10);
     gtk_widget_set_vexpand(page_user, TRUE);

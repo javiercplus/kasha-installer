@@ -962,18 +962,28 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         snprintf(emptty_conf_path, sizeof(emptty_conf_path), "%s/etc/emptty/conf", TARGETDIR);
 
         if (autologin) {
-            // Check if SDDM is present on the target
-            char sddm_path[512];
+            /* The 'autologin' group is required by the PAM config shipped with
+             * SDDM and LightDM on Void (pam_succeed_if.so user ingroup autologin).
+             * Without it the DM silently blocks autologin and falls back to the
+             * password prompt. Ensure the group exists and the user is in it. */
+            log_to_ui(app, "Configuring autologin...", 0.87);
+            run_sync(app, "chroot %s getent group autologin > /dev/null 2>/dev/null || chroot %s groupadd -r autologin", TARGETDIR, TARGETDIR);
+            run_sync(app, "chroot %s gpasswd -a %s autologin 2>/dev/null || chroot %s usermod -aG autologin %s", TARGETDIR, user_login, TARGETDIR, user_login);
+
+            /* Pick the display manager that is ACTUALLY enabled in runit
+             * (desktop-set.sh enables exactly one via /var/service). Checking the
+             * binary presence is unreliable because several DMs may coexist. */
             char lightdm_conf_path[512];
-            snprintf(sddm_path, sizeof(sddm_path), "%s/usr/bin/sddm", TARGETDIR);
             snprintf(lightdm_conf_path, sizeof(lightdm_conf_path), "%s/etc/lightdm/lightdm.conf", TARGETDIR);
-            if (access(sddm_path, F_OK) == 0) {
+
+            int sddm_enabled   = (run_sync(app, "test -L %s/var/service/sddm", TARGETDIR) == 0);
+            int lightdm_enabled= (run_sync(app, "test -L %s/var/service/lightdm", TARGETDIR) == 0);
+
+            if (sddm_enabled) {
                 log_to_ui(app, "Configuring SDDM autologin...", 0.87);
-                // Create sddm.conf.d directory if it doesn't exist
                 run_sync(app, "mkdir -p %s/etc/sddm.conf.d", TARGETDIR);
-                // Write SDDM autologin configuration
                 run_sync(app, "printf '[Autologin]\\nUser=%s\\n' > %s/etc/sddm.conf.d/autologin.conf", user_login, TARGETDIR);
-            } else if (access(lightdm_conf_path, F_OK) == 0) {
+            } else if (lightdm_enabled) {
                 log_to_ui(app, "Configuring LightDM autologin...", 0.87);
                 run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
                 run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf", TARGETDIR, user_login, TARGETDIR);

@@ -617,6 +617,36 @@ int step_install_base_system(AppData *app, const char *TARGETDIR) {
         return -1;
     }
 
+    /*
+     * FIX OWNERSHIP OF SYSTEM DIRECTORIES
+     * The live rootfs may have been built with uid/gid 1000 owning critical
+     * system directories (e.g. /etc, /usr, /usr/bin, /etc/default).
+     * When the tar is extracted with --preserve-permissions those wrong owners
+     * are carried to the target, causing tools like xbps-install, grub-install
+     * and dracut to emit:
+     *   WARN: uid is 0 but '/etc/default' is owned by 1000
+     * Fix this immediately after the tar, before any chroot operation.
+     */
+    log_to_ui(app, "Fixing system directory ownership...", 0.35);
+    run_sync(app, "chown 0:0 %s %s/bin %s/sbin %s/lib %s/lib64 %s/usr "
+                  "%s/usr/bin %s/usr/sbin %s/usr/lib %s/usr/lib64 "
+                  "%s/etc %s/etc/default %s/etc/X11 %s/etc/profile.d "
+                  "%s/var %s/var/lib %s/var/log %s/tmp %s/root "
+                  "2>/dev/null || true",
+             TARGETDIR,
+             TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR,
+             TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR,
+             TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR,
+             TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR);
+    /* Also restore any setuid/setgid bits that tar may have stripped */
+    run_sync(app, "chmod 755 %s %s/bin %s/sbin %s/usr %s/usr/bin %s/usr/sbin "
+                  "%s/etc %s/var 2>/dev/null || true",
+             TARGETDIR,
+             TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR,
+             TARGETDIR, TARGETDIR);
+    run_sync(app, "chmod 1777 %s/tmp 2>/dev/null || true", TARGETDIR);
+    run_sync(app, "chmod 700  %s/root 2>/dev/null || true", TARGETDIR);
+
     // CLEANUP LIVE FILES
     log_to_ui(app, "Cleaning up live image files...", 0.4);
 
@@ -811,7 +841,16 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
     }
 
 #ifdef HAS_DESKTOP_TAB
-    // INSTALL DESKTOP ENVIRONMENT (before /etc/skel copy and user creation)
+    /*
+     * INSTALL DESKTOP ENVIRONMENT — must run BEFORE user creation so that
+     * desktop-set.sh can populate /etc/skel with the desktop dotfiles.
+     * useradd -m (below) will then copy those skel files into the new
+     * user's home directory automatically.
+     *
+     * The autologin configuration happens INSIDE the user-creation block
+     * further below, which runs AFTER this desktop install, so there is
+     * no risk of desktop-set.sh overwriting the autologin settings.
+     */
     g_free(app->selected_desktop);
     app->selected_desktop = NULL;
     if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_xfce)))
@@ -846,7 +885,7 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         else if (strcmp(app->selected_desktop, "lxqt") == 0)
             void_lxqt(app, TARGETDIR);
     }
-#endif
+#endif /* HAS_DESKTOP_TAB */
 
     // ROOT USER
     log_to_ui(app, "Setting Root Password (SHA512)...", 0.80);
@@ -1050,6 +1089,7 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
 
     generate_fstab(app, TARGETDIR);
     generate_crypttab(app, TARGETDIR);
+
     return 0;
 }
 

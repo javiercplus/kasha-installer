@@ -617,6 +617,38 @@ int step_install_base_system(AppData *app, const char *TARGETDIR) {
         return -1;
     }
 
+    /*
+     * FIX OWNERSHIP OF SYSTEM DIRECTORIES
+     * The live rootfs may have been built with uid/gid 1000 owning critical
+     * system directories (e.g. /etc, /usr, /usr/bin, /etc/default).
+     * When the tar is extracted with --preserve-permissions those wrong owners
+     * are carried to the target, causing tools like xbps-install, grub-install
+     * and dracut to emit:
+     *   WARN: uid is 0 but '/etc/default' is owned by 1000
+     * Fix this immediately after the tar, before any chroot operation.
+     * Note: GNU chown continues processing remaining arguments even if one
+     * path does not exist; || true suppresses the non-zero exit from missing
+     * optional dirs (e.g. /lib64, /etc/X11 absent in some images).
+     */
+    log_to_ui(app, "Fixing system directory ownership...", 0.35);
+    run_sync(app, "chown 0:0 %s %s/bin %s/sbin %s/lib %s/lib64 %s/usr "
+                  "%s/usr/bin %s/usr/sbin %s/usr/lib %s/usr/lib64 "
+                  "%s/etc %s/etc/default %s/etc/X11 %s/etc/profile.d "
+                  "%s/var %s/var/lib %s/var/log %s/tmp %s/root "
+                  "2>/dev/null || true",
+             TARGETDIR,
+             TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR,
+             TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR,
+             TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR,
+             TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR);
+    run_sync(app, "chmod 755 %s %s/bin %s/sbin %s/usr %s/usr/bin %s/usr/sbin "
+                  "%s/etc %s/var 2>/dev/null || true",
+             TARGETDIR,
+             TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR,
+             TARGETDIR, TARGETDIR);
+    run_sync(app, "chmod 1777 %s/tmp  2>/dev/null || true", TARGETDIR);
+    run_sync(app, "chmod 700  %s/root 2>/dev/null || true", TARGETDIR);
+
     // CLEANUP LIVE FILES
     log_to_ui(app, "Cleaning up live image files...", 0.4);
 

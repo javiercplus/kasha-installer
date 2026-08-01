@@ -57,7 +57,7 @@ static const LangInfo lang_es = {
     .username = "Usuario:",
     .password = "Contraseña:",
     .confirm = "Confirmar:",
-    .autologin = "Activar Auto-Login",
+    .autologin = "Inicio de Sesión Automático",
     
     // Install
     .install_btn = "Iniciar Instalación",

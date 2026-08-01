@@ -72,7 +72,7 @@ void install_desktop(AppData *app, const char *TARGETDIR, const char *desktop_ty
     run_sync(app, "rm -rf %s/tmp/desktops", TARGETDIR);
     if (run_sync(app,
             "chroot %s bash -c 'git clone --depth 1 -b master "
-            "https://codeberg.org/Neko-Void/neko-desktops.git /tmp/desktops'",
+            "https://github.com/Neko-Void-Linux/neko-desktops.git /tmp/desktops'",
             TARGETDIR) != 0) {
         log_to_ui(app, "ERROR: failed to clone neko-desktops. Desktop will NOT be installed.", 0.0);
         return;

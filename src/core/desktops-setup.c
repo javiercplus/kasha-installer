@@ -12,7 +12,7 @@
 void install_desktop(AppData *app, const char *TARGETDIR, const char *desktop_type) {
     log_to_ui(app, "INSTALLING DESKTOP", 0.935);
     run_sync(app, "chroot %s bash -c 'xbps-install -S git bash'", TARGETDIR);
-    run_sync(app, "chroot %s bash -c 'git clone https://codeberg.org/Neko-Void/neko-desktops.git /tmp/desktops'", TARGETDIR);
+    run_sync(app, "chroot %s bash -c 'git clone https://github.com/Neko-Void-Linux/neko-desktops.git /tmp/desktops'", TARGETDIR);
     run_sync(app, "chroot %s bash -c 'cd /tmp/desktops && chmod +x desktop-set.sh && ./desktop-set.sh %s'", TARGETDIR, desktop_type);
 }
 

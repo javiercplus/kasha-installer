@@ -471,8 +471,10 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
 
              unlink(keyfile);
 
-// UPDATE DEVICE PATH to /dev/mapper/...
-              conf->device = g_strdup_printf("/dev/mapper/%s", mapper_name);
+             /* UPDATE DEVICE PATH to /dev/mapper/...
+              * g_free the old path first to avoid the memory leak. */
+             g_free(conf->device);
+             conf->device = g_strdup_printf("/dev/mapper/%s", mapper_name);
 
              g_free(dev_base);
              g_free(mapper_name);
@@ -626,9 +628,6 @@ int step_install_base_system(AppData *app, const char *TARGETDIR) {
      * and dracut to emit:
      *   WARN: uid is 0 but '/etc/default' is owned by 1000
      * Fix this immediately after the tar, before any chroot operation.
-     * Note: GNU chown continues processing remaining arguments even if one
-     * path does not exist; || true suppresses the non-zero exit from missing
-     * optional dirs (e.g. /lib64, /etc/X11 absent in some images).
      */
     log_to_ui(app, "Fixing system directory ownership...", 0.35);
     run_sync(app, "chown 0:0 %s %s/bin %s/sbin %s/lib %s/lib64 %s/usr "
@@ -641,12 +640,13 @@ int step_install_base_system(AppData *app, const char *TARGETDIR) {
              TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR,
              TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR,
              TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR);
+    /* Also restore any setuid/setgid bits that tar may have stripped */
     run_sync(app, "chmod 755 %s %s/bin %s/sbin %s/usr %s/usr/bin %s/usr/sbin "
                   "%s/etc %s/var 2>/dev/null || true",
              TARGETDIR,
              TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR, TARGETDIR,
              TARGETDIR, TARGETDIR);
-    run_sync(app, "chmod 1777 %s/tmp  2>/dev/null || true", TARGETDIR);
+    run_sync(app, "chmod 1777 %s/tmp 2>/dev/null || true", TARGETDIR);
     run_sync(app, "chmod 700  %s/root 2>/dev/null || true", TARGETDIR);
 
     // CLEANUP LIVE FILES
@@ -763,13 +763,11 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
             if (var_active > 0 && kbd_active < kbd_count) {
                 // variant index 0 = "Default" = empty string
                 const KbdVariant *vars = layouts[kbd_active].variants;
-                int vi = 0;
                 for (int i = 0; vars[i].name != NULL; i++) {
-                    if (vi == var_active) {
+                    if (i == var_active) {
                         x11_variant = vars[i].code;
                         break;
                     }
-                    vi++;
                 }
             }
         } else {
@@ -838,6 +836,9 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         g_free(tz_area);
         g_free(tz_city);
     } else {
+        /* Ensure we free whichever pointer was allocated before defaulting to UTC */
+        if (tz_area) g_free(tz_area);
+        if (tz_city) g_free(tz_city);
         log_to_ui(app, "Timezone not selected, defaulting to UTC.", 0.78);
         run_sync(app, "ln -sf /usr/share/zoneinfo/UTC %s/etc/localtime", TARGETDIR);
     }
@@ -956,21 +957,44 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         snprintf(emptty_conf_path, sizeof(emptty_conf_path), "%s/etc/emptty/conf", TARGETDIR);
 
         if (autologin) {
-            // Check if SDDM is present on the target
-            char sddm_path[512];
+            /* The 'autologin' group is required by the PAM config shipped with
+             * SDDM and LightDM on Void (pam_succeed_if.so user ingroup autologin).
+             * Without it the DM silently blocks autologin and falls back to the
+             * password prompt. Ensure the group exists and the user is in it. */
+            log_to_ui(app, "Configuring autologin...", 0.87);
+            run_sync(app, "chroot %s getent group autologin > /dev/null 2>/dev/null || chroot %s groupadd -r autologin", TARGETDIR, TARGETDIR);
+            run_sync(app, "chroot %s gpasswd -a %s autologin 2>/dev/null || chroot %s usermod -aG autologin %s", TARGETDIR, user_login, TARGETDIR, user_login);
+
+            /* Pick the display manager that is ACTUALLY enabled in runit
+             * (desktop-set.sh enables exactly one via /var/service). Checking the
+             * binary presence is unreliable because several DMs may coexist. */
             char lightdm_conf_path[512];
-            snprintf(sddm_path, sizeof(sddm_path), "%s/usr/bin/sddm", TARGETDIR);
             snprintf(lightdm_conf_path, sizeof(lightdm_conf_path), "%s/etc/lightdm/lightdm.conf", TARGETDIR);
-            if (access(sddm_path, F_OK) == 0) {
+
+            /* Check which display manager desktop-set.sh enabled.
+             * desktop-set.sh creates symlinks in BOTH /var/service (active,
+             * inside the chroot it is a real dir) AND /etc/runit/runsvdir/default
+             * (persistent, survives reboot).  Inside the chroot /var/service is
+             * replaced with a real directory by the script, so test -L would
+             * return false.  The /etc/runit/runsvdir/default path is always a
+             * real directory and its entries are the ground truth. */
+            int sddm_enabled    = (run_sync(app, "test -e %s/etc/runit/runsvdir/default/sddm",    TARGETDIR) == 0);
+            int lightdm_enabled = (run_sync(app, "test -e %s/etc/runit/runsvdir/default/lightdm", TARGETDIR) == 0);
+
+            if (sddm_enabled) {
                 log_to_ui(app, "Configuring SDDM autologin...", 0.87);
-                // Create sddm.conf.d directory if it doesn't exist
                 run_sync(app, "mkdir -p %s/etc/sddm.conf.d", TARGETDIR);
-                // Write SDDM autologin configuration
-                run_sync(app, "printf '[Autologin]\\nUser=%s\\n' > %s/etc/sddm.conf.d/autologin.conf", user_login, TARGETDIR);
-            } else if (access(lightdm_conf_path, F_OK) == 0) {
+                /* SDDM requires Session= to avoid falling back to the password
+                 * prompt.  KDE Plasma always registers its session as 'plasma'. */
+                run_sync(app, "printf '[Autologin]\\nUser=%s\\nSession=plasma\\n' > %s/etc/sddm.conf.d/autologin.conf",
+                         user_login, TARGETDIR);
+            } else if (lightdm_enabled) {
                 log_to_ui(app, "Configuring LightDM autologin...", 0.87);
-                run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
-                run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf", TARGETDIR, user_login, TARGETDIR);
+                run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf",
+                         user_login, TARGETDIR);
+                run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || "
+                              "sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf",
+                         TARGETDIR, user_login, TARGETDIR);
             }
 
             // emptty (independent - can coexist with graphical DMs)
@@ -1034,6 +1058,7 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
 
     generate_fstab(app, TARGETDIR);
     generate_crypttab(app, TARGETDIR);
+
     return 0;
 }
 

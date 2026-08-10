@@ -7,6 +7,7 @@ neko_installer
 #TARBALL OF BINARY
 neko_installer.tar
 downloader/downloader
+extra/neko-desktops
 # Editor Temporary Files
 *~
 *.swp

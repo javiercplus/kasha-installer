@@ -235,25 +235,31 @@ void log_to_ui_printf(AppData *app, const char *fmt, ...) {
 }
 
 
-// Validates and normalizes hostname to lowercase only
-const gchar *validate_and_normalize_hostname(const gchar *raw_hostname) {
+/*
+ * Validates and normalizes hostname to lowercase only.
+ * ALWAYS returns a heap-allocated string (g_strdup) so the caller can
+ * safely call g_free() on the result in every code path.
+ */
+gchar *validate_and_normalize_hostname(const gchar *raw_hostname) {
     if (!raw_hostname || strlen(raw_hostname) == 0) {
         log_to_ui(NULL, "ERROR: Hostname cannot be empty.", 0.0);
-        return "localhost"; // Default fallback
+        return g_strdup("localhost"); /* always heap-allocated */
     }
 
-    // Check for invalid characters (only allow alphanumeric, hyphen, and dot)
+    /* Check for invalid characters (only allow alphanumeric, hyphen, dot, underscore) */
     for (int i = 0; raw_hostname[i]; i++) {
-        if (!((raw_hostname[i] >= 'a' && raw_hostname[i] <= 'z') || 
-              (raw_hostname[i] >= '0' && raw_hostname[i] <= '9') || 
-              raw_hostname[i] == '-' || raw_hostname[i] == '.' || 
+        if (!((raw_hostname[i] >= 'a' && raw_hostname[i] <= 'z') ||
+              (raw_hostname[i] >= '0' && raw_hostname[i] <= '9') ||
+              raw_hostname[i] == '-' || raw_hostname[i] == '.' ||
               raw_hostname[i] == '_')) {
-            log_to_ui(NULL, "ERROR: Hostname contains invalid characters. Only lowercase letters, numbers, hyphens, dots, and underscores are allowed.", 0.0);
-            return "localhost"; // Default fallback
+            log_to_ui(NULL, "ERROR: Hostname contains invalid characters. "
+                            "Only lowercase letters, numbers, hyphens, dots, "
+                            "and underscores are allowed.", 0.0);
+            return g_strdup("localhost"); /* always heap-allocated */
         }
     }
 
-    // Convert hostname to lowercase
+    /* Convert to lowercase */
     gchar *hostname = g_strdup(raw_hostname);
     for (int i = 0; hostname[i]; i++) {
         if (hostname[i] >= 'A' && hostname[i] <= 'Z') {
@@ -261,18 +267,23 @@ const gchar *validate_and_normalize_hostname(const gchar *raw_hostname) {
         }
     }
 
-    // Check if hostname starts or ends with a hyphen or dot (invalid)
-    if (strlen(hostname) > 1 && (hostname[0] == '-' || hostname[0] == '.' || hostname[strlen(hostname) - 1] == '-' || hostname[strlen(hostname) - 1] == '.')) {
+    /* Hostname cannot start or end with a hyphen or dot */
+    size_t hlen = strlen(hostname);
+    if (hlen > 1 && (hostname[0] == '-' || hostname[0] == '.' ||
+                     hostname[hlen - 1] == '-' || hostname[hlen - 1] == '.')) {
         log_to_ui(NULL, "ERROR: Hostname cannot start or end with a hyphen or dot.", 0.0);
         g_free(hostname);
-        return "localhost"; // Default fallback
+        return g_strdup("localhost"); /* always heap-allocated */
     }
 
-    return hostname;
+    return hostname; /* heap-allocated via g_strdup above */
 }
 
 int run_sync(AppData *app, const char *fmt, ...) {
-    char cmd[1024];
+    /* 4096 bytes: generous enough for the longest commands we build
+     * (e.g. the chown chain in step_install_base_system with TARGETDIR
+     * repeated ~18 times).  1024 was too small and silently truncated. */
+    char cmd[4096];
     va_list args;
     va_start(args, fmt);
     vsnprintf(cmd, sizeof(cmd), fmt, args);
@@ -307,10 +318,12 @@ gboolean set_safe_password(AppData *app, const gchar *username, const gchar *pas
     char cmd_chroot[512];
     snprintf(cmd_chroot, sizeof(cmd_chroot), "chroot %s chpasswd -c SHA512 < %s", target_dir, target_tmp);
     int ret = system(cmd_chroot);
-    
+
     remove(target_tmp);
-    
-    if (ret != 0) {
+
+    /* Use WIFEXITED/WEXITSTATUS so that signals (SIGTERM, SIGKILL) are also
+     * treated as errors, not silently swallowed. */
+    if (ret == -1 || !WIFEXITED(ret) || WEXITSTATUS(ret) != 0) {
         log_to_ui(app, "ERROR: Failed to set password.", 0.0);
         return FALSE;
     }
@@ -360,7 +373,8 @@ gpointer install_thread(gpointer data) {
     const gchar *user_pass = gtk_entry_get_text(GTK_ENTRY(app->user_pass_entry));
     const gchar *user_fullname = gtk_entry_get_text(GTK_ENTRY(app->user_fullname_entry));
     const gchar *raw_hostname = gtk_entry_get_text(GTK_ENTRY(app->hostname_entry));
-    const gchar *hostname = validate_and_normalize_hostname(raw_hostname);
+    /* validate_and_normalize_hostname always returns a heap pointer — must be freed. */
+    gchar *hostname = validate_and_normalize_hostname(raw_hostname);
     gchar *locale_selected = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->locale_combo));
     const gchar *locale = (locale_selected && strlen(locale_selected) > 0) ? locale_selected : "en_US.UTF-8";
     gboolean autologin_enabled = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->autologin_check));
@@ -368,7 +382,7 @@ gpointer install_thread(gpointer data) {
     if (!root_pass || strlen(root_pass) < 1) { 
         stop_progress_pulse(app);
         log_to_ui(app, "Error: Root password missing.", 0.0); 
-        app->installing = FALSE; return NULL; 
+        goto fail_cleanup;
     }
     
     log_to_ui(app, "--- STARTING LOCAL INSTALLATION ---", 0.1);
@@ -384,49 +398,53 @@ gpointer install_thread(gpointer data) {
     if (!r) {
         stop_progress_pulse(app);
         log_to_ui(app, "ERROR: Root partition not configured.", 0.0);
-        app->installing = FALSE; return NULL;
+        goto fail_cleanup;
     }
 
     if (step_partitioning(app, disk_name) != 0) {
         stop_progress_pulse(app);
         log_to_ui(app, "ERROR: Partitioning failed!", 0.0);
-        app->installing = FALSE; return NULL;
+        goto fail_cleanup;
     }
 
     if (step_format_and_mount(app, TARGETDIR) != 0) {
         stop_progress_pulse(app);
         log_to_ui(app, "ERROR: Format and mount failed!", 0.0);
-        app->installing = FALSE; return NULL;
+        goto fail_cleanup;
     }
     
     if (step_install_base_system(app, TARGETDIR) != 0) {
         stop_progress_pulse(app);
         log_to_ui(app, "ERROR: Base system installation failed!", 0.0);
-        app->installing = FALSE; return NULL;
+        goto fail_cleanup;
     }
     
-    gchar *normalized_hostname = (gchar *)hostname;
     if (step_configure_system(app, TARGETDIR, hostname, locale, root_pass, user_login, user_fullname, user_pass, autologin_enabled) != 0) {
         stop_progress_pulse(app);
         log_to_ui(app, "ERROR: System configuration failed!", 0.0);
-        app->installing = FALSE;
-        g_free(normalized_hostname); // Liberar memoria
-        return NULL;
+        goto fail_cleanup;
     }
-    g_free(normalized_hostname); // Liberar memoria
     
     if (step_install_bootloader(app, TARGETDIR, disk_name) != 0) {
         stop_progress_pulse(app);
         log_to_ui(app, "ERROR: Bootloader installation failed!", 0.0);
-        app->installing = FALSE; return NULL;
+        goto fail_cleanup;
     }
 
     step_finalize(app, TARGETDIR);
     
     stop_progress_pulse(app);
     log_to_ui(app, "--- INSTALLATION COMPLETED ---", 1.0);
+    g_free(hostname);
+    g_free(locale_selected);
     app->installing = FALSE;
     set_ui_finished(app);
+    return NULL;
+
+fail_cleanup:
+    g_free(hostname);
+    g_free(locale_selected);
+    app->installing = FALSE;
     return NULL;
 }
 

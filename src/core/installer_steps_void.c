@@ -78,7 +78,11 @@ void void_reconfigure_locales(AppData *app, const char *TARGETDIR, const char *l
 void void_copy_xbpsd_config(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "[Void] Copying xbps.d configuration...", 0.85);
     run_sync(app, "mkdir -p %s/etc/xbps.d", TARGETDIR);
-   // run_sync(app, "cp -f /etc/xbps.d/* %s/etc/xbps.d/ 2>/dev/null || true", TARGETDIR);
+    /* Copy live mirror configuration so the installed system inherits the
+     * same xbps.d setup (ignorepackages, repository overrides, etc.).
+     * desktop-set.sh uses its own hardcoded REPO, so this primarily helps
+     * the user's post-install xbps-install/xbps-query calls. */
+    run_sync(app, "cp -f /etc/xbps.d/* %s/etc/xbps.d/ 2>/dev/null || true", TARGETDIR);
 }
 
 /* ------------------------------------------------------------------ *

@@ -471,8 +471,10 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
 
              unlink(keyfile);
 
-// UPDATE DEVICE PATH to /dev/mapper/...
-              conf->device = g_strdup_printf("/dev/mapper/%s", mapper_name);
+             /* UPDATE DEVICE PATH to /dev/mapper/...
+              * g_free the old path first to avoid the memory leak. */
+             g_free(conf->device);
+             conf->device = g_strdup_printf("/dev/mapper/%s", mapper_name);
 
              g_free(dev_base);
              g_free(mapper_name);
@@ -761,13 +763,11 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
             if (var_active > 0 && kbd_active < kbd_count) {
                 // variant index 0 = "Default" = empty string
                 const KbdVariant *vars = layouts[kbd_active].variants;
-                int vi = 0;
                 for (int i = 0; vars[i].name != NULL; i++) {
-                    if (vi == var_active) {
+                    if (i == var_active) {
                         x11_variant = vars[i].code;
                         break;
                     }
-                    vi++;
                 }
             }
         } else {
@@ -836,6 +836,9 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         g_free(tz_area);
         g_free(tz_city);
     } else {
+        /* Ensure we free whichever pointer was allocated before defaulting to UTC */
+        if (tz_area) g_free(tz_area);
+        if (tz_city) g_free(tz_city);
         log_to_ui(app, "Timezone not selected, defaulting to UTC.", 0.78);
         run_sync(app, "ln -sf /usr/share/zoneinfo/UTC %s/etc/localtime", TARGETDIR);
     }
@@ -853,7 +856,9 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
      */
     g_free(app->selected_desktop);
     app->selected_desktop = NULL;
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_xfce)))
+    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_default)))
+        app->selected_desktop = g_strdup("default");
+    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_xfce)))
         app->selected_desktop = g_strdup("xfce");
     else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_niri)))
         app->selected_desktop = g_strdup("niri");
@@ -870,7 +875,9 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
 
     if (app->selected_desktop && app->selected_desktop[0] != '\0') {
         log_to_ui_printf(app, "Installing desktop environment: %s", app->selected_desktop);
-        if (strcmp(app->selected_desktop, "xfce") == 0)
+        if (strcmp(app->selected_desktop, "default") == 0)
+            void_default(app, TARGETDIR);
+        else if (strcmp(app->selected_desktop, "xfce") == 0)
             void_xfce(app, TARGETDIR);
         else if (strcmp(app->selected_desktop, "niri") == 0)
             void_niri(app, TARGETDIR);
@@ -1015,17 +1022,30 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
             char lightdm_conf_path[512];
             snprintf(lightdm_conf_path, sizeof(lightdm_conf_path), "%s/etc/lightdm/lightdm.conf", TARGETDIR);
 
-            int sddm_enabled   = (run_sync(app, "test -L %s/var/service/sddm", TARGETDIR) == 0);
-            int lightdm_enabled= (run_sync(app, "test -L %s/var/service/lightdm", TARGETDIR) == 0);
+            /* Check which display manager desktop-set.sh enabled.
+             * desktop-set.sh creates symlinks in BOTH /var/service (active,
+             * inside the chroot it is a real dir) AND /etc/runit/runsvdir/default
+             * (persistent, survives reboot).  Inside the chroot /var/service is
+             * replaced with a real directory by the script, so test -L would
+             * return false.  The /etc/runit/runsvdir/default path is always a
+             * real directory and its entries are the ground truth. */
+            int sddm_enabled    = (run_sync(app, "test -e %s/etc/runit/runsvdir/default/sddm",    TARGETDIR) == 0);
+            int lightdm_enabled = (run_sync(app, "test -e %s/etc/runit/runsvdir/default/lightdm", TARGETDIR) == 0);
 
             if (sddm_enabled) {
                 log_to_ui(app, "Configuring SDDM autologin...", 0.87);
                 run_sync(app, "mkdir -p %s/etc/sddm.conf.d", TARGETDIR);
-                run_sync(app, "printf '[Autologin]\\nUser=%s\\n' > %s/etc/sddm.conf.d/autologin.conf", user_login, TARGETDIR);
+                /* SDDM requires Session= to avoid falling back to the password
+                 * prompt.  KDE Plasma always registers its session as 'plasma'. */
+                run_sync(app, "printf '[Autologin]\\nUser=%s\\nSession=plasma\\n' > %s/etc/sddm.conf.d/autologin.conf",
+                         user_login, TARGETDIR);
             } else if (lightdm_enabled) {
                 log_to_ui(app, "Configuring LightDM autologin...", 0.87);
-                run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf", user_login, TARGETDIR);
-                run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf", TARGETDIR, user_login, TARGETDIR);
+                run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf",
+                         user_login, TARGETDIR);
+                run_sync(app, "grep -q '^autologin-user=' %s/etc/lightdm/lightdm.conf || "
+                              "sed -i '/^\\[Seat:\\*\\]/a autologin-user=%s' %s/etc/lightdm/lightdm.conf",
+                         TARGETDIR, user_login, TARGETDIR);
             }
 
             // emptty (independent - can coexist with graphical DMs)

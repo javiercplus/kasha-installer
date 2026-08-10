@@ -495,6 +495,10 @@ static GtkWidget* create_desktop_page(AppData *app) {
     gtk_container_add(GTK_CONTAINER(scrolled), list_box);
 
     GtkWidget *row;
+    row = build_desktop_row("Default", get_loc("d_default_desc", app->current_lang),
+                            &app->chk_desktop_default, &app->lbl_d_default_desc);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->chk_desktop_default), TRUE);
+    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
     row = build_desktop_row("Xfce", get_loc("d_xfce_desc", app->current_lang),
                             &app->chk_desktop_xfce, &app->lbl_d_xfce_desc);
     gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);

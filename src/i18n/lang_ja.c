@@ -87,6 +87,7 @@ static const LangInfo lang_ja = {
     // Desktop
     .desktop_title = "デスクトップ環境",
     .desktop_desc = "インストールするデスクトップ環境を選択してください (任意):",
+    .d_default_desc = "デフォルトのデスクトップ (MATE)。ライブイメージと同じ構成です。",
     .d_xfce_desc = "軽量かつ安定。古いハードウェアに最適です。",
     .d_niri_desc = "スクロールタイリング型のモダンな Wayland コンポジタ。",
     .d_kde_desc = "高機能でカスタマイズ性が高い。強力なツール群。",

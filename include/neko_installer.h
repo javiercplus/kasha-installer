@@ -138,6 +138,7 @@ typedef struct {
     // Desktop Tab
     GtkWidget *lbl_desktop_title;
     GtkWidget *lbl_desktop_desc;
+    GtkWidget *chk_desktop_default;
     GtkWidget *chk_desktop_xfce;
     GtkWidget *chk_desktop_niri;
     GtkWidget *chk_desktop_kde;
@@ -145,6 +146,7 @@ typedef struct {
     GtkWidget *chk_desktop_mate;
     GtkWidget *chk_desktop_labwc;
     GtkWidget *chk_desktop_lxqt;
+    GtkWidget *lbl_d_default_desc;
     GtkWidget *lbl_d_xfce_desc;
     GtkWidget *lbl_d_niri_desc;
     GtkWidget *lbl_d_kde_desc;
@@ -241,6 +243,7 @@ void unmount_safety(AppData *app);
 void generate_fstab(AppData *app, const char *target_dir);
 void generate_crypttab(AppData *app, const char *target_dir);
 gboolean set_safe_password(AppData *app, const gchar *username, const gchar *password, const gchar *target_dir);
+gchar *validate_and_normalize_hostname(const gchar *raw_hostname); // always returns heap pointer
 
 // installer_steps.c
 int step_partitioning(AppData *app, const char *disk_name);
@@ -274,6 +277,7 @@ void void_icejwm(AppData *app, const char *TARGETDIR);
 void void_mate(AppData *app, const char *TARGETDIR);
 void void_labwc(AppData *app, const char *TARGETDIR);
 void void_lxqt(AppData *app, const char *TARGETDIR);
+void void_default(AppData *app, const char *TARGETDIR);
 #endif /* HAS_DESKTOP_TAB */
 
 #endif /* NEKO_INSTALLER_H */

@@ -87,6 +87,7 @@ static const LangInfo lang_es = {
     // Desktop
     .desktop_title = "Entorno de Escritorio",
     .desktop_desc = "Seleccione un entorno de escritorio para instalar (opcional):",
+    .d_default_desc = "El escritorio predeterminado (MATE), como en la imagen en vivo.",
     .d_xfce_desc = "Ligero y estable. Ideal para hardware antiguo.",
     .d_niri_desc = "Compositor Wayland moderno con mosaico desplazable.",
     .d_kde_desc = "Completo y personalizable. Herramientas potentes.",

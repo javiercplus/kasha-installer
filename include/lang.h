@@ -86,6 +86,7 @@ typedef struct {
     // Desktop
     const char *desktop_title;
     const char *desktop_desc;
+    const char *d_default_desc;
     const char *d_xfce_desc;
     const char *d_niri_desc;
     const char *d_kde_desc;

@@ -60,7 +60,12 @@ void install_desktop(AppData *app, const char *TARGETDIR, const char *desktop_ty
     log_to_ui_printf(app, "Installing desktop environment: %s", desktop_type);
 
     /* Network/DNS must work inside the chroot for xbps-install and git. */
-    ensure_chroot_dns(app, TARGETDIR);
+    if (ensure_chroot_dns(app, TARGETDIR) != 0) {
+        log_to_ui(app, "WARNING: DNS configuration failed in chroot. "
+                       "Network package downloads may fail.", -1.0);
+        /* Non-fatal: continue anyway — the user's resolv.conf may work
+         * even if we couldn't verify it (e.g. systemd-resolved stub). */
+    }
 
     /* xbps + git are required by the setup script. */
     if (run_sync(app, "chroot %s bash -c 'xbps-install -Sy git bash xbps'", TARGETDIR) != 0) {
@@ -121,5 +126,9 @@ void void_labwc(AppData *app, const char *TARGETDIR) {
 
 void void_lxqt(AppData *app, const char *TARGETDIR) {
     install_desktop(app, TARGETDIR, "lxqt");
+}
+
+void void_default(AppData *app, const char *TARGETDIR) {
+    install_desktop(app, TARGETDIR, "default");
 }
 #endif /* HAS_DESKTOP_TAB */

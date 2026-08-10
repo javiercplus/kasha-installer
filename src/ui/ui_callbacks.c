@@ -505,3 +505,13 @@ void on_install_type_changed(GtkToggleButton *toggle, AppData *app) {
         refresh_partition_list_ui(app);
     }
 }
+
+#ifdef HAS_DESKTOP_TAB
+/* "local (default)" checkbox: when checked the live image is copied as-is
+ * and the other desktops (rootfs-based install) are locked. */
+void on_local_default_toggled(GtkToggleButton *toggle, AppData *app) {
+    gboolean local = gtk_toggle_button_get_active(toggle);
+    if (app->desktop_sel_box)
+        gtk_widget_set_sensitive(app->desktop_sel_box, !local);
+}
+#endif /* HAS_DESKTOP_TAB */

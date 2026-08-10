@@ -86,8 +86,9 @@ static const LangInfo lang_en = {
     
     // Desktop
     .desktop_title = "Desktop Environment",
-    .desktop_desc = "Select a desktop environment to install (optional):",
-    .d_default_desc = "The default desktop (MATE), as shipped by the live image.",
+    .desktop_desc = "Select how to install the desktop:",
+    .d_local_label = "Local (default)",
+    .d_default_desc = "Copy the live image as-is. No other desktop is installed.",
     .d_xfce_desc = "Lightweight and stable. Ideal for older hardware.",
     .d_niri_desc = "Modern scrollable-tiling Wayland compositor.",
     .d_kde_desc = "Full-featured and customizable. Powerful tools.",

@@ -23,7 +23,7 @@ static int ensure_chroot_dns(AppData *app, const char *TARGETDIR) {
     snprintf(target_resolv, sizeof(target_resolv), "%s/etc/resolv.conf", TARGETDIR);
 
     /* If the target already resolves something, leave it alone. */
-    if (run_sync(app, "grep -qE '^[[:space:]]*nameserver[[:space:]]+' %s", target_resolv) == 0) {
+    if (run_sync(app, "grep -qE '^[[:space:]]*nameserver[[:space:]]+' %s 2>/dev/null", target_resolv) == 0) {
         return 0;
     }
 
@@ -32,7 +32,7 @@ static int ensure_chroot_dns(AppData *app, const char *TARGETDIR) {
     /* Try the host's live /etc/resolv.conf first. */
     if (access("/etc/resolv.conf", F_OK) == 0) {
         if (run_sync(app, "cp -f /etc/resolv.conf %s", target_resolv) == 0 &&
-            run_sync(app, "grep -qE '^[[:space:]]*nameserver[[:space:]]+' %s", target_resolv) == 0) {
+            run_sync(app, "grep -qE '^[[:space:]]*nameserver[[:space:]]+' %s 2>/dev/null", target_resolv) == 0) {
             return 0;
         }
     }
@@ -55,6 +55,10 @@ static int ensure_chroot_dns(AppData *app, const char *TARGETDIR) {
  * Install a desktop environment into the target via the neko-desktops
  * repository. DNS is ensured first so xbps-install / git work inside the
  * chroot, and the return code of the setup script is checked.
+ *
+ * The neko-desktops script is now ONLY a config copy: installing the
+ * desktop packages (rootfs-base.c) and enabling the services are done from
+ * C before/after the copy.
  */
 void install_desktop(AppData *app, const char *TARGETDIR, const char *desktop_type) {
     log_to_ui_printf(app, "Installing desktop environment: %s", desktop_type);
@@ -71,6 +75,9 @@ void install_desktop(AppData *app, const char *TARGETDIR, const char *desktop_ty
     if (run_sync(app, "chroot %s bash -c 'xbps-install -Sy git bash xbps'", TARGETDIR) != 0) {
         log_to_ui(app, "WARNING: xbps-install of git/bash/xbps returned an error — continuing anyway.", -1.0);
     }
+
+    /* Install the desktop's package set (moved here from the script). */
+    void_install_desktop_packages(app, TARGETDIR, desktop_type);
 
     /* Clone the neko-desktops repository into the target. */
     log_to_ui(app, "Downloading neko-desktops from git...", 0.93);
@@ -96,6 +103,9 @@ void install_desktop(AppData *app, const char *TARGETDIR, const char *desktop_ty
             desktop_type, rc);
         return;
     }
+
+    /* Enable the desktop's display manager + core services. */
+    void_enable_desktop_services(app, TARGETDIR, desktop_type);
 
     log_to_ui_printf(app, "Desktop '%s' installed successfully.", desktop_type);
 }
@@ -126,9 +136,5 @@ void void_labwc(AppData *app, const char *TARGETDIR) {
 
 void void_lxqt(AppData *app, const char *TARGETDIR) {
     install_desktop(app, TARGETDIR, "lxqt");
-}
-
-void void_default(AppData *app, const char *TARGETDIR) {
-    install_desktop(app, TARGETDIR, "default");
 }
 #endif /* HAS_DESKTOP_TAB */

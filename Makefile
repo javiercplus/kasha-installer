@@ -33,8 +33,11 @@ SRCS_VOID = src/core/installer_steps_void.c
 # Desktop setup module (normal build only)
 SRCS_DESKTOP = src/core/desktops-setup.c
 
+# Rootfs-based base install (normal build only)
+SRCS_ROOTFS = src/core/rootfs-base.c
+
 # Build normal: common + Void module + Desktop
-SRCS = $(SRCS_COMMON) $(SRCS_VOID) $(SRCS_DESKTOP)
+SRCS = $(SRCS_COMMON) $(SRCS_VOID) $(SRCS_DESKTOP) $(SRCS_ROOTFS)
 OBJS = $(SRCS:.c=.o)
 
 # Build universal: objects in build/universal/ to avoid mixing flags

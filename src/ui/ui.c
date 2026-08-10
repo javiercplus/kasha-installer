@@ -138,6 +138,7 @@ const char* get_loc(const char *key, int lang) {
     if (strcmp(key, "d_mate_desc") == 0) return li->d_mate_desc;
     if (strcmp(key, "d_labwc_desc") == 0) return li->d_labwc_desc;
     if (strcmp(key, "d_lxqt_desc") == 0) return li->d_lxqt_desc;
+    if (strcmp(key, "d_local_label") == 0) return li->d_local_label;
     if (strcmp(key, "priv_title") == 0) return li->priv_title;
     if (strcmp(key, "priv_desc") == 0) return li->priv_desc;
     if (strcmp(key, "priv_sudo_label") == 0) return li->priv_sudo_label;
@@ -250,6 +251,8 @@ void update_ui_language(AppData *app) {
     if(app->lbl_desktop_title) gtk_label_set_markup(GTK_LABEL(app->lbl_desktop_title),
         g_strdup_printf("<b><span size='large'>%s</span></b>", get_loc("desktop_title", lang)));
     if(app->lbl_desktop_desc) gtk_label_set_text(GTK_LABEL(app->lbl_desktop_desc), get_loc("desktop_desc", lang));
+    if(app->chk_desktop_local) gtk_button_set_label(GTK_BUTTON(app->chk_desktop_local), get_loc("d_local_label", lang));
+    if(app->lbl_d_default_desc) gtk_label_set_text(GTK_LABEL(app->lbl_d_default_desc), get_loc("d_default_desc", lang));
     if(app->lbl_d_xfce_desc)   gtk_label_set_text(GTK_LABEL(app->lbl_d_xfce_desc),   get_loc("d_xfce_desc",   lang));
     if(app->lbl_d_niri_desc)   gtk_label_set_text(GTK_LABEL(app->lbl_d_niri_desc),   get_loc("d_niri_desc",   lang));
     if(app->lbl_d_kde_desc)    gtk_label_set_text(GTK_LABEL(app->lbl_d_kde_desc),    get_loc("d_kde_desc",    lang));
@@ -495,31 +498,50 @@ static GtkWidget* create_desktop_page(AppData *app) {
     gtk_container_add(GTK_CONTAINER(scrolled), list_box);
 
     GtkWidget *row;
-    row = build_desktop_row("Default", get_loc("d_default_desc", app->current_lang),
-                            &app->chk_desktop_default, &app->lbl_d_default_desc);
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->chk_desktop_default), TRUE);
+
+    /* "local (default)": copy the live image as-is. When checked it locks
+     * the desktop selection (other desktops are only reachable with the
+     * rootfs-based install, i.e. with this box unchecked). */
+    row = build_desktop_row(get_loc("d_local_label", app->current_lang),
+                            get_loc("d_default_desc", app->current_lang),
+                            &app->chk_desktop_local, &app->lbl_d_default_desc);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->chk_desktop_local), TRUE);
     gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
+    g_signal_connect(app->chk_desktop_local, "toggled", G_CALLBACK(on_local_default_toggled), app);
+
+    /* Separator: desktops installable over the rootfs */
+    GtkWidget *sep = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
+    gtk_widget_set_margin_top(sep, 6);
+    gtk_widget_set_margin_bottom(sep, 8);
+    gtk_box_pack_start(GTK_BOX(list_box), sep, FALSE, FALSE, 0);
+
+    app->desktop_sel_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     row = build_desktop_row("Xfce", get_loc("d_xfce_desc", app->current_lang),
                             &app->chk_desktop_xfce, &app->lbl_d_xfce_desc);
-    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(app->desktop_sel_box), row, FALSE, FALSE, 0);
     row = build_desktop_row("Niri", get_loc("d_niri_desc", app->current_lang),
                             &app->chk_desktop_niri, &app->lbl_d_niri_desc);
-    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(app->desktop_sel_box), row, FALSE, FALSE, 0);
     row = build_desktop_row("KDE Plasma", get_loc("d_kde_desc", app->current_lang),
                             &app->chk_desktop_kde, &app->lbl_d_kde_desc);
-    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(app->desktop_sel_box), row, FALSE, FALSE, 0);
     row = build_desktop_row("IceJWM", get_loc("d_icejwm_desc", app->current_lang),
                             &app->chk_desktop_icejwm, &app->lbl_d_icejwm_desc);
-    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(app->desktop_sel_box), row, FALSE, FALSE, 0);
     row = build_desktop_row("MATE", get_loc("d_mate_desc", app->current_lang),
                             &app->chk_desktop_mate, &app->lbl_d_mate_desc);
-    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(app->desktop_sel_box), row, FALSE, FALSE, 0);
     row = build_desktop_row("Labwc", get_loc("d_labwc_desc", app->current_lang),
                             &app->chk_desktop_labwc, &app->lbl_d_labwc_desc);
-    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(app->desktop_sel_box), row, FALSE, FALSE, 0);
     row = build_desktop_row("LXQt", get_loc("d_lxqt_desc", app->current_lang),
                             &app->chk_desktop_lxqt, &app->lbl_d_lxqt_desc);
-    gtk_box_pack_start(GTK_BOX(list_box), row, FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(app->desktop_sel_box), row, FALSE, FALSE, 0);
+
+    gtk_box_pack_start(GTK_BOX(list_box), app->desktop_sel_box, FALSE, FALSE, 0);
+
+    /* "local (default)" is the default: desktop rows stay disabled. */
+    gtk_widget_set_sensitive(app->desktop_sel_box, FALSE);
 
     /* Center the list within the available width */
     GtkWidget *center = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);

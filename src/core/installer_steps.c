@@ -607,6 +607,17 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
 }
 
 int step_install_base_system(AppData *app, const char *TARGETDIR) {
+#ifdef HAS_DESKTOP_TAB
+    /*
+     * When "local (default)" is UNCHECKED the user chose to install one of
+     * the other desktops: instead of mass-copying the live image we
+     * bootstrap the base system from the downloadable rootfs
+     * (src/core/rootfs-base.c) and install everything on top of it.
+     */
+    if (!gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_local))) {
+        return void_install_rootfs_base(app, TARGETDIR);
+    }
+#endif
     // COPY ROOTFS
     log_to_ui(app, "Copying Live Image to Target...", 0.3);
     char tar_cmd[512];
@@ -846,18 +857,23 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
 #ifdef HAS_DESKTOP_TAB
     /*
      * INSTALL DESKTOP ENVIRONMENT — must run BEFORE user creation so that
-     * desktop-set.sh can populate /etc/skel with the desktop dotfiles.
-     * useradd -m (below) will then copy those skel files into the new
-     * user's home directory automatically.
+     * the desktop config copy can populate /etc/skel with the desktop
+     * dotfiles. useradd -m (below) will then copy those skel files into the
+     * new user's home directory automatically.
+     *
+     * When "local (default)" is checked nothing runs here: the live image
+     * is copied as-is (see step_install_base_system).
      *
      * The autologin configuration happens INSIDE the user-creation block
      * further below, which runs AFTER this desktop install, so there is
-     * no risk of desktop-set.sh overwriting the autologin settings.
+     * no risk of overwriting the autologin settings.
      */
     g_free(app->selected_desktop);
     app->selected_desktop = NULL;
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_default)))
-        app->selected_desktop = g_strdup("default");
+    /* "local (default)" checked → copy the live image as-is, no desktop
+     * install and no neko-desktops logic at all. */
+    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_local)))
+        app->selected_desktop = g_strdup("local");
     else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_xfce)))
         app->selected_desktop = g_strdup("xfce");
     else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_niri)))
@@ -873,11 +889,9 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
     else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_lxqt)))
         app->selected_desktop = g_strdup("lxqt");
 
-    if (app->selected_desktop && app->selected_desktop[0] != '\0') {
+    if (app->selected_desktop && strcmp(app->selected_desktop, "local") != 0) {
         log_to_ui_printf(app, "Installing desktop environment: %s", app->selected_desktop);
-        if (strcmp(app->selected_desktop, "default") == 0)
-            void_default(app, TARGETDIR);
-        else if (strcmp(app->selected_desktop, "xfce") == 0)
+        if (strcmp(app->selected_desktop, "xfce") == 0)
             void_xfce(app, TARGETDIR);
         else if (strcmp(app->selected_desktop, "niri") == 0)
             void_niri(app, TARGETDIR);

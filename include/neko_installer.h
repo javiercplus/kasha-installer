@@ -138,7 +138,8 @@ typedef struct {
     // Desktop Tab
     GtkWidget *lbl_desktop_title;
     GtkWidget *lbl_desktop_desc;
-    GtkWidget *chk_desktop_default;
+    GtkWidget *chk_desktop_local;
+    GtkWidget *desktop_sel_box;
     GtkWidget *chk_desktop_xfce;
     GtkWidget *chk_desktop_niri;
     GtkWidget *chk_desktop_kde;
@@ -221,6 +222,7 @@ void on_popup_reboot(GtkDialog *dialog, gint response_id, gpointer user_data);
 void on_lang_toggled(GtkWidget *widget, AppData *app);
 void on_manual_check_toggled(GtkToggleButton *toggle, AppData *app);
 void on_install_type_changed(GtkToggleButton *toggle, AppData *app);
+void on_local_default_toggled(GtkToggleButton *toggle, AppData *app);
 
 // ui.c (Main)
 void build_ui(AppData *app);
@@ -266,6 +268,12 @@ void void_install_grub_efi_pkg(AppData *app, const char *TARGETDIR);
 void void_install_grub_bios_pkg(AppData *app, const char *TARGETDIR);
 void void_install_osprober(AppData *app, const char *TARGETDIR);
 void void_install_dracut_luks(AppData *app, const char *TARGETDIR);
+
+// rootfs-base.c  (normal build only, NOT in UNIVERSAL_BUILD)
+int  void_install_rootfs_base(AppData *app, const char *TARGETDIR);
+void void_install_desktop_packages(AppData *app, const char *TARGETDIR, const char *desktop);
+void void_ensure_core_packages(AppData *app, const char *TARGETDIR);
+void void_enable_desktop_services(AppData *app, const char *TARGETDIR, const char *desktop);
 #endif /* !UNIVERSAL_BUILD */
 
 // desktops-setup.c  (normal build only, guarded by HAS_DESKTOP_TAB)
@@ -277,7 +285,6 @@ void void_icejwm(AppData *app, const char *TARGETDIR);
 void void_mate(AppData *app, const char *TARGETDIR);
 void void_labwc(AppData *app, const char *TARGETDIR);
 void void_lxqt(AppData *app, const char *TARGETDIR);
-void void_default(AppData *app, const char *TARGETDIR);
 #endif /* HAS_DESKTOP_TAB */
 
 #endif /* NEKO_INSTALLER_H */

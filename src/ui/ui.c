@@ -20,13 +20,19 @@ void load_custom_css() {
         "#console_view {"
         "  background-color: #1e1e1e;"
         "  color: #e0e0e0;"
-        "  font-family: monospace;"
+        "  font-family: \"DejaVu Sans Mono\", \"Noto Sans Mono\", monospace;"
         "  font-size: 10pt;"
         "  padding: 6px;"
+        "  border: none;"
         "}"
         "#console_view text {"
         "  background-color: #1e1e1e;"
         "  color: #e0e0e0;"
+        "}"
+        /* Log scrolled window: no frame/shadow line around the console */
+        "#console_scroll, #console_scroll scrollbar {"
+        "  background-color: #1e1e1e;"
+        "  border: none;"
         "}"
         /* Desktop selection cards */
         ".desktop-row {"
@@ -997,8 +1003,14 @@ void build_ui(AppData *app) {
 
     app->console_text = gtk_text_view_new();
     gtk_text_view_set_editable(GTK_TEXT_VIEW(app->console_text), FALSE);
+    /* Guarantee a monospace font even if the CSS provider fails to load. */
+    gtk_text_view_set_monospace(GTK_TEXT_VIEW(app->console_text), TRUE);
     gtk_widget_set_name(app->console_text, "console_view");
     GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
+    gtk_widget_set_name(scroll, "console_scroll");
+    /* Remove the theme's 1px frame/border that shows as a black line
+     * around the dark console area. */
+    gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(scroll), GTK_SHADOW_NONE);
     gtk_container_add(GTK_CONTAINER(scroll), app->console_text);
     gtk_widget_set_vexpand(scroll, TRUE);
     gtk_box_pack_start(GTK_BOX(page_inst), scroll, TRUE, TRUE, 0);

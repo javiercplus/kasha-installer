@@ -1222,6 +1222,16 @@ if (has_crypto) {
         system(probe_cmd);
     }
 
+    /* Finalization (Void handbook, ROOTFS method): rebuild a GENERIC
+     * initramfs for every installed kernel BEFORE grub-mkconfig. Only when
+     * the rootfs install ran (marker: dracut.conf.d/01-neko.conf); the live
+     * copy path keeps its prebuilt initramfs untouched. The explicit -k
+     * avoids the chroot's host /proc (uname -r) selecting the wrong kernel,
+     * and --no-hostonly overrides any hostonly setting from config files. */
+    run_sync(app, "if [ -f %s/etc/dracut.conf.d/01-neko.conf ]; then "
+                  "chroot %s bash -c 'for k in /usr/lib/modules/*/; do dracut --no-hostonly --add-drivers \"ahci\" --force -k \"${k%/}\"; done'; fi",
+             TARGETDIR, TARGETDIR);
+
     run_sync(app, "chroot %s grub-mkconfig -o /boot/grub/grub.cfg", TARGETDIR);
 
     // Cleanup os-prober mounts

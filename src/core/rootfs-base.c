@@ -230,7 +230,17 @@ int void_install_rootfs_base(AppData *app, const char *TARGETDIR) {
         return -1;
     }
 
-    /* 6. Install the base packages (mirrors live-maker DEFAULT). */
+    /* 6. Force a GENERIC (non-hostonly) dracut for ALL invocations — even
+     * the ones triggered by kernel post-install during xbps-install below —
+     * so no initramfs captures the live system's root device or hardware
+     * (chroot has the host's /proc, /sys, /dev mounted). Per Void handbook.
+     * File name "01-neko" sorts BEFORE the LUKS "10-crypt.conf" so the LUKS
+     * path (hostonly=yes) still wins when encryption is used. */
+    run_sync(app, "mkdir -p %s/etc/dracut.conf.d", TARGETDIR);
+    run_sync(app, "echo 'hostonly=no' > %s/etc/dracut.conf.d/01-neko.conf", TARGETDIR);
+    run_sync(app, "echo 'add_drivers+=\" ahci \"' >> %s/etc/dracut.conf.d/01-neko.conf", TARGETDIR);
+
+    /* 7. Install the base packages (mirrors live-maker DEFAULT). */
     log_to_ui(app, "Installing base packages...", 0.45);
     if (run_sync(app, "chroot %s bash -c 'xbps-install -Sy --repository=%s %s'",
                  TARGETDIR, VOID_REPO, BASE_PACKAGES) != 0) {
@@ -238,14 +248,22 @@ int void_install_rootfs_base(AppData *app, const char *TARGETDIR) {
         return -1;
     }
 
-    /* 7. Enable the core services. */
+    /* 8. The ROOTFS tarball is a container image: drop the container
+     * metapackage so the installed system boots as a real host
+     * (xbps-remove -R base-container-full, per the Void handbook). */
+    log_to_ui(app, "Removing container metapackage (base-container-full)...", -1.0);
+    run_sync(app, "chroot %s xbps-remove -R base-container-full 2>/dev/null || true", TARGETDIR);
+
+    /* 9. Enable the core services. */
     enable_core_services(app, TARGETDIR);
 
-    /* 8. Rebuild initramfs (generic, with AHCI driver for SATA support). */
+    /* 10. Rebuild a generic initramfs for EVERY installed kernel, passing
+     * the explicit kernel version (-k) so the chroot's host /proc (uname -r)
+     * cannot select the wrong kernel. */
     log_to_ui(app, "Rebuilding initramfs...", 0.60);
-    run_sync(app, "chroot %s dracut --no-hostonly --add-drivers \"ahci\" --force", TARGETDIR);
+    run_sync(app, "chroot %s bash -c 'for k in /usr/lib/modules/*/; do dracut --no-hostonly --add-drivers \"ahci\" --force -k \"${k%/}\"; done'", TARGETDIR);
 
-    /* 9. Reconfigure base packages. */
+    /* 11. Reconfigure base packages. */
     void_reconfigure_base(app, TARGETDIR);
 
     return 0;

@@ -13,6 +13,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <errno.h>
 
 // Helper to get UUID
 char* get_uuid(const char *device) {
@@ -279,6 +280,88 @@ gchar *validate_and_normalize_hostname(const gchar *raw_hostname) {
     return hostname; /* heap-allocated via g_strdup above */
 }
 
+/* ------------------------------------------------------------------ *
+ *  Streaming capture for run_sync                                     *
+ *  ------------------------------------------------------------------ *
+ *  run_sync executes commands with fork/pipe/exec (instead of system())
+ *  so their real stdout+stderr can be shown in the GUI log, in real
+ *  time. The worker (install) thread appends output lines to a buffer
+ *  guarded by a mutex; a 100ms timer on the main thread flushes the
+ *  buffer into the console via the existing update_log_ui() path.
+ *  The command echo goes through the SAME buffer so ordering is exact.
+ * ------------------------------------------------------------------ */
+static GString *capture_pending = NULL;
+static GMutex  capture_mutex;
+static guint   capture_flush_id = 0;
+
+static void capture_append(const char *s, gssize len) {
+    g_mutex_lock(&capture_mutex);
+    if (!capture_pending) capture_pending = g_string_new(NULL);
+    g_string_append_len(capture_pending, s, len);
+    g_mutex_unlock(&capture_mutex);
+}
+
+/* Append a chunk to the pending buffer stripping everything a terminal
+ * would interpret but GtkTextView cannot render: control characters
+ * (\b, \x1b ESC, NUL, \x7f, ...) and ANSI escape sequences ("ESC [ 0 m").
+ * Keeps \n and \t. High bytes (multi-byte UTF-8) pass through untouched. */
+static void capture_append_clean(const char *s, gssize len) {
+    if (len <= 0) return;
+    char *tmp = g_newa(char, len + 1);
+    gssize j = 0;
+    for (gssize i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)s[i];
+        if (c == '\x1b') {
+            /* ANSI escape sequence: skip ESC [ ... <final letter> */
+            if (i + 1 < len && s[i + 1] == '[') {
+                i += 2;
+                while (i < len) {
+                    unsigned char f = (unsigned char)s[i];
+                    if ((f >= 'A' && f <= 'Z') || (f >= 'a' && f <= 'z')) break;
+                    i++;
+                }
+            }
+            continue;
+        }
+        if (c == '\n' || c == '\t') { tmp[j++] = (char)c; continue; }
+        if (c < 0x20 || c == 0x7f) continue;   /* strip other control chars */
+        tmp[j++] = (char)c;
+    }
+    if (j > 0) capture_append(tmp, j);
+}
+
+/* Runs on the main thread (GTK main loop) every 100ms. */
+static gboolean capture_flush_cb(gpointer data) {
+    AppData *app = data;
+    char *out = NULL;
+
+    g_mutex_lock(&capture_mutex);
+    if (capture_pending && capture_pending->len > 0) {
+        out = g_string_free(capture_pending, FALSE);   /* transfer content */
+        capture_pending = NULL;
+    }
+    g_mutex_unlock(&capture_mutex);
+
+    if (out) {
+        /* Commands can emit non-UTF-8 bytes (locale-encoded output); GTK
+         * requires valid UTF-8, otherwise it renders garbage glyphs. */
+        gchar *valid = g_utf8_make_valid(out, -1);
+        g_free(out);
+
+        LogMessage *msg = g_new(LogMessage, 1);
+        msg->message = valid;                         /* freed by update_log_ui */
+        msg->fraction = -1.0;
+        msg->app = app;
+        g_idle_add(update_log_ui, msg);
+    }
+    return G_SOURCE_CONTINUE;
+}
+
+static void ensure_capture_flush(AppData *app) {
+    if (capture_flush_id) return;
+    capture_flush_id = g_timeout_add(100, capture_flush_cb, app);
+}
+
 int run_sync(AppData *app, const char *fmt, ...) {
     /* 4096 bytes: generous enough for the longest commands we build
      * (e.g. the chown chain in step_install_base_system with TARGETDIR
@@ -289,16 +372,67 @@ int run_sync(AppData *app, const char *fmt, ...) {
     vsnprintf(cmd, sizeof(cmd), fmt, args);
     va_end(args);
 
-    log_to_ui(app, cmd, -1.0);
+    /* Echo the command to the log (same buffer as its output → correct order). */
+    capture_append(cmd, strlen(cmd));
+    capture_append("\n", 1);
+    ensure_capture_flush(app);
 
     if (app->debug_mode) {
         g_print("[DEBUG-SIM] %s\n", cmd);
         return 0;
     }
 
-    int ret = system(cmd);
-    if (ret == -1) return -1;
-    if (WIFEXITED(ret)) return WEXITSTATUS(ret);
+    /* fork + pipe + exec: captures stdout AND stderr of the command so the
+     * GUI shows its real output in real time (equivalent to system()). */
+    int fds[2];
+    if (pipe(fds) != 0) {
+        log_to_ui(app, "ERROR: run_sync: pipe() failed.", 0.0);
+        return -1;
+    }
+
+    pid_t pid = fork();
+    if (pid < 0) {
+        log_to_ui(app, "ERROR: run_sync: fork() failed.", 0.0);
+        close(fds[0]);
+        close(fds[1]);
+        return -1;
+    }
+
+    if (pid == 0) {
+        dup2(fds[1], STDOUT_FILENO);
+        dup2(fds[1], STDERR_FILENO);
+        close(fds[0]);
+        close(fds[1]);
+        execl("/bin/sh", "sh", "-c", cmd, (char *)NULL);
+        _exit(127);
+    }
+
+    close(fds[1]);
+
+    char buf[8192];
+    ssize_t n;
+    while ((n = read(fds[0], buf, sizeof(buf))) > 0) {
+        /* Split on \n AND \r (xbps-install paints progress with \r), and
+         * strip control chars/ANSI so the GUI renders clean text. */
+        char *start = buf;
+        for (ssize_t i = 0; i < n; i++) {
+            if (buf[i] == '\n' || buf[i] == '\r') {
+                capture_append_clean(start, &buf[i] - start);
+                capture_append("\n", 1);
+                start = &buf[i] + 1;
+            }
+        }
+        if (start < &buf[n])
+            capture_append_clean(start, &buf[n] - start);
+    }
+    close(fds[0]);
+
+    int status = 0;
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno != EINTR) return -1;
+    }
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    if (WIFSIGNALED(status)) return 128 + WTERMSIG(status);
     return -1;
 }
 
@@ -455,7 +589,10 @@ void start_installation(GtkWidget *widget, AppData *app) {
     gtk_widget_set_sensitive(app->btn_next, FALSE);
     gtk_widget_set_sensitive(app->notebook, FALSE);
     gtk_widget_set_sensitive(widget, FALSE);
-    
+
+    /* Start the 100ms log-flush timer for run_sync output streaming. */
+    ensure_capture_flush(app);
+
     GError *error = NULL;
     g_thread_try_new("installer", install_thread, app, &error);
     if (error) g_printerr("Error creating thread: %s\n", error->message);

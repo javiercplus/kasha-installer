@@ -250,20 +250,32 @@ int void_install_rootfs_base(AppData *app, const char *TARGETDIR) {
 
     /* 8. The ROOTFS tarball is a container image: drop the container
      * metapackage so the installed system boots as a real host
-     * (xbps-remove -R base-container-full, per the Void handbook). */
+     * (xbps-remove -R base-container-full, per the Void handbook).
+     *
+     * WARNING: -R removes orphaned dependencies, including dracut that
+     * was only pulled in by base-container-full.  If we don't reinstall
+     * dracut now, the xbps-reconfigure -fa below has nothing to run → no
+     * initramfs is generated → the installed system fails to boot. */
     log_to_ui(app, "Removing container metapackage (base-container-full)...", -1.0);
     run_sync(app, "chroot %s xbps-remove -R base-container-full 2>/dev/null || true", TARGETDIR);
+
+    /* 8b. xbps-remove -R strips dracut (it was only a transitive
+     * recommend of base-container-full, not a hard dep of the kernel).
+     * Reinstall it explicitly so the xbps-reconfigure -fa in step 10
+     * has a working dracut to regenerate the initramfs. */
+    log_to_ui(app, "Reinstalling dracut (removed by base-container-full cleanup)...", -1.0);
+    run_sync(app, "chroot %s bash -c 'xbps-install -Sy --repository=%s dracut'",
+             TARGETDIR, VOID_REPO);
 
     /* 9. Enable the core services. */
     enable_core_services(app, TARGETDIR);
 
-    /* 10. Rebuild a generic initramfs for EVERY installed kernel, passing
-     * the explicit kernel version (-k) so the chroot's host /proc (uname -r)
-     * cannot select the wrong kernel. */
-    log_to_ui(app, "Rebuilding initramfs...", 0.60);
-    run_sync(app, "chroot %s bash -c 'for k in /usr/lib/modules/*/; do dracut --no-hostonly --add-drivers \"ahci\" --force -k \"${k%/}\"; done'", TARGETDIR);
-
-    /* 11. Reconfigure base packages. */
+    /* 10. Reconfigure ALL base packages (xbps-reconfigure -fa).  The -f flag
+     * is essential: without it only unpacked packages are touched, and the
+     * kernel (fully installed) is skipped → its INSTALL hook (dracut) never
+     * fires → no initramfs.  -f forces reconfigure of every package so the
+     * kernel's post-install hook regenerates the initramfs with the target's
+     * /etc/dracut.conf.d settings (01-neko.conf above: generic + ahci). */
     void_reconfigure_base(app, TARGETDIR);
 
     return 0;

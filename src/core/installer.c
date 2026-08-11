@@ -201,15 +201,32 @@ void stop_progress_pulse(AppData *app) {
 gboolean update_log_ui(gpointer data) {
     LogMessage *msg = (LogMessage *)data;
     AppData *app = msg->app;
-    
+
     GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->console_text));
+
+    /* Only follow the output (auto-scroll to bottom) while the user is already
+     * at the bottom; if they scrolled up to read, don't yank them back down.
+     * This is what made the scrollbar feel "locked". */
+    GtkAdjustment *vadj = NULL;
+    if (app->console_scroll)
+        vadj = gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(app->console_scroll));
+    gboolean stick_to_bottom = TRUE;
+    if (vadj) {
+        gdouble val = gtk_adjustment_get_value(vadj);
+        gdouble upper = gtk_adjustment_get_upper(vadj);
+        gdouble page = gtk_adjustment_get_page_size(vadj);
+        stick_to_bottom = (val + page >= upper - 5.0);
+    }
+
     GtkTextIter end;
     gtk_text_buffer_get_end_iter(buffer, &end);
     gtk_text_buffer_insert(buffer, &end, msg->message, -1);
-    
-    GtkTextMark *mark = gtk_text_buffer_get_insert(buffer);
-    gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(app->console_text), mark);
-    
+
+    if (stick_to_bottom) {
+        GtkTextMark *mark = gtk_text_buffer_get_insert(buffer);
+        gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(app->console_text), mark);
+    }
+
     if (msg->fraction >= 0) {
         gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(app->progress_bar), msg->fraction);
     }

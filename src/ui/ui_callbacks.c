@@ -13,8 +13,14 @@
 void on_reboot_clicked(GtkWidget *widget, AppData *app) { (void)widget; (void)app; system("reboot"); }
 
 void on_popup_reboot(GtkDialog *dialog, gint response_id, gpointer user_data) {
-    (void)dialog; (void)response_id; (void)user_data;
-    system("reboot");
+    (void)user_data;
+    if (response_id == GTK_RESPONSE_ACCEPT) {
+        gtk_widget_destroy(GTK_WIDGET(dialog));
+        system("reboot");
+    } else {
+        /* Close button (X) or Cancel: dismiss without rebooting. */
+        gtk_widget_destroy(GTK_WIDGET(dialog));
+    }
 }
 
 // Forward declaration

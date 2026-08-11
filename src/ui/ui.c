@@ -16,7 +16,26 @@ void load_custom_css() {
     const gchar *css_data =
         "progressbar trough { min-height: 20px; }"
         "progressbar progress { min-height: 20px; background-color: #33d17a; }"
-        /* Console text view: terminal-like colors, force visibility on all DEs */
+        /* Console scrolled window: dark background, no borders, clean */
+        "#console_scroll {"
+        "  background-color: #1e1e1e;"
+        "  border: none;"
+        "  box-shadow: none;"
+        "}"
+        "#console_scroll scrollbar {"
+        "  background-color: #1e1e1e;"
+        "  border: none;"
+        "}"
+        "#console_scroll scrollbar slider {"
+        "  background-color: #444444;"
+        "  border-radius: 4px;"
+        "  min-width: 8px;"
+        "}"
+        "#console_scroll scrollbar trough {"
+        "  background-color: #1e1e1e;"
+        "  border: none;"
+        "}"
+        /* Console text view itself: terminal colors, monospace */
         "#console_view {"
         "  background-color: #1e1e1e;"
         "  color: #e0e0e0;"
@@ -28,11 +47,6 @@ void load_custom_css() {
         "#console_view text {"
         "  background-color: #1e1e1e;"
         "  color: #e0e0e0;"
-        "}"
-        /* Log scrolled window: no frame/shadow line around the console */
-        "#console_scroll, #console_scroll scrollbar {"
-        "  background-color: #1e1e1e;"
-        "  border: none;"
         "}"
         /* Desktop selection cards */
         ".desktop-row {"
@@ -327,6 +341,7 @@ void set_ui_finished_safe(gpointer data) {
     GtkWidget *btn_reboot_popup = gtk_dialog_add_button(GTK_DIALOG(success_dialog), get_loc("success_reboot", app->current_lang), GTK_RESPONSE_ACCEPT);
     GtkStyleContext *context = gtk_widget_get_style_context(btn_reboot_popup);
     gtk_style_context_add_class(context, "suggested-action");
+    /* The title-bar X / Escape only closes the dialog (no reboot). */
     g_signal_connect(success_dialog, "response", G_CALLBACK(on_popup_reboot), NULL);
     gtk_widget_show_all(success_dialog);
     // return FALSE; // void function signature mismatch if we return FALSE here? No, g_idle_add expects FALSE
@@ -1003,16 +1018,20 @@ void build_ui(AppData *app) {
 
     app->console_text = gtk_text_view_new();
     gtk_text_view_set_editable(GTK_TEXT_VIEW(app->console_text), FALSE);
-    /* Guarantee a monospace font even if the CSS provider fails to load. */
     gtk_text_view_set_monospace(GTK_TEXT_VIEW(app->console_text), TRUE);
+    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(app->console_text), GTK_WRAP_WORD_CHAR);
     gtk_widget_set_name(app->console_text, "console_view");
+
     GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
+    app->console_scroll = scroll;
     gtk_widget_set_name(scroll, "console_scroll");
-    /* Remove the theme's 1px frame/border that shows as a black line
-     * around the dark console area. */
     gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(scroll), GTK_SHADOW_NONE);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),
+                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
+    gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scroll), 120);
     gtk_container_add(GTK_CONTAINER(scroll), app->console_text);
     gtk_widget_set_vexpand(scroll, TRUE);
+    gtk_widget_set_hexpand(scroll, TRUE);
     gtk_box_pack_start(GTK_BOX(page_inst), scroll, TRUE, TRUE, 0);
 
     app->progress_bar = gtk_progress_bar_new();

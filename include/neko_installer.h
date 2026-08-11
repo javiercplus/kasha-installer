@@ -71,6 +71,7 @@ typedef struct {
 
     // Tab 6: Installation
     GtkWidget *console_text;
+    GtkWidget *console_scroll; // scrolled window wrapping console_text
     GtkWidget *progress_bar;
     GtkWidget *btn_install;
     

@@ -696,15 +696,25 @@ int step_install_base_system(AppData *app, const char *TARGETDIR) {
     }
 #endif
 
-    // REBUILD INITRAMFS (generic, with AHCI driver for SATA support)
-    log_to_ui(app, "Rebuilding initramfs...", 0.6);
+    /* REBUILD INITRAMFS (generic, with AHCI driver for SATA support).
+     * Mirrors extra/installer.sh: chroot dracut --no-hostonly --add-drivers "ahci" --force.
+     * First drop 01-neko.conf so the SAME generic settings also apply to any
+     * dracut run later triggered by xbps-reconfigure -fa (kernel INSTALL hook).
+     * Without it, that second pass builds a HOSTONLY initramfs from the
+     * chroot's host /proc/cmdline (the live USB root device) and overwrites
+     * the good generic one → the installed system can't find its root
+     * ("no carga initramfs"). Same approach as the rootfs path (rootfs-base.c). */
+    run_sync(app, "mkdir -p %s/etc/dracut.conf.d", TARGETDIR);
+    run_sync(app, "echo 'hostonly=no' > %s/etc/dracut.conf.d/01-neko.conf", TARGETDIR);
+    run_sync(app, "echo 'add_drivers+=\" ahci \"' >> %s/etc/dracut.conf.d/01-neko.conf", TARGETDIR);
+    log_to_ui(app, "Rebuilding initramfs (generic, this can take a few minutes)...", 0.6);
     run_sync(app, "chroot %s dracut --no-hostonly --add-drivers \"ahci\" --force", TARGETDIR);
 
 #ifndef UNIVERSAL_BUILD
     /* --- Void Linux: reconfigure base packages with xbps-reconfigure --- */
     void_reconfigure_base(app, TARGETDIR);
 #else
-    log_to_ui(app, "[Universal] Skipping xbps-reconfigure (not a Void system).", 0.63);
+    log_to_ui(app, "[Universal] Rebuilding done — initramfs is generic (ahci).", 0.63);
 #endif
 
     return 0;
@@ -1222,16 +1232,10 @@ if (has_crypto) {
         system(probe_cmd);
     }
 
-    /* Finalization (Void handbook, ROOTFS method): rebuild a GENERIC
-     * initramfs for every installed kernel BEFORE grub-mkconfig. Only when
-     * the rootfs install ran (marker: dracut.conf.d/01-neko.conf); the live
-     * copy path keeps its prebuilt initramfs untouched. The explicit -k
-     * avoids the chroot's host /proc (uname -r) selecting the wrong kernel,
-     * and --no-hostonly overrides any hostonly setting from config files. */
-    run_sync(app, "if [ -f %s/etc/dracut.conf.d/01-neko.conf ]; then "
-                  "chroot %s bash -c 'for k in /usr/lib/modules/*/; do dracut --no-hostonly --add-drivers \"ahci\" --force -k \"${k%/}\"; done'; fi",
-             TARGETDIR, TARGETDIR);
-
+    /* Finalization: the initramfs was already regenerated (generically, per
+     * /etc/dracut.conf.d/01-neko.conf) — during step_install_base_system for
+     * the live-copy path, and by xbps-reconfigure -fa during the rootfs
+     * install. So grub-mkconfig always finds a valid initramfs. */
     run_sync(app, "chroot %s grub-mkconfig -o /boot/grub/grub.cfg", TARGETDIR);
 
     // Cleanup os-prober mounts

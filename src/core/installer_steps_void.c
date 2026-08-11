@@ -44,7 +44,12 @@ void void_copy_xbps_keys(AppData *app, const char *TARGETDIR) {
 void void_reconfigure_base(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "[Void] Reconfiguring base packages (xbps-reconfigure)...", 0.63);
     run_sync(app, "xbps-reconfigure -r %s -f base-files 2>/dev/null", TARGETDIR);
-    run_sync(app, "chroot %s xbps-reconfigure -a", TARGETDIR);
+    /* -f is CRITICAL: without it xbps-reconfigure -a only touches packages
+     * that are still in "unpacked" state.  The kernel is already fully
+     * installed → its INSTALL hook (which runs dracut) never fires → no
+     * initramfs is generated.  -f forces reconfigure of ALL packages
+     * regardless of state, same as the LUKS path (void_install_dracut_luks). */
+    run_sync(app, "chroot %s xbps-reconfigure -fa", TARGETDIR);
     run_sync(app, "chroot %s xbps-install -S", TARGETDIR);
     run_sync(app, "chroot %s xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ xbps", TARGETDIR);
     run_sync(app, "chroot %s xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ kpm xmirror Neko-Wizard", TARGETDIR);
@@ -109,13 +114,16 @@ void void_install_osprober(AppData *app, const char *TARGETDIR) {
 
 /* ------------------------------------------------------------------ *
  *  void_install_dracut_luks                                           *
- *  Install base-system-dracut and regenerate initramfs for LUKS.     *
+ *  Install dracut and regenerate initramfs for LUKS.                 *
  * ------------------------------------------------------------------ */
 void void_install_dracut_luks(AppData *app, const char *TARGETDIR) {
-    log_to_ui(app, "[Void] Installing base-system-dracut via xbps...", 0.935);
-    run_sync(app, "chroot %s xbps-install -Sy --repository=https://repo-de.voidlinux.org/current/ base-system-dracut 2>/dev/null || true", TARGETDIR);
-    run_sync(app, "chroot %s xbps-reconfigure -fa 2>/dev/null || chroot %s dracut --force 2>/dev/null || true",
-             TARGETDIR, TARGETDIR);
+    log_to_ui(app, "[Void] Ensuring dracut is installed via xbps...", 0.935);
+    run_sync(app, "chroot %s xbps-install -Sy --repository=https://repo-de.voidlinux.org/current/ dracut 2>/dev/null || true", TARGETDIR);
+    /* xbps-reconfigure -fa regenerates every kernel's initramfs (dracut is run
+     * by the kernel package's INSTALL hook, honoring dracut.conf.d). Do NOT
+     * fall back to a manual `dracut --force`: it hangs and can yield an
+     * initramfs that fails to load. */
+    run_sync(app, "chroot %s xbps-reconfigure -fa 2>/dev/null || true", TARGETDIR);
 }
 
 /* ------------------------------------------------------------------ *

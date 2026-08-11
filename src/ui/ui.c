@@ -41,12 +41,15 @@ void load_custom_css() {
         "  color: #e0e0e0;"
         "  font-family: \"DejaVu Sans Mono\", \"Noto Sans Mono\", monospace;"
         "  font-size: 10pt;"
-        "  padding: 6px;"
         "  border: none;"
         "}"
         "#console_view text {"
         "  background-color: #1e1e1e;"
         "  color: #e0e0e0;"
+        "}"
+        "#console_view border {"
+        "  background-color: #1e1e1e;"
+        "  border: none;"
         "}"
         /* Desktop selection cards */
         ".desktop-row {"
@@ -1018,8 +1021,12 @@ void build_ui(AppData *app) {
 
     app->console_text = gtk_text_view_new();
     gtk_text_view_set_editable(GTK_TEXT_VIEW(app->console_text), FALSE);
+    gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(app->console_text), FALSE);
     gtk_text_view_set_monospace(GTK_TEXT_VIEW(app->console_text), TRUE);
-    gtk_text_view_set_wrap_mode(GTK_TEXT_VIEW(app->console_text), GTK_WRAP_WORD_CHAR);
+    gtk_text_view_set_left_margin(GTK_TEXT_VIEW(app->console_text), 8);
+    gtk_text_view_set_right_margin(GTK_TEXT_VIEW(app->console_text), 8);
+    gtk_text_view_set_top_margin(GTK_TEXT_VIEW(app->console_text), 6);
+    gtk_text_view_set_bottom_margin(GTK_TEXT_VIEW(app->console_text), 6);
     gtk_widget_set_name(app->console_text, "console_view");
 
     GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
@@ -1027,7 +1034,7 @@ void build_ui(AppData *app) {
     gtk_widget_set_name(scroll, "console_scroll");
     gtk_scrolled_window_set_shadow_type(GTK_SCROLLED_WINDOW(scroll), GTK_SHADOW_NONE);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scroll),
-                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
+                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
     gtk_scrolled_window_set_min_content_height(GTK_SCROLLED_WINDOW(scroll), 120);
     gtk_container_add(GTK_CONTAINER(scroll), app->console_text);
     gtk_widget_set_vexpand(scroll, TRUE);

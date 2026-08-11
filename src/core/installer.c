@@ -223,8 +223,14 @@ gboolean update_log_ui(gpointer data) {
     gtk_text_buffer_insert(buffer, &end, msg->message, -1);
 
     if (stick_to_bottom) {
+        /* Move the insert mark to the very end of the buffer so
+         * scroll_to_mark actually scrolls to the new content.
+         * gtk_text_buffer_insert() does NOT move the cursor. */
+        gtk_text_buffer_get_end_iter(buffer, &end);
+        gtk_text_buffer_place_cursor(buffer, &end);
         GtkTextMark *mark = gtk_text_buffer_get_insert(buffer);
-        gtk_text_view_scroll_mark_onscreen(GTK_TEXT_VIEW(app->console_text), mark);
+        gtk_text_view_scroll_to_mark(GTK_TEXT_VIEW(app->console_text),
+                                     mark, 0.0, TRUE, 0.0, 1.0);
     }
 
     if (msg->fraction >= 0) {

@@ -230,6 +230,16 @@ int void_install_rootfs_base(AppData *app, const char *TARGETDIR) {
         return -1;
     }
 
+    /* 5b. Full system update — the rootfs tarball is a frozen snapshot with
+     * outdated packages (kmod, glibc, etc.).  New dracut from the repo
+     * requires LIBKMOD_33, but the rootfs kmod is too old → version mismatch
+     * → dracut-install crashes → initramfs never generated.
+     * xbps-install -u (per Void Handbook) brings EVERYTHING up to date. */
+    log_to_ui(app, "Updating all packages (rootfs is outdated, this can take a while)...", -1.0);
+    if (run_sync(app, "chroot %s bash -c 'xbps-install -Syu'", TARGETDIR) != 0) {
+        log_to_ui(app, "WARNING: full system update reported errors — continuing.", -1.0);
+    }
+
     /* 6. Force a GENERIC (non-hostonly) dracut for ALL invocations — even
      * the ones triggered by kernel post-install during xbps-install below —
      * so no initramfs captures the live system's root device or hardware
@@ -253,19 +263,24 @@ int void_install_rootfs_base(AppData *app, const char *TARGETDIR) {
      * (xbps-remove -R base-container-full, per the Void handbook).
      *
      * WARNING: -R removes orphaned dependencies, including dracut that
-     * was only pulled in by base-container-full.  If we don't reinstall
-     * dracut now, the xbps-reconfigure -fa below has nothing to run → no
-     * initramfs is generated → the installed system fails to boot. */
+     * was only pulled in by base-container-full. */
     log_to_ui(app, "Removing container metapackage (base-container-full)...", -1.0);
     run_sync(app, "chroot %s xbps-remove -R base-container-full 2>/dev/null || true", TARGETDIR);
 
-    /* 8b. xbps-remove -R strips dracut (it was only a transitive
-     * recommend of base-container-full, not a hard dep of the kernel).
-     * Reinstall it explicitly so the xbps-reconfigure -fa in step 10
-     * has a working dracut to regenerate the initramfs. */
+    /* 8b. Reinstall dracut — stripped by the -R above. */
     log_to_ui(app, "Reinstalling dracut (removed by base-container-full cleanup)...", -1.0);
     run_sync(app, "chroot %s bash -c 'xbps-install -Sy --repository=%s dracut'",
              TARGETDIR, VOID_REPO);
+
+    /* 8c. MANDATORY full sync after the metapackage swap.  Removing
+     * base-container-full shuffles the dependency tree; xbps-install -Syu
+     * reconciles everything (kmod ↔ dracut version match, broken deps,
+     * orphan cleanup) so the reconfigure in step 10 inherits a consistent
+     * package set and dracut can actually build a working initramfs. */
+    log_to_ui(app, "Syncing package state (xbps-install -Syu)...", -1.0);
+    if (run_sync(app, "chroot %s bash -c 'xbps-install -Syu'", TARGETDIR) != 0) {
+        log_to_ui(app, "WARNING: post-cleanup sync reported errors — continuing.", -1.0);
+    }
 
     /* 9. Enable the core services. */
     enable_core_services(app, TARGETDIR);

@@ -197,6 +197,33 @@ void stop_progress_pulse(AppData *app) {
         app->progress_pulse_id = 0;
     }
 }
+/* ------------------------------------------------------------------ *
+ *  Deferred auto-scroll for the console log                           *
+ *  ------------------------------------------------------------------ *
+ *  After inserting text the GtkTextView layout has NOT been validated  *
+ *  yet, so the scrolled-window adjustment still has the OLD upper     *
+ *  value.  Attempting to scroll immediately therefore does nothing.    *
+ *  We schedule the scroll at G_PRIORITY_LOW (300) which runs AFTER    *
+ *  GTK_PRIORITY_RESIZE (110), guaranteeing the layout — and thus the  *
+ *  adjustment — is up-to-date when we set the value.                  *
+ * ------------------------------------------------------------------ */
+static guint scroll_idle_id = 0;
+
+static gboolean scroll_console_to_bottom(gpointer data) {
+    AppData *app = (AppData *)data;
+    scroll_idle_id = 0;
+    if (!app->console_scroll) return G_SOURCE_REMOVE;
+
+    GtkAdjustment *vadj = gtk_scrolled_window_get_vadjustment(
+        GTK_SCROLLED_WINDOW(app->console_scroll));
+    if (vadj) {
+        gdouble upper = gtk_adjustment_get_upper(vadj);
+        gdouble page  = gtk_adjustment_get_page_size(vadj);
+        if (upper > page)
+            gtk_adjustment_set_value(vadj, upper - page);
+    }
+    return G_SOURCE_REMOVE;
+}
 
 gboolean update_log_ui(gpointer data) {
     LogMessage *msg = (LogMessage *)data;
@@ -204,34 +231,16 @@ gboolean update_log_ui(gpointer data) {
 
     GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(app->console_text));
 
-    /* Only follow the output (auto-scroll to bottom) while the user is already
-     * at the bottom; if they scrolled up to read, don't yank them back down.
-     * This is what made the scrollbar feel "locked". */
-    GtkAdjustment *vadj = NULL;
-    if (app->console_scroll)
-        vadj = gtk_scrolled_window_get_vadjustment(GTK_SCROLLED_WINDOW(app->console_scroll));
-    gboolean stick_to_bottom = TRUE;
-    if (vadj) {
-        gdouble val = gtk_adjustment_get_value(vadj);
-        gdouble upper = gtk_adjustment_get_upper(vadj);
-        gdouble page = gtk_adjustment_get_page_size(vadj);
-        stick_to_bottom = (val + page >= upper - 5.0);
-    }
-
     GtkTextIter end;
     gtk_text_buffer_get_end_iter(buffer, &end);
     gtk_text_buffer_insert(buffer, &end, msg->message, -1);
 
-    if (stick_to_bottom) {
-        /* Move the insert mark to the very end of the buffer so
-         * scroll_to_mark actually scrolls to the new content.
-         * gtk_text_buffer_insert() does NOT move the cursor. */
-        gtk_text_buffer_get_end_iter(buffer, &end);
-        gtk_text_buffer_place_cursor(buffer, &end);
-        GtkTextMark *mark = gtk_text_buffer_get_insert(buffer);
-        gtk_text_view_scroll_to_mark(GTK_TEXT_VIEW(app->console_text),
-                                     mark, 0.0, TRUE, 0.0, 1.0);
-    }
+    /* Queue a single deferred scroll (coalesced: only one pending at a time).
+     * The G_PRIORITY_LOW callback fires after GTK finishes its resize /
+     * layout pass, so the adjustment upper is already correct. */
+    if (scroll_idle_id == 0)
+        scroll_idle_id = g_idle_add_full(G_PRIORITY_LOW,
+                                         scroll_console_to_bottom, app, NULL);
 
     if (msg->fraction >= 0) {
         gtk_progress_bar_set_fraction(GTK_PROGRESS_BAR(app->progress_bar), msg->fraction);
@@ -610,7 +619,19 @@ void start_installation(GtkWidget *widget, AppData *app) {
     app->installing = TRUE;
     gtk_widget_set_sensitive(app->btn_back, FALSE);
     gtk_widget_set_sensitive(app->btn_next, FALSE);
-    gtk_widget_set_sensitive(app->notebook, FALSE);
+
+    /* Disable every notebook page EXCEPT the install page (last page)
+     * so the log scrollbar stays interactive during installation.
+     * Setting the whole notebook insensitive would propagate to ALL
+     * children, including the scrolled window and its scrollbars. */
+    {
+        gint n = gtk_notebook_get_n_pages(GTK_NOTEBOOK(app->notebook));
+        for (gint i = 0; i < n - 1; i++) {
+            GtkWidget *pg = gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), i);
+            gtk_widget_set_sensitive(pg, FALSE);
+        }
+    }
+
     gtk_widget_set_sensitive(widget, FALSE);
 
     /* Start the 100ms log-flush timer for run_sync output streaming. */

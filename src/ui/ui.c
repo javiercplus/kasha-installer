@@ -325,7 +325,16 @@ void set_ui_finished_safe(gpointer data) {
 
     gtk_widget_set_sensitive(app->btn_back, FALSE);
     gtk_widget_set_sensitive(app->btn_next, FALSE);
-    gtk_widget_set_sensitive(app->notebook, FALSE);
+
+    /* Disable every notebook page EXCEPT the install page (last page)
+     * so the user can still scroll through the log after installation. */
+    {
+        gint n = gtk_notebook_get_n_pages(GTK_NOTEBOOK(app->notebook));
+        for (gint i = 0; i < n - 1; i++) {
+            GtkWidget *pg = gtk_notebook_get_nth_page(GTK_NOTEBOOK(app->notebook), i);
+            gtk_widget_set_sensitive(pg, FALSE);
+        }
+    }
 
     gtk_button_set_label(GTK_BUTTON(app->btn_install), get_loc("reboot_btn", app->current_lang));
     g_signal_handlers_disconnect_by_func(app->btn_install, G_CALLBACK(start_installation), app);

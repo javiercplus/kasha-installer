@@ -18,7 +18,11 @@ SRCS_COMMON = src/core/main.c \
               src/core/country_data.c \
               src/ui/ui_partition.c \
               src/ui/ui_callbacks.c \
-              src/core/installer_steps.c \
+              src/core/hard_steps.c \
+              src/core/final_step.c \
+              src/core/firts_filesystems.c \
+              src/core/step_partition.c \
+              src/core/step_format.c \
               src/i18n/lang_manager.c \
               src/i18n/lang_en.c \
               src/i18n/lang_es.c \

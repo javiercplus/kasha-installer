@@ -1052,9 +1052,15 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
              * (persistent, survives reboot).  Inside the chroot /var/service is
              * replaced with a real directory by the script, so test -L would
              * return false.  The /etc/runit/runsvdir/default path is always a
-             * real directory and its entries are the ground truth. */
-            int sddm_enabled    = (run_sync(app, "test -e %s/etc/runit/runsvdir/default/sddm",    TARGETDIR) == 0);
-            int lightdm_enabled = (run_sync(app, "test -e %s/etc/runit/runsvdir/default/lightdm", TARGETDIR) == 0);
+             * real directory and its entries are the ground truth.
+             *
+             * IMPORTANT: use test -L, NOT test -e.  The symlinks point to
+             * absolute paths (/etc/sv/sddm).  test -e follows symlinks and
+             * from the live system resolves to /etc/sv/sddm on the LIVE host,
+             * which may not have SDDM installed → false negative → autologin
+             * silently skipped.  test -L only checks the symlink itself. */
+            int sddm_enabled    = (run_sync(app, "test -L %s/etc/runit/runsvdir/default/sddm",    TARGETDIR) == 0);
+            int lightdm_enabled = (run_sync(app, "test -L %s/etc/runit/runsvdir/default/lightdm", TARGETDIR) == 0);
 
             if (sddm_enabled) {
                 log_to_ui(app, "Configuring SDDM autologin...", 0.87);

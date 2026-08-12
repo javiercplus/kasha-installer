@@ -25,7 +25,7 @@
 
 /* Official Neko-Void rootfs used to bootstrap the base system. */
 #define ROOTFS_URL \
-    "https://github.com/Neko-Void-Linux/rootfs-custom/releases/download/stable/void-x86_64-ROOTFS-20250202.tar.xz"
+    "https://github.com/Neko-Void-Linux/rootfs-custom/releases/download/stable/neko-void.tar.xz"
 #define ROOTFS_TARBALL "/tmp/void-rootfs.tar.xz"
 #define VOID_REPO "https://repo-de.voidlinux.org/current/"
 

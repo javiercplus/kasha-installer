@@ -513,11 +513,56 @@ void on_install_type_changed(GtkToggleButton *toggle, AppData *app) {
 }
 
 #ifdef HAS_DESKTOP_TAB
+/* The mutually-exclusive desktop check buttons (the "local (default)"
+ * checkbox is handled separately as an alternative to this group). */
+static GtkWidget** desktop_group_ptrs(AppData *app) {
+    static GtkWidget *widgets[7];
+    widgets[0] = app->chk_desktop_xfce;
+    widgets[1] = app->chk_desktop_niri;
+    widgets[2] = app->chk_desktop_kde;
+    widgets[3] = app->chk_desktop_icejwm;
+    widgets[4] = app->chk_desktop_mate;
+    widgets[5] = app->chk_desktop_labwc;
+    widgets[6] = app->chk_desktop_lxqt;
+    return widgets;
+}
+
+/* Uncheck every desktop option except (optionally) the one being kept. */
+static void uncheck_desktop_group(AppData *app, GtkWidget *keep) {
+    GtkWidget **widgets = desktop_group_ptrs(app);
+    for (guint i = 0; i < 7; i++) {
+        if (!widgets[i] || widgets[i] == keep) continue;
+        g_signal_handlers_block_by_func(widgets[i], on_desktop_selected, app);
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(widgets[i]), FALSE);
+        g_signal_handlers_unblock_by_func(widgets[i], on_desktop_selected, app);
+    }
+}
+
 /* "local (default)" checkbox: when checked the live image is copied as-is
- * and the other desktops (rootfs-based install) are locked. */
+ * and the other desktops (rootfs-based install) are locked. Selecting it
+ * also clears any previously chosen desktop so both can never be active. */
 void on_local_default_toggled(GtkToggleButton *toggle, AppData *app) {
     gboolean local = gtk_toggle_button_get_active(toggle);
     if (app->desktop_sel_box)
         gtk_widget_set_sensitive(app->desktop_sel_box, !local);
+    if (local)
+        uncheck_desktop_group(app, NULL);
+}
+
+/* Desktop group is single-select: checking one unchecks the others and
+ * clears "local (default)", so only one desktop (or local) is active. */
+void on_desktop_selected(GtkToggleButton *toggle, AppData *app) {
+    if (!gtk_toggle_button_get_active(toggle)) return;
+
+    uncheck_desktop_group(app, GTK_WIDGET(toggle));
+
+    if (app->chk_desktop_local &&
+        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_local))) {
+        g_signal_handlers_block_by_func(app->chk_desktop_local, on_local_default_toggled, app);
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->chk_desktop_local), FALSE);
+        g_signal_handlers_unblock_by_func(app->chk_desktop_local, on_local_default_toggled, app);
+        if (app->desktop_sel_box)
+            gtk_widget_set_sensitive(app->desktop_sel_box, TRUE);
+    }
 }
 #endif /* HAS_DESKTOP_TAB */

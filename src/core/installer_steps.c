@@ -1027,7 +1027,48 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         // Fix ownership of user home directory
         run_sync(app, "chroot %s chown -R %s:%s /home/%s 2>/dev/null || true", TARGETDIR, user_login, user_login, user_login);
 
-        // Autologin
+        // Privilege Manager: doas or sudo
+        if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->radio_priv_doas))) {
+            log_to_ui(app, "Configuring doas (lightweight privilege manager)...", 0.88);
+
+            // 1. Prevent sudo from being pulled as a dependency
+            run_sync(app, "mkdir -p %s/etc/xbps.d", TARGETDIR);
+            run_sync(app, "if ! grep -q 'ignorepkg=sudo' %s/etc/xbps.d/10-ignore.conf 2>/dev/null; then "
+                           "echo 'ignorepkg=sudo' >> %s/etc/xbps.d/10-ignore.conf; fi",
+                     TARGETDIR, TARGETDIR);
+
+            // 2. Install opendoas
+            run_sync(app, "chroot %s xbps-install -Sy --repository=https://repo-de.voidlinux.org/current/ opendoas", TARGETDIR);
+
+            // 3. Configure doas.conf
+            run_sync(app, "printf '# doas configuration\npermit persist keepenv :wheel\n' > %s/etc/doas.conf", TARGETDIR);
+            run_sync(app, "chmod 0400 %s/etc/doas.conf", TARGETDIR);
+
+            // 4. Remove sudo (will be ignored by xbps from now on)
+            run_sync(app, "chroot %s xbps-remove -Ry sudo", TARGETDIR);
+
+            // Still write sudoers as fallback
+            run_sync(app, "mkdir -p %s/etc/sudoers.d", TARGETDIR);
+            run_sync(app, "echo '%%wheel ALL=(ALL:ALL) ALL' > %s/etc/sudoers.d/wheel", TARGETDIR);
+            run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
+        } else {
+            // Traditional sudo
+            log_to_ui(app, "Configuring sudo...", 0.88);
+            run_sync(app, "chroot %s xbps-install -Sy --repository=https://repo-de.voidlinux.org/current/ sudo", TARGETDIR);
+            run_sync(app, "echo '%%wheel ALL=(ALL:ALL) ALL' > %s/etc/sudoers.d/wheel", TARGETDIR);
+            run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
+        }
+    }
+
+    generate_fstab(app, TARGETDIR);
+    generate_crypttab(app, TARGETDIR);
+
+
+    // ================================================================
+    // AUTOLOGIN — must be the absolute LAST step.  Nothing below
+    // this point touches DM config, group membership or PAM data.
+    // ================================================================
+    if (strlen(user_login) > 0) {
         char emptty_conf_path[512];
         snprintf(emptty_conf_path, sizeof(emptty_conf_path), "%s/etc/emptty/conf", TARGETDIR);
 
@@ -1103,42 +1144,7 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
             run_sync(app, "chroot %s gpasswd -d %s nopasswdlogin 2>/dev/null || true", TARGETDIR, user_login);
             run_sync(app, "chroot %s groupdel nopasswdlogin 2>/dev/null || true", TARGETDIR);
         }
-
-        // Privilege Manager: doas or sudo
-        if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->radio_priv_doas))) {
-            log_to_ui(app, "Configuring doas (lightweight privilege manager)...", 0.88);
-
-            // 1. Prevent sudo from being pulled as a dependency
-            run_sync(app, "mkdir -p %s/etc/xbps.d", TARGETDIR);
-            run_sync(app, "if ! grep -q 'ignorepkg=sudo' %s/etc/xbps.d/10-ignore.conf 2>/dev/null; then "
-                           "echo 'ignorepkg=sudo' >> %s/etc/xbps.d/10-ignore.conf; fi",
-                     TARGETDIR, TARGETDIR);
-
-            // 2. Install opendoas
-            run_sync(app, "chroot %s xbps-install -Sy --repository=https://repo-de.voidlinux.org/current/ opendoas", TARGETDIR);
-
-            // 3. Configure doas.conf
-            run_sync(app, "printf '# doas configuration\npermit persist keepenv :wheel\n' > %s/etc/doas.conf", TARGETDIR);
-            run_sync(app, "chmod 0400 %s/etc/doas.conf", TARGETDIR);
-
-            // 4. Remove sudo (will be ignored by xbps from now on)
-            run_sync(app, "chroot %s xbps-remove -Ry sudo", TARGETDIR);
-
-            // Still write sudoers as fallback
-            run_sync(app, "mkdir -p %s/etc/sudoers.d", TARGETDIR);
-            run_sync(app, "echo '%%wheel ALL=(ALL:ALL) ALL' > %s/etc/sudoers.d/wheel", TARGETDIR);
-            run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
-        } else {
-            // Traditional sudo
-            log_to_ui(app, "Configuring sudo...", 0.88);
-            run_sync(app, "chroot %s xbps-install -Sy --repository=https://repo-de.voidlinux.org/current/ sudo", TARGETDIR);
-            run_sync(app, "echo '%%wheel ALL=(ALL:ALL) ALL' > %s/etc/sudoers.d/wheel", TARGETDIR);
-            run_sync(app, "chmod 0440 %s/etc/sudoers.d/wheel", TARGETDIR);
-        }
     }
-
-    generate_fstab(app, TARGETDIR);
-    generate_crypttab(app, TARGETDIR);
 
     return 0;
 }

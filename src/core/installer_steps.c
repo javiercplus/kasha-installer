@@ -1110,6 +1110,7 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
                  * prompt.  KDE Plasma always registers its session as 'plasma'. */
                 run_sync(app, "printf '[Autologin]\\nUser=%s\\nSession=plasma\\n' > %s/etc/sddm.conf.d/autologin.conf",
                          user_login, TARGETDIR);
+                run_sync(app, "rm -f %s/etc/sddm.conf", TARGETDIR);
             } else if (lightdm_enabled) {
                 log_to_ui(app, "Configuring LightDM autologin...", 0.87);
                 run_sync(app, "sed -i 's/^autologin-user=.*/autologin-user=%s/' %s/etc/lightdm/lightdm.conf",

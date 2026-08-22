@@ -105,8 +105,8 @@ static const char BASE_PACKAGES[] =
 
 #define LABWC_PACKAGES \
     "ristretto xarchiver lightdm gvfs-afc gvfs-mtp gvfs-smb wlr-randr mako " \
-    "xwayland-satellite swaylock mate-polkit labwc alacritty kanshi sfwbar " \
-    "xdg-desktop-portal xdg-desktop-portal-wlr playerctl rofi nwg-look gtk-update-icon-cache " \
+    "xwayland-satellite swaylock mate-polkit labwc alacritty kanshi noctalia " \
+    "xdg-desktop-portal xdg-desktop-portal-wlr playerctl nwg-look gtk-update-icon-cache " \
     "wl-clipboard wlopm mpv geany grim slurp gtksourceview json-c yad waterfox " \
     "gtk-layer-shell gtkmm pcmanfm wdisplays"
 

@@ -11,7 +11,13 @@ DESKTOP_FLAG = -DHAS_DESKTOP_TAB
 # Shared source files (both builds)
 # -----------------------------------------------------------------------
 SRCS_COMMON = src/core/main.c \
-              src/ui/ui.c \
+              src/ui/build_ui.c \
+              src/ui/ui_css.c \
+              src/ui/ui_i18n.c \
+              src/ui/ui_welcome.c \
+              src/ui/ui_widgets.c \
+              src/ui/ui_desktop.c \
+              src/ui/ui_finished.c \
               src/core/utils.c \
               src/core/installer.c \
               src/core/partition_utils.c \

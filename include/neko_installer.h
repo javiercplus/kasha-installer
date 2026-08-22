@@ -224,6 +224,9 @@ void on_lang_toggled(GtkWidget *widget, AppData *app);
 void on_manual_check_toggled(GtkToggleButton *toggle, AppData *app);
 void on_install_type_changed(GtkToggleButton *toggle, AppData *app);
 void on_local_default_toggled(GtkToggleButton *toggle, AppData *app);
+#ifdef HAS_DESKTOP_TAB
+void on_desktop_selected(GtkToggleButton *toggle, AppData *app);
+#endif
 
 // ui.c (Main)
 void build_ui(AppData *app);

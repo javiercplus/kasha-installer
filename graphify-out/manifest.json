@@ -1,0 +1,284 @@
+{
+  "build.sh": {
+    "mtime": 1785283247.795215,
+    "seen": 1787278209.1064746,
+    "ast_hash": "166e24857b2cce705c69587ff7d942b6",
+    "semantic_hash": "166e24857b2cce705c69587ff7d942b6"
+  },
+  "downloader/build.sh": {
+    "mtime": 1785283247.796335,
+    "seen": 1787278209.1064806,
+    "ast_hash": "a9ed8a207b2251d90c73b48063128cf6",
+    "semantic_hash": "a9ed8a207b2251d90c73b48063128cf6"
+  },
+  "downloader/main.c": {
+    "mtime": 1785283247.796335,
+    "seen": 1787278209.1064832,
+    "ast_hash": "69b80acac4b361a91f480c539fe810ad",
+    "semantic_hash": "69b80acac4b361a91f480c539fe810ad"
+  },
+  "extra/installer.sh": {
+    "mtime": 1785283247.796335,
+    "seen": 1787278209.1064847,
+    "ast_hash": "a3a9f050279c9bd4f7d2c9c128e51ee9",
+    "semantic_hash": "a3a9f050279c9bd4f7d2c9c128e51ee9"
+  },
+  "include/country_data.h": {
+    "mtime": 1785283247.796335,
+    "seen": 1787278209.1064866,
+    "ast_hash": "53ec1e0a3458a2a6d4163889df33b4c2",
+    "semantic_hash": "53ec1e0a3458a2a6d4163889df33b4c2"
+  },
+  "include/lang.h": {
+    "mtime": 1786377178.819451,
+    "seen": 1787278209.1064882,
+    "ast_hash": "7ec70bd7e3f304a7f6f2daeee5263af4",
+    "semantic_hash": "7ec70bd7e3f304a7f6f2daeee5263af4"
+  },
+  "include/logo.h": {
+    "mtime": 1785283247.796712,
+    "seen": 1787278209.1064901,
+    "ast_hash": "0c4e30e7c46be9dfa78b0235e3044d4e",
+    "semantic_hash": "0c4e30e7c46be9dfa78b0235e3044d4e"
+  },
+  "include/neko_installer.h": {
+    "mtime": 1786555412.117725,
+    "seen": 1787278209.1064913,
+    "ast_hash": "b58741a2ad0606720c7825f1fbd6af3d",
+    "semantic_hash": "b58741a2ad0606720c7825f1fbd6af3d"
+  },
+  "include/ui_internal.h": {
+    "mtime": 1786512641.9589195,
+    "seen": 1787278209.106493,
+    "ast_hash": "40faddf4dea659260e8ddc80d6bac30c",
+    "semantic_hash": "40faddf4dea659260e8ddc80d6bac30c"
+  },
+  "src/core/country_data.c": {
+    "mtime": 1785283247.7975392,
+    "seen": 1787278209.1064944,
+    "ast_hash": "326c8d1164e76f24e2545ac39b9942e8",
+    "semantic_hash": "326c8d1164e76f24e2545ac39b9942e8"
+  },
+  "src/core/desktops-setup.c": {
+    "mtime": 1786400852.2600245,
+    "seen": 1787278209.106496,
+    "ast_hash": "7509f5a6e248164e3c5438cdc3c8fbc0",
+    "semantic_hash": "7509f5a6e248164e3c5438cdc3c8fbc0"
+  },
+  "src/core/final_step.c": {
+    "mtime": 1786509396.295528,
+    "seen": 1787278209.1064978,
+    "ast_hash": "5f5dc8bdfd0b3be40e496c442a804460",
+    "semantic_hash": "5f5dc8bdfd0b3be40e496c442a804460"
+  },
+  "src/core/firts_filesystems.c": {
+    "mtime": 1786510732.6833653,
+    "seen": 1787278209.106499,
+    "ast_hash": "2b7ff5144d3ddf9131ad42b82492825d",
+    "semantic_hash": "2b7ff5144d3ddf9131ad42b82492825d"
+  },
+  "src/core/hard_steps.c": {
+    "mtime": 1786511070.715221,
+    "seen": 1787278209.1065006,
+    "ast_hash": "ba662d86e6790b06129a352fa73ab5b7",
+    "semantic_hash": "ba662d86e6790b06129a352fa73ab5b7"
+  },
+  "src/core/installer.c": {
+    "mtime": 1786483921.4861796,
+    "seen": 1787278209.106502,
+    "ast_hash": "dba930454b1c73f6be34f2effba9411d",
+    "semantic_hash": "dba930454b1c73f6be34f2effba9411d"
+  },
+  "src/core/installer_steps_void.c": {
+    "mtime": 1786416037.7422557,
+    "seen": 1787278209.1065035,
+    "ast_hash": "6948b59f6f579c2a3d590aaecf58ca08",
+    "semantic_hash": "6948b59f6f579c2a3d590aaecf58ca08"
+  },
+  "src/core/main.c": {
+    "mtime": 1785283247.797647,
+    "seen": 1787278209.106505,
+    "ast_hash": "8a509edca1b5ba410b75137c7e853ead",
+    "semantic_hash": "8a509edca1b5ba410b75137c7e853ead"
+  },
+  "src/core/partition_utils.c": {
+    "mtime": 1785283247.797647,
+    "seen": 1787278209.1065066,
+    "ast_hash": "ad2f87fdf87b9edf4cb1ada527ee989a",
+    "semantic_hash": "ad2f87fdf87b9edf4cb1ada527ee989a"
+  },
+  "src/core/rootfs-base.c": {
+    "mtime": 1786492626.268916,
+    "seen": 1787278209.1065078,
+    "ast_hash": "36146621a54f63972a7ec74ac4f95f03",
+    "semantic_hash": "36146621a54f63972a7ec74ac4f95f03"
+  },
+  "src/core/step_format.c": {
+    "mtime": 1786510852.3835447,
+    "seen": 1787278209.106509,
+    "ast_hash": "3c55289d7ac5f7aaa1f2d1f2f3dd6899",
+    "semantic_hash": "3c55289d7ac5f7aaa1f2d1f2f3dd6899"
+  },
+  "src/core/step_partition.c": {
+    "mtime": 1786510468.0929317,
+    "seen": 1787278209.1065104,
+    "ast_hash": "24d167faf646596dfa0129d1772a3fd4",
+    "semantic_hash": "24d167faf646596dfa0129d1772a3fd4"
+  },
+  "src/core/utils.c": {
+    "mtime": 1785283247.797647,
+    "seen": 1787278209.1065116,
+    "ast_hash": "41914d899a0aba1c2a36ba1f5f687408",
+    "semantic_hash": "41914d899a0aba1c2a36ba1f5f687408"
+  },
+  "src/i18n/lang_en.c": {
+    "mtime": 1786377201.3094156,
+    "seen": 1787278209.1065135,
+    "ast_hash": "6c9ba64df9a05af0229a9900b4331362",
+    "semantic_hash": "6c9ba64df9a05af0229a9900b4331362"
+  },
+  "src/i18n/lang_es.c": {
+    "mtime": 1786377240.731353,
+    "seen": 1787278209.1065147,
+    "ast_hash": "595e2be2ef49e0c114480c1631edcf5a",
+    "semantic_hash": "595e2be2ef49e0c114480c1631edcf5a"
+  },
+  "src/i18n/lang_ja.c": {
+    "mtime": 1786377284.0502841,
+    "seen": 1787278209.106516,
+    "ast_hash": "470ee0f2ba4949d14515aab7226f2c5a",
+    "semantic_hash": "470ee0f2ba4949d14515aab7226f2c5a"
+  },
+  "src/i18n/lang_manager.c": {
+    "mtime": 1785283247.7982738,
+    "seen": 1787278209.1065173,
+    "ast_hash": "36888d1d043597ba01d8eeaa8af0003d",
+    "semantic_hash": "36888d1d043597ba01d8eeaa8af0003d"
+  },
+  "src/ui/build_ui.c": {
+    "mtime": 1786555437.5826437,
+    "seen": 1787278209.1065187,
+    "ast_hash": "ce12261f84fac14cccb0ff6c479b6545",
+    "semantic_hash": "ce12261f84fac14cccb0ff6c479b6545"
+  },
+  "src/ui/ui_callbacks.c": {
+    "mtime": 1786555437.5826437,
+    "seen": 1787278209.1065202,
+    "ast_hash": "bca40c3173bc6ee87f8a0e4468068940",
+    "semantic_hash": "bca40c3173bc6ee87f8a0e4468068940"
+  },
+  "src/ui/ui_css.c": {
+    "mtime": 1786555437.5826437,
+    "seen": 1787278209.1065214,
+    "ast_hash": "9fbfb2b5d0c39d6b15eef7653d904341",
+    "semantic_hash": "9fbfb2b5d0c39d6b15eef7653d904341"
+  },
+  "src/ui/ui_desktop.c": {
+    "mtime": 1786555437.5826437,
+    "seen": 1787278209.1065226,
+    "ast_hash": "ce39cc333fe709db5948bf9be6df233b",
+    "semantic_hash": "ce39cc333fe709db5948bf9be6df233b"
+  },
+  "src/ui/ui_finished.c": {
+    "mtime": 1786555437.5826437,
+    "seen": 1787278209.106524,
+    "ast_hash": "5ee384f27a68cfd09d3a68ccfe5c93bc",
+    "semantic_hash": "5ee384f27a68cfd09d3a68ccfe5c93bc"
+  },
+  "src/ui/ui_i18n.c": {
+    "mtime": 1786555437.5826437,
+    "seen": 1787278209.1065252,
+    "ast_hash": "be51cf81a7fe5b9188e3f4b738259c34",
+    "semantic_hash": "be51cf81a7fe5b9188e3f4b738259c34"
+  },
+  "src/ui/ui_partition.c": {
+    "mtime": 1785283247.798618,
+    "seen": 1787278209.1065264,
+    "ast_hash": "ef2c0b1deb658ba8b8498c37f4bf1f71",
+    "semantic_hash": "ef2c0b1deb658ba8b8498c37f4bf1f71"
+  },
+  "src/ui/ui_welcome.c": {
+    "mtime": 1786555437.5826437,
+    "seen": 1787278209.106528,
+    "ast_hash": "d5b58a5fc0725fa3cb7043fc90ef7aeb",
+    "semantic_hash": "d5b58a5fc0725fa3cb7043fc90ef7aeb"
+  },
+  "src/ui/ui_widgets.c": {
+    "mtime": 1786555437.5826437,
+    "seen": 1787278209.106529,
+    "ast_hash": "75c56ad1aeb3f93c8a1e8846b141cd27",
+    "semantic_hash": "75c56ad1aeb3f93c8a1e8846b141cd27"
+  },
+  ".forgejo/workflows/build.yml": {
+    "mtime": 1785283247.794473,
+    "seen": 1787278209.1065307,
+    "ast_hash": "233a76cfa4d5eac63ae3067cbb5632d7",
+    "semantic_hash": "233a76cfa4d5eac63ae3067cbb5632d7"
+  },
+  "CONTRIBUTING.md": {
+    "mtime": 1785283247.794473,
+    "seen": 1787278209.1065319,
+    "ast_hash": "b67f8bf000f9429b6aea6532d4454848",
+    "semantic_hash": "b67f8bf000f9429b6aea6532d4454848"
+  },
+  "README.md": {
+    "mtime": 1785283247.794473,
+    "seen": 1787278209.106533,
+    "ast_hash": "0b999725e767e6cf7d774b71e9658113",
+    "semantic_hash": "0b999725e767e6cf7d774b71e9658113"
+  },
+  "assets/bootloader.png": {
+    "mtime": 1785283247.794473,
+    "seen": 1787278209.1065347,
+    "ast_hash": "4ee88c1b2c1fcc744774368bc6bbe41c",
+    "semantic_hash": "4ee88c1b2c1fcc744774368bc6bbe41c"
+  },
+  "assets/installation_type.png": {
+    "mtime": 1785283247.7951045,
+    "seen": 1787278209.106536,
+    "ast_hash": "43724d0ad548680b9cbe114647a16d2b",
+    "semantic_hash": "43724d0ad548680b9cbe114647a16d2b"
+  },
+  "assets/kasha-white.png": {
+    "mtime": 1785283247.7951045,
+    "seen": 1787278209.1065376,
+    "ast_hash": "58cee6102b8694a3dd96cbc54a389b85",
+    "semantic_hash": "58cee6102b8694a3dd96cbc54a389b85"
+  },
+  "assets/kasha.png": {
+    "mtime": 1785283247.7951045,
+    "seen": 1787278209.1065388,
+    "ast_hash": "48e720352d9947978958192166adcdb6",
+    "semantic_hash": "48e720352d9947978958192166adcdb6"
+  },
+  "assets/kasha.svg": {
+    "mtime": 1785283247.7951045,
+    "seen": 1787278209.10654,
+    "ast_hash": "45367a35bfa7ebd1415c28cffc8d8ea8",
+    "semantic_hash": "45367a35bfa7ebd1415c28cffc8d8ea8"
+  },
+  "assets/system.png": {
+    "mtime": 1785283247.795215,
+    "seen": 1787278209.106542,
+    "ast_hash": "7b8b65bf30eb4e26b8f9380165e90fa1",
+    "semantic_hash": "7b8b65bf30eb4e26b8f9380165e90fa1"
+  },
+  "assets/users.png": {
+    "mtime": 1785283247.795215,
+    "seen": 1787278209.1065435,
+    "ast_hash": "a2c83dc76057ebe7b517af763f63eae3",
+    "semantic_hash": "a2c83dc76057ebe7b517af763f63eae3"
+  },
+  "assets/welcome.png": {
+    "mtime": 1785283247.795215,
+    "seen": 1787278209.106545,
+    "ast_hash": "345b281644429d9a64386e0b68d33055",
+    "semantic_hash": "345b281644429d9a64386e0b68d33055"
+  },
+  "logo.png": {
+    "mtime": 1785283247.796712,
+    "seen": 1787278209.1065462,
+    "ast_hash": "a4d2654e3390c3a7752dd177a59389da",
+    "semantic_hash": "a4d2654e3390c3a7752dd177a59389da"
+  }
+}

@@ -5,7 +5,16 @@ TARGET = neko_installer
 CC     = gcc
 CFLAGS = -Wall -Wextra -g `pkg-config --cflags gtk+-3.0` -Iinclude
 LIBS   = `pkg-config --libs gtk+-3.0` -lpthread
+
+# -----------------------------------------------------------------------
+# Desktop tab.
+#   make                      -> build WITH the desktop tab (default)
+#   make NO_DESKTOP_TAB=1     -> build WITHOUT it. The installer then always
+#                                copies the live image as-is ("local copy").
+# -----------------------------------------------------------------------
+ifneq ($(NO_DESKTOP_TAB),1)
 DESKTOP_FLAG = -DHAS_DESKTOP_TAB
+endif
 
 # -----------------------------------------------------------------------
 # Shared source files (both builds)
@@ -40,14 +49,19 @@ SRCS_COMMON = src/core/main.c \
 # -----------------------------------------------------------------------
 SRCS_VOID = src/core/installer_steps_void.c
 
-# Desktop setup module (normal build only)
+# Desktop setup module (normal build only, skipped when NO_DESKTOP_TAB=1)
 SRCS_DESKTOP = src/core/desktops-setup.c
 
-# Rootfs-based base install (normal build only)
+# Rootfs-based base install (normal build only, skipped when NO_DESKTOP_TAB=1)
 SRCS_ROOTFS = src/core/rootfs-base.c
 
-# Build normal: common + Void module + Desktop
+ifneq ($(NO_DESKTOP_TAB),1)
+# Build normal: common + Void module + Desktop + Rootfs
 SRCS = $(SRCS_COMMON) $(SRCS_VOID) $(SRCS_DESKTOP) $(SRCS_ROOTFS)
+else
+# Build without desktop: common + Void module only (local-copy install)
+SRCS = $(SRCS_COMMON) $(SRCS_VOID)
+endif
 OBJS = $(SRCS:.c=.o)
 
 # Build universal: objects in build/universal/ to avoid mixing flags

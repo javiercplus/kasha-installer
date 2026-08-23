@@ -118,6 +118,13 @@ make universal
 sudo make run-universal
 ```
 
+**Minimal Build (without the Desktop tab):**
+Build a leaner installer that omits the "Desktop" tab and the rootfs-based desktop installation modules. The installation then always copies the live image as-is (the "local copy" default), so no desktop environment is selected or installed:
+```bash
+make NO_DESKTOP_TAB=1
+sudo make NO_DESKTOP_TAB=1 run
+```
+
 
 
 ## Customization

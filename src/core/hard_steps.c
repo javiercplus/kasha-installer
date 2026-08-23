@@ -171,6 +171,22 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
     run_sync(app, "chroot %s locale-gen 2>/dev/null || true", TARGETDIR);
 #endif
 
+    /* --- Regional translation fallback patch ---
+     * Upstream often ships broken/empty .mo files for regional variants.
+     * Force a copy of ALL base-language translations (e.g. 'es') over the
+     * regional ones (e.g. 'es_VE') to guarantee a fully translated system
+     * across all applications. */
+    log_to_ui(app, "Patching regional translations for all packages...", 0.76);
+    run_sync(app,
+        "chroot %s sh -c '"
+        "BASE_LANG=$(echo \"%s\" | cut -d\"_\" -f1); "
+        "REGIONAL_LANG=$(echo \"%s\" | cut -d\".\" -f1); "
+        "if [ \"$BASE_LANG\" != \"$REGIONAL_LANG\" ] && [ -d \"/usr/share/locale/$BASE_LANG/LC_MESSAGES\" ]; then "
+        "  mkdir -p \"/usr/share/locale/$REGIONAL_LANG/LC_MESSAGES\"; "
+        "  cp -f /usr/share/locale/$BASE_LANG/LC_MESSAGES/*.mo \"/usr/share/locale/$REGIONAL_LANG/LC_MESSAGES/\" 2>/dev/null || true; "
+        "fi'",
+        TARGETDIR, locale, locale);
+
     // KEYMAP SETUP — configure keyboard layout for console, X11 and Wayland
     {
         const char *console_kmap = "us";
@@ -431,6 +447,49 @@ int step_configure_system(AppData *app, const char *TARGETDIR, const gchar *host
         /* --- Void Linux: copy XBPS repository configuration --- */
         void_copy_xbpsd_config(app, TARGETDIR);
 #endif
+
+        // ================================================================
+        // XDG USER DIRECTORIES (localized per base language)
+        // ================================================================
+        log_to_ui(app, "Generating localized user directories...", 0.85);
+        run_sync(app,
+            "chroot %s sh -c '"
+            "BASE_LANG=$(echo \"%s\" | cut -d\"_\" -f1); "
+            "USER_HOME=\"/home/%s\"; "
+            "case \"$BASE_LANG\" in "
+            "  es) D_DESK=\"Escritorio\"; D_DOCS=\"Documentos\"; D_DOWN=\"Descargas\"; D_MUS=\"Música\"; D_PIC=\"Imágenes\"; D_PUB=\"Público\"; D_TPL=\"Plantillas\"; D_VID=\"Vídeos\"; D_PROJ=\"Proyectos\" ;; "
+            "  fr) D_DESK=\"Bureau\"; D_DOCS=\"Documents\"; D_DOWN=\"Téléchargements\"; D_MUS=\"Musique\"; D_PIC=\"Images\"; D_PUB=\"Public\"; D_TPL=\"Modèles\"; D_VID=\"Vidéos\"; D_PROJ=\"Projets\" ;; "
+            "  ja) D_DESK=\"デスクトップ\"; D_DOCS=\"ドキュメント\"; D_DOWN=\"ダウンロード\"; D_MUS=\"ミュージック\"; D_PIC=\"ピクチャ\"; D_PUB=\"公開\"; D_TPL=\"テンプレート\"; D_VID=\"ビデオ\"; D_PROJ=\"プロジェクト\" ;; "
+            "  pt) D_DESK=\"Área de Trabalho\"; D_DOCS=\"Documentos\"; D_DOWN=\"Downloads\"; D_MUS=\"Música\"; D_PIC=\"Imagens\"; D_PUB=\"Público\"; D_TPL=\"Modelos\"; D_VID=\"Vídeos\"; D_PROJ=\"Projetos\" ;; "
+            "  de) D_DESK=\"Schreibtisch\"; D_DOCS=\"Dokumente\"; D_DOWN=\"Downloads\"; D_MUS=\"Musik\"; D_PIC=\"Bilder\"; D_PUB=\"Öffentlich\"; D_TPL=\"Vorlagen\"; D_VID=\"Videos\"; D_PROJ=\"Projekte\" ;; "
+            "  ru) D_DESK=\"Рабочий стол\"; D_DOCS=\"Документы\"; D_DOWN=\"Загрузки\"; D_MUS=\"Музыка\"; D_PIC=\"Изображения\"; D_PUB=\"Общедоступные\"; D_TPL=\"Шаблоны\"; D_VID=\"Видео\"; D_PROJ=\"Проекты\" ;; "
+            "  uk) D_DESK=\"Робочий стіл\"; D_DOCS=\"Документи\"; D_DOWN=\"Завантаження\"; D_MUS=\"Музика\"; D_PIC=\"Зображення\"; D_PUB=\"Загальнодоступні\"; D_TPL=\"Шаблони\"; D_VID=\"Відео\"; D_PROJ=\"Проєкти\" ;; "
+            "  it) D_DESK=\"Scrivania\"; D_DOCS=\"Documenti\"; D_DOWN=\"Download\"; D_MUS=\"Musica\"; D_PIC=\"Immagini\"; D_PUB=\"Pubblici\"; D_TPL=\"Modelli\"; D_VID=\"Video\"; D_PROJ=\"Progetti\" ;; "
+            "  *)  D_DESK=\"Desktop\"; D_DOCS=\"Documents\"; D_DOWN=\"Downloads\"; D_MUS=\"Music\"; D_PIC=\"Pictures\"; D_PUB=\"Public\"; D_TPL=\"Templates\"; D_VID=\"Videos\"; D_PROJ=\"Projects\" ;; "
+            "esac; "
+            "mkdir -p \"$USER_HOME/$D_DESK\" \"$USER_HOME/$D_DOCS\" \"$USER_HOME/$D_DOWN\" "
+            "         \"$USER_HOME/$D_MUS\" \"$USER_HOME/$D_PIC\" \"$USER_HOME/$D_PUB\" "
+            "         \"$USER_HOME/$D_TPL\" \"$USER_HOME/$D_VID\" \"$USER_HOME/$D_PROJ\" \"$USER_HOME/.config\"; "
+            "cat <<EOF > \"$USER_HOME/.config/user-dirs.dirs\"\n"
+            "XDG_DESKTOP_DIR=\"$USER_HOME/$D_DESK/\"\n"
+            "XDG_DOCUMENTS_DIR=\"$USER_HOME/$D_DOCS/\"\n"
+            "XDG_DOWNLOAD_DIR=\"$USER_HOME/$D_DOWN/\"\n"
+            "XDG_MUSIC_DIR=\"$USER_HOME/$D_MUS/\"\n"
+            "XDG_PICTURES_DIR=\"$USER_HOME/$D_PIC/\"\n"
+            "XDG_PROJECTS_DIR=\"\\$HOME/$D_PROJ\"\n"
+            "XDG_PUBLICSHARE_DIR=\"$USER_HOME/$D_PUB/\"\n"
+            "XDG_TEMPLATES_DIR=\"$USER_HOME/$D_TPL/\"\n"
+            "XDG_VIDEOS_DIR=\"$USER_HOME/$D_VID/\"\n"
+            "EOF\n"
+            "chown -R %s:%s \"$USER_HOME\"'",
+            TARGETDIR, locale, user_login, user_login, user_login);
+
+        // Comment out the xdg-user-dirs-update call inside rice_set so it
+        // does not overwrite the localized directory names just created.
+        log_to_ui(app, "Patching rice_set (disable xdg-user-dirs-update)...", 0.85);
+        run_sync(app,
+            "sed -i 's|^\\([[:space:]]*xdg-user-dirs-update.*\\)$|# \\1|' "
+            "%s/usr/bin/rice_set 2>/dev/null || true", TARGETDIR);
 
         // Fix ownership of user home directory
         run_sync(app, "chroot %s chown -R %s:%s /home/%s 2>/dev/null || true", TARGETDIR, user_login, user_login, user_login);

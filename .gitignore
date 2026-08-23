@@ -2,6 +2,9 @@
 # Object files
 *.o
 
+# Build configuration stamp
+.build_config
+
 # Compiled Binary
 neko_installer
 neko_installer_universal

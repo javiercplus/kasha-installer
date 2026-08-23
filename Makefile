@@ -14,6 +14,9 @@ LIBS   = `pkg-config --libs gtk+-3.0` -lpthread
 # -----------------------------------------------------------------------
 ifneq ($(NO_DESKTOP_TAB),1)
 DESKTOP_FLAG = -DHAS_DESKTOP_TAB
+BUILD_CONFIG = desktop
+else
+BUILD_CONFIG = nodektop
 endif
 
 # -----------------------------------------------------------------------
@@ -71,7 +74,24 @@ OBJS_UNI     = $(addprefix $(BUILDDIR_UNI)/,$(notdir $(SRCS_COMMON:.c=.o)))
 # -----------------------------------------------------------------------
 # Reglas
 # -----------------------------------------------------------------------
-all: $(TARGET)
+
+# Object files do NOT track compiler-flag changes on their own. Record the
+# current build configuration in a stamp file so that toggling
+# NO_DESKTOP_TAB (or any other flag below) forces a clean rebuild instead
+# of reusing stale objects / a stale binary.
+BUILD_STAMP = .build_config
+
+all: $(BUILD_STAMP) $(TARGET)
+
+$(BUILD_STAMP): FORCE
+	@if [ -f "$@" ] && [ "$$(cat "$@")" != "$(BUILD_CONFIG)" ]; then \
+		echo ">>> Build configuration changed ($(BUILD_CONFIG)), cleaning previous objects..."; \
+		$(MAKE) clean; \
+	fi
+	@echo "$(BUILD_CONFIG)" > "$@"
+
+.PHONY: FORCE
+FORCE:
 
 # --- Normal build (Void Linux) ---
 $(TARGET): $(OBJS)
@@ -103,7 +123,9 @@ universal: $(OBJS_UNI)
 
 # Clean
 clean:
-	rm -f $(OBJS) $(TARGET) $(TARGET)_universal
+	rm -f $(TARGET) $(TARGET)_universal
+	rm -f src/core/*.o src/ui/*.o src/i18n/*.o
+	rm -f $(BUILD_STAMP)
 	rm -rf $(BUILDDIR_UNI)
 
 # Run (requires sudo to mount disks)

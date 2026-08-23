@@ -121,6 +121,16 @@ void on_back_clicked(GtkWidget *widget, AppData *app) {
 }
 
 static void update_nav_buttons(AppData *app, guint page_num) {
+    // While installing, keep the navigation and install buttons disabled:
+    // the user can still switch tabs (the notebook tabs stay clickable),
+    // which would otherwise re-enable them and allow a second install click.
+    if (app->installing) {
+        gtk_widget_set_sensitive(app->btn_back, FALSE);
+        gtk_widget_set_visible(app->btn_next, FALSE);
+        gtk_widget_set_sensitive(app->btn_install, FALSE);
+        return;
+    }
+
     // Back: disabled on first page
     gtk_widget_set_sensitive(app->btn_back, (page_num > 0));
 

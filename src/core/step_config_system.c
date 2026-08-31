@@ -357,8 +357,9 @@ int config_sys_create_user(AppData *app, const char *TARGETDIR, const gchar *loc
         run_sync(app, "mkdir -p %s/home/%s/.themes", TARGETDIR, user_login);
         run_sync(app, "cp -rf /home/anon/.themes/* %s/home/%s/.themes/ 2>/dev/null || true", TARGETDIR, user_login);
 
-        // Copy flatpak if exists
+        // Copy flatpak if exists and initialize the system repo
         run_sync(app, "cp -rf /var/lib/flatpak %s/var/lib/ 2>/dev/null || true", TARGETDIR);
+        configure_flatpak_repo(app, TARGETDIR);
 
 #ifndef UNIVERSAL_BUILD
         /* --- Void Linux: copy XBPS repository configuration --- */

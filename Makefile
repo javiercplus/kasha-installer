@@ -40,6 +40,7 @@ SRCS_COMMON = src/core/main.c \
               src/core/step_base_system.c \
               src/core/step_config_system.c \
               src/core/step_bootloader.c \
+              src/core/flatpak-config.c \
               src/core/final_step.c \
               src/core/firts_filesystems.c \
               src/core/step_partition.c \

@@ -260,6 +260,36 @@ int step_install_bootloader(AppData *app, const char *TARGETDIR, const char *dis
 int step_finalize(AppData *app, const char *TARGETDIR);
 int check_filesystems(AppData *app);
 
+// step_base_system.c  (helpers for step_install_base_system)
+int  install_base_copy_rootfs(AppData *app, const char *TARGETDIR);
+void install_base_fix_permissions(AppData *app, const char *TARGETDIR);
+void install_base_cleanup_live(AppData *app, const char *TARGETDIR);
+void install_base_mount_vfs(AppData *app, const char *TARGETDIR);
+void install_base_crypto(AppData *app, const char *TARGETDIR);
+void install_base_initramfs(AppData *app, const char *TARGETDIR);
+
+// step_config_system.c  (helpers for step_configure_system)
+void config_sys_remove_live_user(AppData *app, const char *TARGETDIR);
+void config_sys_locale_and_hostname(AppData *app, const char *TARGETDIR, const gchar *hostname, const gchar *locale);
+void config_sys_keyboard(AppData *app, const char *TARGETDIR);
+void config_sys_timezone(AppData *app, const char *TARGETDIR);
+#ifdef HAS_DESKTOP_TAB
+void config_sys_desktop_env(AppData *app, const char *TARGETDIR);
+#endif
+int  config_sys_create_user(AppData *app, const char *TARGETDIR, const gchar *locale, const gchar *root_pass, const gchar *user_login, const gchar *user_fullname, const gchar *user_pass);
+void config_sys_privileges(AppData *app, const char *TARGETDIR, const gchar *user_login);
+void config_sys_autologin(AppData *app, const char *TARGETDIR, const gchar *user_login, gboolean autologin);
+
+// step_bootloader.c  (helpers for step_install_bootloader)
+void bootloader_config_luks(AppData *app, const char *TARGETDIR);
+int  bootloader_install_grub(AppData *app, const char *TARGETDIR, const char *disk_path);
+void bootloader_setup_os_prober(AppData *app, const char *TARGETDIR, const char *disk_name);
+void bootloader_cleanup_os_prober(AppData *app);
+void bootloader_dracut_luks(AppData *app, const char *TARGETDIR);
+
+// flatpak-config.c
+void configure_flatpak_repo(AppData *app, const char *TARGETDIR);
+
 // installer_steps_void.c  (normal build only, NOT in UNIVERSAL_BUILD)
 #ifndef UNIVERSAL_BUILD
 void void_install_crypto_packages(AppData *app, const char *TARGETDIR);

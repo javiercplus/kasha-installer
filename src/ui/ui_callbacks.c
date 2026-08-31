@@ -321,6 +321,7 @@ void on_country_changed(GtkComboBox *widget, AppData *app) {
 }
 
 void on_timezone_area_changed(GtkComboBox *widget, AppData *app) {
+    (void)widget;
     gtk_combo_box_text_remove_all(GTK_COMBO_BOX_TEXT(app->tz_city_combo));
     char *area = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->tz_area_combo));
     if (!area) return;
@@ -353,6 +354,7 @@ void on_timezone_area_changed(GtkComboBox *widget, AppData *app) {
 }
 
 void on_kbd_layout_changed(GtkComboBox *widget, AppData *app) {
+    (void)widget;
     int active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_layout_combo));
     if (active < 0) return;
 
@@ -476,6 +478,7 @@ void on_insert_text_hostname(GtkEditable *editable, gchar *new_text, gint new_te
 }
 
 void launch_gparted(GtkWidget *widget, AppData *app) {
+    (void)widget;
     if (!app->selected_disk) return;
     gchar *cmd = g_strdup_printf("gparted /dev/%s", app->selected_disk);
     g_spawn_command_line_async(cmd, NULL);

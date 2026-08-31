@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <limits.h>
 
 static const char* get_part_loc(const char *key, AppData *app) {
     extern const LangInfo* get_lang(const char *code);
@@ -43,7 +44,7 @@ void scan_partitions_for_dialog(GtkComboBoxText *combo) {
     
     struct dirent *ent;
     while ((ent = readdir(d)) != NULL) {
-        char path[256];
+        char path[PATH_MAX];
         
         // scan partitions of disk
         if (strncmp(ent->d_name, "sd", 2) == 0 || strncmp(ent->d_name, "vd", 2) == 0) {
@@ -243,7 +244,6 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
         const char *short_dev = edit_conf->device;
         if (strncmp(short_dev, "/dev/", 5) == 0) short_dev += 5;
         
-        gint n_items = gtk_combo_box_get_active(GTK_COMBO_BOX(combo_part));
         gint found_idx = -1;
         
         for (gint i = 0; i < 20; i++) {
@@ -355,10 +355,12 @@ if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
 }
 
 void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
     show_partition_dialog((AppData *)user_data, NULL);
 }
 
 void on_edit_partition_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
     AppData *app = (AppData *)user_data;
     
     if (!app->selected_disk) {
@@ -402,6 +404,7 @@ void on_edit_partition_clicked(GtkWidget *widget, gpointer user_data) {
 }
 
 void on_delete_partition_clicked(GtkWidget *widget, gpointer user_data) {
+    (void)widget;
     AppData *app = (AppData *)user_data;
     GtkTreeSelection *sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(app->mount_list));
     GtkTreeModel *model;
@@ -422,6 +425,7 @@ void on_delete_partition_clicked(GtkWidget *widget, gpointer user_data) {
 }
 
 void on_reset_partitions_clicked(GtkWidget *widget, AppData *app) {
+    (void)widget;
     // Preserve the current install_mode — it will be restored by populate_defaults if called from there,
     // or it should reflect the radio button selection if called from the UI directly
     // (populate_defaults already saves and restores the intended_mode)
@@ -445,6 +449,7 @@ void on_reset_partitions_clicked(GtkWidget *widget, AppData *app) {
 }
 
 void open_partition_manager(GtkWidget *widget, AppData *app) {
+    (void)widget;
     if (!app->mount_list) return;
 
     GtkListStore *store = gtk_list_store_new(5, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING, G_TYPE_STRING); 

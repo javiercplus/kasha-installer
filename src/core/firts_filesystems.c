@@ -8,6 +8,7 @@ int check_filesystems(AppData *app) {
     gboolean root_found = FALSE;
     gboolean usr_found = FALSE;
     gboolean efi_partition_found = FALSE;
+    (void)efi_partition_found;
 
     GSList *l = app->part_config_list;
     while (l) {

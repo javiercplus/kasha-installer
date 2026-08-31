@@ -70,7 +70,7 @@ void scan_disks(AppData *app) {
             strncmp(entry->d_name, "hd", 2) == 0 ||
             strncmp(entry->d_name, "mmcblk", 6) == 0) {
             
-            char path[256];
+            char path[512];
             char size_str[64];
             unsigned long long sectors = 0;
             

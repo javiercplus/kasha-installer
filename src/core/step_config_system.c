@@ -265,6 +265,14 @@ int config_sys_create_user(AppData *app, const char *TARGETDIR, const gchar *loc
         return -1;
     }
 
+    // Ensure Flatpak exports are visible to every new user via XDG_DATA_DIRS
+    run_sync(app, "grep -q 'flatpak/exports/share' %s/etc/skel/.profile 2>/dev/null || "
+                  "printf '\\nexport XDG_DATA_DIRS=\"/var/lib/flatpak/exports/share:$HOME/.local/share/flatpak/exports/share${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}:/usr/local/share:/usr/share\"\\n' "
+                  ">> %s/etc/skel/.profile", TARGETDIR, TARGETDIR);
+    run_sync(app, "grep -q 'flatpak/exports/share' %s/etc/skel/.bash_profile 2>/dev/null || "
+                  "printf '\\nexport XDG_DATA_DIRS=\"/var/lib/flatpak/exports/share:$HOME/.local/share/flatpak/exports/share${XDG_DATA_DIRS:+:$XDG_DATA_DIRS}:/usr/local/share:/usr/share\"\\n' "
+                  ">> %s/etc/skel/.bash_profile", TARGETDIR, TARGETDIR);
+
     // Copy /etc/skel files for root
     run_sync(app, "cp %s/etc/skel/.[bix]* %s/root/ 2>/dev/null", TARGETDIR, TARGETDIR);
 

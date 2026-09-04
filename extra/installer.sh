@@ -597,6 +597,12 @@ set_locale() {
         sed -e "/${LOCALE}/s/^\#//" -i $TARGETDIR/etc/default/libc-locales
         echo "Running xbps-reconfigure -f glibc-locales ..." >$LOG
         chroot $TARGETDIR xbps-reconfigure -f glibc-locales >$LOG 2>&1
+        # Set LC_ALL in /etc/skel/.bashrc so every new user inherits it
+        if grep -q '^export LC_ALL=' $TARGETDIR/etc/skel/.bashrc 2>/dev/null; then
+            sed -i "s|^export LC_ALL=.*|export LC_ALL=$LOCALE|" $TARGETDIR/etc/skel/.bashrc
+        else
+            printf '\nexport LC_ALL=%s\n' "$LOCALE" >> $TARGETDIR/etc/skel/.bashrc
+        fi
     fi
 }
 

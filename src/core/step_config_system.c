@@ -64,6 +64,12 @@ void config_sys_locale_and_hostname(AppData *app, const char *TARGETDIR, const g
     run_sync(app, "chroot %s locale-gen 2>/dev/null || true", TARGETDIR);
 #endif
 
+    /* --- Set LC_ALL in /etc/skel/.bashrc so every new user inherits it --- */
+    run_sync(app, "if grep -q '^export LC_ALL=' %s/etc/skel/.bashrc 2>/dev/null; then "
+                  "sed -i 's|^export LC_ALL=.*|export LC_ALL=%s|' %s/etc/skel/.bashrc; "
+                  "else printf '\\nexport LC_ALL=%s\\n' >> %s/etc/skel/.bashrc; fi",
+             TARGETDIR, locale, TARGETDIR, locale, TARGETDIR);
+
     /* --- Regional translation fallback patch ---
      * Upstream often ships broken/empty .mo files for regional variants.
      * Force a copy of ALL base-language translations (e.g. 'es') over the

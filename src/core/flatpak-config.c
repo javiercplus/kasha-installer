@@ -34,17 +34,6 @@ void configure_flatpak_repo(AppData *app, const char *TARGETDIR) {
     run_sync(app, "mkdir -p %s/var/lib/flatpak/repo/objects", TARGETDIR);
     run_sync(app, "mkdir -p %s/var/lib/flatpak/repo/tmp",     TARGETDIR);
 
-    /* Write the OSTree repo config (bare-user-only, matches Flatpak's default) */
-    run_sync(app,
-        "tee %s/var/lib/flatpak/repo/config > /dev/null << 'EOF'\n"
-        "[core]\n"
-        "repo_version=1\n"
-        "mode=bare-user-only\n"
-        "min-free-space-size=500MB\n"
-        "EOF",
-        TARGETDIR);
-
-    log_to_ui(app, "[Flatpak] System repo initialized (bare-user-only).", -1);
 
     /* Configure Flatpak remotes inside the target system */
     log_to_ui(app, "[Flatpak] Configuring remotes (flathub + trinity)...", -1);
@@ -58,6 +47,18 @@ void configure_flatpak_repo(AppData *app, const char *TARGETDIR) {
     run_sync(app, "chroot %s flatpak remote-delete trinity 2>/dev/null || true", TARGETDIR);
     run_sync(app, "chroot %s flatpak remote-add trinity "
                   "https://github.com/Trinity-LA/Trinity-Launcher/releases/download/flatpak/com.trench.trinity.launcher.flatpakrepo", TARGETDIR);
+
+    /* Write the OSTree repo config (bare-user-only, matches Flatpak's default) */
+    run_sync(app,
+             "tee %s/var/lib/flatpak/repo/config > /dev/null << 'EOF'\n"
+             "[core]\n"
+             "repo_version=1\n"
+             "mode=bare-user-only\n"
+             "min-free-space-size=500MB\n"
+             "EOF",
+             TARGETDIR);
+
+    log_to_ui(app, "[Flatpak] System repo initialized (bare-user-only).", -1);
 
     log_to_ui(app, "[Flatpak] Remotes configured.", -1);
 }

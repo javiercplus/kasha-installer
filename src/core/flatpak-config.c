@@ -57,6 +57,7 @@ void configure_flatpak_repo(AppData *app, const char *TARGETDIR) {
              "min-free-space-size=500MB\n"
              "EOF",
              TARGETDIR);
+    run_sync(app, "chroot %s flatpak repair 2>/dev/null || true", TARGETDIR);
 
     log_to_ui(app, "[Flatpak] System repo initialized (bare-user-only).", -1);
 

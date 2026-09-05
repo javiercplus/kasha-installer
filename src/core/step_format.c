@@ -122,7 +122,7 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
                 }
 
                 // Ensure partition is not busy (unmount + swapoff just in case)
-                run_sync(app, "umount -lf %s 2>/dev/null || true", conf->device);
+                run_sync(app, "umount -f %s 2>/dev/null || true", conf->device);
                 run_sync(app, "swapoff %s 2>/dev/null || true", conf->device);
 
                 // Wipe old filesystem signatures before formatting
@@ -179,7 +179,7 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
                 }
 
                 // Ensure partition is not busy
-                run_sync(app, "umount -lf %s 2>/dev/null || true", conf->device);
+                run_sync(app, "umount -f %s 2>/dev/null || true", conf->device);
                 run_sync(app, "swapoff %s 2>/dev/null || true", conf->device);
 
                 // Wipe old filesystem signatures before formatting

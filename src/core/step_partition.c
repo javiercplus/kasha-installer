@@ -12,13 +12,23 @@ int step_partitioning(AppData *app, const char *disk_name) {
     snprintf(disk_dev, sizeof(disk_dev), "/dev/%s", disk_name);
 
     // ===== PRE-PARTITION CLEANUP =====
+    // Clean up any leftover os-prober / EFI-test mounts from previous runs
+    log_to_ui(app, "Cleaning up leftover probe mounts...", 0.11);
+    run_sync(app, "umount /tmp/kasha_efi_test 2>/dev/null || true");
+    run_sync(app, "rmdir /tmp/kasha_efi_test 2>/dev/null || true");
+    run_sync(app, "umount -R /tmp/kasha_osprobe 2>/dev/null || true");
+    run_sync(app, "rm -rf /tmp/kasha_osprobe 2>/dev/null || true");
+
     // Deactivate swap on all partitions of this disk
     log_to_ui(app, "Deactivating swap partitions on target disk...", 0.12);
     run_sync(app, "for p in /dev/%s*; do swapoff \"$p\" 2>/dev/null; done || true", disk_name);
 
     // Unmount all partitions currently mounted from this disk
+    // Kill processes holding partitions open, then force-unmount (NO lazy flag —
+    // lazy hides the mountpoint but the kernel keeps the block device busy)
     log_to_ui(app, "Unmounting any existing partitions on target disk...", 0.13);
-    run_sync(app, "for p in $(lsblk -rn -o NAME /dev/%s 2>/dev/null | grep -v '^%s$'); do umount -lf /dev/$p 2>/dev/null; done || true", disk_name, disk_name);
+    run_sync(app, "for p in $(lsblk -rn -o NAME /dev/%s 2>/dev/null | grep -v '^%s$'); do fuser -km /dev/$p 2>/dev/null; done || true", disk_name, disk_name);
+    run_sync(app, "for p in $(lsblk -rn -o NAME /dev/%s 2>/dev/null | grep -v '^%s$'); do umount -f /dev/$p 2>/dev/null; done || true", disk_name, disk_name);
 
     // Close any LUKS devices backed by partitions on this disk
     run_sync(app, "for p in $(lsblk -rn -o NAME /dev/%s 2>/dev/null | grep -v '^%s$'); do "
@@ -229,13 +239,13 @@ int step_partitioning(AppData *app, const char *disk_name) {
 
             // resize_existing_partition handles ext2/3/4, ntfs, and btrfs
             if (resize_existing_partition(app, resize_target,
-                new_partition_size) != 0) {
+                    new_partition_size) != 0) {
                 log_to_ui(app, "ERROR: Partition resize failed!", 0.0);
-            g_free(resize_target);
-            return -1;
-                }
                 g_free(resize_target);
-                log_to_ui(app, "Partition resize completed successfully.", 0.17);
+                return -1;
+            }
+            g_free(resize_target);
+            log_to_ui(app, "Partition resize completed successfully.", 0.17);
         } else {
             log_to_ui(app, "Sufficient free space found, skipping resize.", 0.16);
         }

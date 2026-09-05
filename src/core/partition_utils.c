@@ -75,8 +75,8 @@ gboolean validate_efi_partition(AppData *app, const char *efi_device) {
         return FALSE;
     }
     
-    // Unmount
-    snprintf(cmd, sizeof(cmd), "umount %s 2>/dev/null && rmdir %s 2>/dev/null", test_mount, test_mount);
+    // Unmount (try twice — if the first attempt fails, force it)
+    snprintf(cmd, sizeof(cmd), "umount %s 2>/dev/null; umount -f %s 2>/dev/null; rmdir %s 2>/dev/null", test_mount, test_mount, test_mount);
     system(cmd);
     
     return TRUE;
@@ -439,9 +439,33 @@ int resize_existing_partition(AppData *app, const char *device,
     char fstype[64];
     get_partition_fstype(device, fstype, sizeof(fstype));
 
-    /* 1. Unmount */
+    /* 1. Unmount — kill holders first, then force-unmount and verify */
     log_to_ui_printf(app, "Unmounting %s if mounted...", device);
+    run_sync(app, "fuser -km %s 2>/dev/null || true", device);
     run_sync(app, "umount %s 2>/dev/null || true", device);
+
+    /* Verify the device is actually unmounted before proceeding */
+    {
+        char verify_cmd[256];
+        snprintf(verify_cmd, sizeof(verify_cmd),
+            "grep -q '%s ' /proc/mounts", device);
+        if (system(verify_cmd) == 0) {
+            /* Still mounted — retry with force */
+            log_to_ui_printf(app, "WARNING: %s still mounted, retrying...", device);
+            run_sync(app, "fuser -km %s 2>/dev/null || true", device);
+            sleep(1);
+            run_sync(app, "umount -f %s 2>/dev/null || true", device);
+
+            if (system(verify_cmd) == 0) {
+                log_to_ui_printf(app,
+                    "ERROR: Cannot unmount %s — a process is holding it open. "
+                    "Close any file managers or terminals accessing this partition "
+                    "and try again.", device);
+                return -1;
+            }
+        }
+        log_to_ui_printf(app, "Verified: %s is unmounted.", device);
+    }
 
     /* 2. Shrink filesystem */
     if (strcmp(fstype, "ext4") == 0 || strcmp(fstype, "ext3") == 0 ||

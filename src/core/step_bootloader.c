@@ -111,7 +111,13 @@ void bootloader_setup_os_prober(AppData *app, const char *TARGETDIR, const char 
  *  Unmount and remove temporary os-prober mount points.              *
  * ------------------------------------------------------------------ */
 void bootloader_cleanup_os_prober(AppData *app) {
+    log_to_ui(app, "Cleaning up os-prober mount points...", 0.94);
+    /* Kill any lingering processes before unmounting */
+    run_sync(app, "fuser -km /tmp/kasha_osprobe 2>/dev/null || true");
     run_sync(app, "umount -R /tmp/kasha_osprobe 2>/dev/null || true");
+    /* Verify cleanup succeeded — retry if needed */
+    run_sync(app, "grep -q '/tmp/kasha_osprobe' /proc/mounts && "
+             "{ sleep 1; umount -Rf /tmp/kasha_osprobe 2>/dev/null || true; } || true");
     run_sync(app, "rm -rf /tmp/kasha_osprobe 2>/dev/null || true");
 }
 

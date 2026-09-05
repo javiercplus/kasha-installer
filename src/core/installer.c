@@ -71,9 +71,9 @@ void unmount_safety(AppData *app) {
     GSList *l = app->part_config_list;
     while(l) {
         PartitionConfig *c = (PartitionConfig*)l->data;
-        // Lazy unmount device to be safe
+        // Force unmount (no lazy flag — lazy hides mounts but keeps device busy)
         char cmd[256];
-        snprintf(cmd, sizeof(cmd), "umount -lf %s 2>/dev/null", c->device);
+        snprintf(cmd, sizeof(cmd), "fuser -km %s 2>/dev/null; umount -f %s 2>/dev/null", c->device, c->device);
         system(cmd);
         l = l->next;
     }

@@ -367,7 +367,7 @@ void build_ui(AppData *app) {
     app->autologin_check = gtk_check_button_new_with_label("Enable Auto-Login");
     app->chk_autologin = app->autologin_check;
     gtk_widget_set_halign(app->autologin_check, GTK_ALIGN_CENTER);
-    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->autologin_check), TRUE);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->autologin_check), FALSE);
     gtk_box_pack_start(GTK_BOX(page_user), app->autologin_check, FALSE, FALSE, 10);
 
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_user, gtk_label_new("Users"));

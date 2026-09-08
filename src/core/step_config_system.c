@@ -56,6 +56,12 @@ void config_sys_locale_and_hostname(AppData *app, const char *TARGETDIR, const g
 
     // Enable locale
     run_sync(app, "echo 'LANG=%s' > %s/etc/locale.conf", locale, TARGETDIR);
+
+    /* --- Void uses runit, NOT systemd: /etc/locale.conf is ignored by
+     * login/PAM. Write LANG/LC_ALL into /etc/environment so pam_env applies
+     * the locale to the whole session (console, display managers, etc.). --- */
+    run_sync(app, "printf 'LANG=%s\\nLC_ALL=%s\\n' > %s/etc/environment",
+             locale, locale, TARGETDIR);
 #ifndef UNIVERSAL_BUILD
     /* --- Void Linux: enable locale in libc-locales and reconfigure with xbps --- */
     void_reconfigure_locales(app, TARGETDIR, locale);

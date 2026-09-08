@@ -98,10 +98,10 @@ GtkWidget* create_desktop_page(AppData *app) {
                             &app->chk_desktop_kde, &app->lbl_d_kde_desc);
     gtk_box_pack_start(GTK_BOX(app->desktop_sel_box), row, FALSE, FALSE, 0);
     connect_desktop_toggle(app->chk_desktop_kde, app);
-    row = build_desktop_row("IceJWM", get_loc("d_icejwm_desc", app->current_lang),
-                            &app->chk_desktop_icejwm, &app->lbl_d_icejwm_desc);
+    row = build_desktop_row("IceWM", get_loc("d_icewm_desc", app->current_lang),
+                            &app->chk_desktop_icewm, &app->lbl_d_icewm_desc);
     gtk_box_pack_start(GTK_BOX(app->desktop_sel_box), row, FALSE, FALSE, 0);
-    connect_desktop_toggle(app->chk_desktop_icejwm, app);
+    connect_desktop_toggle(app->chk_desktop_icewm, app);
     row = build_desktop_row("MATE", get_loc("d_mate_desc", app->current_lang),
                             &app->chk_desktop_mate, &app->lbl_d_mate_desc);
     gtk_box_pack_start(GTK_BOX(app->desktop_sel_box), row, FALSE, FALSE, 0);
@@ -114,6 +114,16 @@ GtkWidget* create_desktop_page(AppData *app) {
                             &app->chk_desktop_lxqt, &app->lbl_d_lxqt_desc);
     gtk_box_pack_start(GTK_BOX(app->desktop_sel_box), row, FALSE, FALSE, 0);
     connect_desktop_toggle(app->chk_desktop_lxqt, app);
+    
+    row = build_desktop_row("I3", get_loc("d_i3_desc", app->current_lang),
+                            &app->chk_desktop_i3, &app->lbl_d_i3_desc);
+    gtk_box_pack_start(GTK_BOX(app->desktop_sel_box), row, FALSE, FALSE, 0);
+    connect_desktop_toggle(app->chk_desktop_i3, app);
+    
+    row = build_desktop_row("JWM", get_loc("d_jwm_desc", app->current_lang),
+                            &app->chk_desktop_jwm, &app->lbl_d_jwm_desc);
+    gtk_box_pack_start(GTK_BOX(app->desktop_sel_box), row, FALSE, FALSE, 0);
+    connect_desktop_toggle(app->chk_desktop_jwm, app);
 
     gtk_box_pack_start(GTK_BOX(list_box), app->desktop_sel_box, FALSE, FALSE, 0);
 

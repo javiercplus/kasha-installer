@@ -122,8 +122,8 @@ void void_kde(AppData *app, const char *TARGETDIR) {
     install_desktop(app, TARGETDIR, "kde");
 }
 
-void void_icejwm(AppData *app, const char *TARGETDIR) {
-    install_desktop(app, TARGETDIR, "icejwm");
+void void_icewm(AppData *app, const char *TARGETDIR) {
+    install_desktop(app, TARGETDIR, "icewm");
 }
 
 void void_mate(AppData *app, const char *TARGETDIR) {
@@ -136,5 +136,25 @@ void void_labwc(AppData *app, const char *TARGETDIR) {
 
 void void_lxqt(AppData *app, const char *TARGETDIR) {
     install_desktop(app, TARGETDIR, "lxqt");
+}
+
+void void_i3(AppData *app, const char *TARGETDIR) {
+    install_desktop(app, TARGETDIR, "i3");
+}
+
+void void_jwm(AppData *app, const char *TARGETDIR) {
+    install_desktop(app, TARGETDIR, "jwm");
+}
+
+void void_lxde(AppData *app, const char *TARGETDIR) {
+    install_desktop(app, TARGETDIR, "lxde");
+}
+
+void void_cinnamon(AppData *app, const char *TARGETDIR) {
+    install_desktop(app, TARGETDIR, "cinnamon");
+}
+
+void void_swayfx(AppData *app, const char *TARGETDIR) {
+    install_desktop(app, TARGETDIR, "swayfx");
 }
 #endif /* HAS_DESKTOP_TAB */

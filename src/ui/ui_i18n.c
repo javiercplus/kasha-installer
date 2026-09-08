@@ -78,7 +78,9 @@ const char* get_loc(const char *key, int lang) {
     if (strcmp(key, "d_xfce_desc") == 0) return li->d_xfce_desc;
     if (strcmp(key, "d_niri_desc") == 0) return li->d_niri_desc;
     if (strcmp(key, "d_kde_desc") == 0) return li->d_kde_desc;
-    if (strcmp(key, "d_icejwm_desc") == 0) return li->d_icejwm_desc;
+    if (strcmp(key, "d_icewm_desc") == 0) return li->d_icewm_desc;
+    if (strcmp(key, "d_i3_desc") == 0) return li->d_i3_desc;
+    if (strcmp(key, "d_jwm_desc") == 0) return li->d_jwm_desc;
     if (strcmp(key, "d_mate_desc") == 0) return li->d_mate_desc;
     if (strcmp(key, "d_labwc_desc") == 0) return li->d_labwc_desc;
     if (strcmp(key, "d_lxqt_desc") == 0) return li->d_lxqt_desc;
@@ -198,7 +200,9 @@ void update_ui_language(AppData *app) {
     if(app->lbl_d_xfce_desc)   gtk_label_set_text(GTK_LABEL(app->lbl_d_xfce_desc),   get_loc("d_xfce_desc",   lang));
     if(app->lbl_d_niri_desc)   gtk_label_set_text(GTK_LABEL(app->lbl_d_niri_desc),   get_loc("d_niri_desc",   lang));
     if(app->lbl_d_kde_desc)    gtk_label_set_text(GTK_LABEL(app->lbl_d_kde_desc),    get_loc("d_kde_desc",    lang));
-    if(app->lbl_d_icejwm_desc) gtk_label_set_text(GTK_LABEL(app->lbl_d_icejwm_desc), get_loc("d_icejwm_desc", lang));
+    if(app->lbl_d_icewm_desc) gtk_label_set_text(GTK_LABEL(app->lbl_d_icewm_desc), get_loc("d_icewm_desc", lang));
+    if(app->lbl_d_i3_desc)    gtk_label_set_text(GTK_LABEL(app->lbl_d_i3_desc),    get_loc("d_i3_desc",    lang));
+    if(app->lbl_d_jwm_desc)   gtk_label_set_text(GTK_LABEL(app->lbl_d_jwm_desc),   get_loc("d_jwm_desc",   lang));
     if(app->lbl_d_mate_desc)   gtk_label_set_text(GTK_LABEL(app->lbl_d_mate_desc),   get_loc("d_mate_desc",   lang));
     if(app->lbl_d_labwc_desc)  gtk_label_set_text(GTK_LABEL(app->lbl_d_labwc_desc),  get_loc("d_labwc_desc",  lang));
     if(app->lbl_d_lxqt_desc)   gtk_label_set_text(GTK_LABEL(app->lbl_d_lxqt_desc),   get_loc("d_lxqt_desc",   lang));

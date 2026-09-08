@@ -144,7 +144,9 @@ typedef struct {
     GtkWidget *chk_desktop_xfce;
     GtkWidget *chk_desktop_niri;
     GtkWidget *chk_desktop_kde;
-    GtkWidget *chk_desktop_icejwm;
+    GtkWidget *chk_desktop_icewm;
+    GtkWidget *chk_desktop_i3;
+    GtkWidget *chk_desktop_jwm;
     GtkWidget *chk_desktop_mate;
     GtkWidget *chk_desktop_labwc;
     GtkWidget *chk_desktop_lxqt;
@@ -152,7 +154,9 @@ typedef struct {
     GtkWidget *lbl_d_xfce_desc;
     GtkWidget *lbl_d_niri_desc;
     GtkWidget *lbl_d_kde_desc;
-    GtkWidget *lbl_d_icejwm_desc;
+    GtkWidget *lbl_d_icewm_desc;
+    GtkWidget *lbl_d_i3_desc;
+    GtkWidget *lbl_d_jwm_desc;
     GtkWidget *lbl_d_mate_desc;
     GtkWidget *lbl_d_labwc_desc;
     GtkWidget *lbl_d_lxqt_desc;
@@ -315,7 +319,9 @@ void void_enable_desktop_services(AppData *app, const char *TARGETDIR, const cha
 void void_xfce(AppData *app, const char *TARGETDIR);
 void void_niri(AppData *app, const char *TARGETDIR);
 void void_kde(AppData *app, const char *TARGETDIR);
-void void_icejwm(AppData *app, const char *TARGETDIR);
+void void_icewm(AppData *app, const char *TARGETDIR);
+void void_i3(AppData *app, const char *TARGETDIR);
+void void_jwm(AppData *app, const char *TARGETDIR);
 void void_mate(AppData *app, const char *TARGETDIR);
 void void_labwc(AppData *app, const char *TARGETDIR);
 void void_lxqt(AppData *app, const char *TARGETDIR);

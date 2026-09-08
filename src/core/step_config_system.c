@@ -228,8 +228,12 @@ void config_sys_desktop_env(AppData *app, const char *TARGETDIR) {
         app->selected_desktop = g_strdup("niri");
     else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_kde)))
         app->selected_desktop = g_strdup("kde");
-    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_icejwm)))
-        app->selected_desktop = g_strdup("icejwm");
+    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_icewm)))
+        app->selected_desktop = g_strdup("icewm");
+    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_i3)))
+        app->selected_desktop = g_strdup("i3");
+    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_jwm)))
+        app->selected_desktop = g_strdup("jwm");
     else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_mate)))
         app->selected_desktop = g_strdup("mate");
     else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_labwc)))
@@ -245,8 +249,12 @@ void config_sys_desktop_env(AppData *app, const char *TARGETDIR) {
             void_niri(app, TARGETDIR);
         else if (strcmp(app->selected_desktop, "kde") == 0)
             void_kde(app, TARGETDIR);
-        else if (strcmp(app->selected_desktop, "icejwm") == 0)
-            void_icejwm(app, TARGETDIR);
+        else if (strcmp(app->selected_desktop, "icewm") == 0)
+            void_icewm(app, TARGETDIR);
+        else if (strcmp(app->selected_desktop, "i3") == 0)
+            void_i3(app, TARGETDIR);
+        else if (strcmp(app->selected_desktop, "jwm") == 0)
+            void_jwm(app, TARGETDIR);
         else if (strcmp(app->selected_desktop, "mate") == 0)
             void_mate(app, TARGETDIR);
         else if (strcmp(app->selected_desktop, "labwc") == 0)

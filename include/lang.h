@@ -91,7 +91,9 @@ typedef struct {
     const char *d_xfce_desc;
     const char *d_niri_desc;
     const char *d_kde_desc;
-    const char *d_icejwm_desc;
+    const char *d_icewm_desc;
+    const char *d_i3_desc;
+    const char *d_jwm_desc;
     const char *d_mate_desc;
     const char *d_labwc_desc;
     const char *d_lxqt_desc;

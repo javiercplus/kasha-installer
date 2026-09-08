@@ -529,21 +529,23 @@ void on_install_type_changed(GtkToggleButton *toggle, AppData *app) {
 /* The mutually-exclusive desktop check buttons (the "local (default)"
  * checkbox is handled separately as an alternative to this group). */
 static GtkWidget** desktop_group_ptrs(AppData *app) {
-    static GtkWidget *widgets[7];
+    static GtkWidget *widgets[9];
     widgets[0] = app->chk_desktop_xfce;
     widgets[1] = app->chk_desktop_niri;
     widgets[2] = app->chk_desktop_kde;
-    widgets[3] = app->chk_desktop_icejwm;
-    widgets[4] = app->chk_desktop_mate;
-    widgets[5] = app->chk_desktop_labwc;
-    widgets[6] = app->chk_desktop_lxqt;
+    widgets[3] = app->chk_desktop_icewm;
+    widgets[4] = app->chk_desktop_i3;
+    widgets[5] = app->chk_desktop_jwm;
+    widgets[6] = app->chk_desktop_mate;
+    widgets[7] = app->chk_desktop_labwc;
+    widgets[8] = app->chk_desktop_lxqt;
     return widgets;
 }
 
 /* Uncheck every desktop option except (optionally) the one being kept. */
 static void uncheck_desktop_group(AppData *app, GtkWidget *keep) {
     GtkWidget **widgets = desktop_group_ptrs(app);
-    for (guint i = 0; i < 7; i++) {
+    for (guint i = 0; i < 9; i++) {
         if (!widgets[i] || widgets[i] == keep) continue;
         g_signal_handlers_block_by_func(widgets[i], on_desktop_selected, app);
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(widgets[i]), FALSE);

@@ -64,14 +64,13 @@ static const char BASE_PACKAGES[] =
     "xorg libva-intel-driver intel-media-driver orca "
     "mesa mesa-dri mesa-vaapi vulkan-loader Vulkan-Tools libglvnd "
     "linux-firmware-intel linux-firmware-nvidia linux-firmware-amd "
-    "gparted iruka-xbps Neko-Kernel-Manager "
-    "flatpak xdg-desktop-portal xdg-desktop-portal-gtk "
+    "gparted iruka-xbps Neko-Kernel-Manager flatpak xdg-desktop-portal xdg-desktop-portal-gtk "
     "noto-fonts-emoji noto-fonts-cjk noto-fonts-ttf font-JetBrainsMono font-awesome "
     "dejavu-fonts-ttf liberation-fonts-ttf font-misc-misc terminus-font "
     "ffmpeg gstreamer1 gst-plugins-base1 gst-plugins-good1 gst-plugins-bad1 gst-plugins-ugly1 "
     "gamemode MangoHud "
     "ntp zramen "
-    "espeakup void-live-audio brltty";
+    "espeakup void-live-audio brltty fontconfig ImageMagick lua53 xsettingsd dash ffmpegthumbnailer socat xwinwrap-nk dunst";
 
 /* ─────────────────────────────────────────────
  * Desktop-specific packages — mirrors live-maker/base-neko-pkgs.sh.
@@ -81,41 +80,69 @@ static const char BASE_PACKAGES[] =
     "engrampa firefox mate mate-extra mate-tweak mate-polkit mate-terminal mpv pluma " \
     "caja-wallpaper caja-sendto caja-open-terminal caja-extensions atril gnome-screenshot " \
     "gnome-keyring gvfs-afc gvfs-mtp gvfs-smb lightdm lightdm-webkit2-greeter " \
-    "lightdm-gtk-greeter-settings libnotify numlockx picom nwg-look"
+    "lightdm-gtk-greeter-settings libnotify numlockx picom nwg-look gparted iruka-xbps flatpak xdg-desktop-portal xdg-desktop-portal-gtk " \
+    "noto-fonts-emoji noto-fonts-cjk noto-fonts-ttf font-awesome dejavu-fonts-ttf liberation-fonts-ttf font-misc-misc terminus-font"
 
 #define XFCE_PACKAGES \
     "xfce4 xfce4-whiskermenu-plugin gnome-themes-standard xfce4-pulseaudio-plugin " \
     "xfce4-screenshooter atril gvfs-afc gvfs-mtp firefox gvfs-smb udisks2 lightdm " \
-    "lightdm-webkit2-greeter lightdm-gtk-greeter-settings libnotify numlockx"
+    "lightdm-webkit2-greeter lightdm-gtk-greeter-settings libnotify numlockx gparted iruka-xbps flatpak xdg-desktop-portal xdg-desktop-portal-gtk " \
+    "noto-fonts-emoji noto-fonts-cjk noto-fonts-ttf font-awesome dejavu-fonts-ttf liberation-fonts-ttf font-misc-misc terminus-font"
 
 #define KDE_PACKAGES \
     "kde-plasma konsole kate firefox dolphin gvfs-afc gvfs-mtp gvfs-smb mpv sddm " \
     "plasma-framework kdeconnect kdegraphics-thumbnailers kde-baseapps " \
-    "qt6-virtualkeyboard qt6-svg qt6-multimedia gum okular spectacle gwenview ark"
+    "qt6-virtualkeyboard qt6-svg qt6-multimedia gum okular spectacle gwenview ark gparted iruka-xbps flatpak xdg-desktop-portal xdg-desktop-portal-gtk " \
+    "noto-fonts-emoji noto-fonts-cjk noto-fonts-ttf font-awesome dejavu-fonts-ttf liberation-fonts-ttf font-misc-misc terminus-font"
 
 #define LXQT_PACKAGES \
     "kate mpv lxqt xfwm4 xfwm4-themes lightdm lightdm-webkit2-greeter " \
     "lightdm-gtk-greeter-settings gvfs-afc gvfs-mtp gvfs-smb udisks2 firefox " \
-    "qt6-virtualkeyboard qt6-svg qt6-multimedia gum"
+    "qt6-virtualkeyboard qt6-svg qt6-multimedia gum gparted iruka-xbps flatpak xdg-desktop-portal xdg-desktop-portal-gtk " \
+    "noto-fonts-emoji noto-fonts-cjk noto-fonts-ttf font-awesome dejavu-fonts-ttf liberation-fonts-ttf font-misc-misc terminus-font"
 
-#define ICEJWM_PACKAGES \
+#define ICEWM_PACKAGES \
     "ristretto xarchiver arandr jwm jwmkit-neko icewm mpv pcmanfm alacritty lxappearance " \
     "atril lightdm lightdm-gtk-greeter gvfs-afc gvfs-mtp gvfs-smb udisks2 firefox " \
-    "xdg-desktop-portal xdg-desktop-portal-gtk mate-polkit xfce4-screenshooter"
+    "xdg-desktop-portal xdg-desktop-portal-gtk mate-polkit xfce4-screenshooter gparted iruka-xbps flatpak " \
+    "noto-fonts-emoji noto-fonts-cjk noto-fonts-ttf font-awesome dejavu-fonts-ttf liberation-fonts-ttf font-misc-misc terminus-font"
 
 #define LABWC_PACKAGES \
     "ristretto xarchiver lightdm gvfs-afc gvfs-mtp gvfs-smb labwc-tweaks-qt wlr-randr " \
     "xwayland-satellite swaylock labwc labwc-menu-generator foot kanshi noctalia " \
     "xdg-desktop-portal xdg-desktop-portal-wlr playerctl nwg-look gtk-update-icon-cache " \
     "wl-clipboard wlopm mpv geany grim slurp gtksourceview json-c yad waterfox " \
-    "gtk-layer-shell gtkmm pcmanfm wdisplays"
+    "gtk-layer-shell gtkmm pcmanfm wdisplays gparted iruka-xbps flatpak xdg-desktop-portal-gtk " \
+    "noto-fonts-emoji noto-fonts-cjk noto-fonts-ttf font-awesome dejavu-fonts-ttf liberation-fonts-ttf font-misc-misc terminus-font"
+
+#define I3_PACKAGES \
+    "i3 lightdm lightdm-gtk-greeter polybar rofi kitty geany picom qt6ct lxappearance feh mpv dex raven-polkit pulseaudio-utils setxkbmap brightnessctl playerctl maim xclip xdotool pcmanfm dmenu ark unzip cargo openssl libxcb xcb-util xcb-util-image xcb-util-keysyms xcb-util-renderutil xcb-util-wm libxkbcommon font-awesome6 fontconfig ImageMagick gvfs-afc gvfs-mtp gvfs-smb firefox adw-gtk3 matugen papirus-icon-theme lua53 xsettingsd dash ffmpegthumbnailer socat xwinwrap-nk neko-icons dunst"
+
+#define JWM_PACKAGES \
+    "ristretto xarchiver arandr jwm jwmkit-neko mpv pcmanfm sakura ristretto nwg-look atril lightdm lightdm-gtk-greeter gvfs-afc gvfs-mtp gvfs-smb udisks2 firefox xdg-desktop-portal xdg-desktop-portal-gtk mate-polkit xfce4-screenshooter"
+
+#define LXDE_PACKAGES \
+    "lxde lightdm lightdm-gtk-greeter gvfs-afc gvfs-mtp gvfs-smb udisks2 mpv xdg-desktop-portal-gtk xdg-desktop-portal firefox"
+
+#define CINNAMON_PACKAGES \
+    "cinnamon gvfs-afc gvfs-mtp gvfs-smb lightdm colord gnome-terminal"
+
+#define SWAYFX_PACKAGES \
+    "discover ristretto xarchiver gvfs-afc gvfs-mtp gvfs-smb wlr-randr wdisplays mate-polkit caja xwayland-satellite emptty swayfx foot xdg-desktop-portal xdg-desktop-portal-gnome xdg-desktop-portal-wlr wl-clipboard mako wlsunset nwg-look gtk-update-icon-cache wlopm mpv geany grim slurp gtksourceview json-c yad waterfox gtk-layer-shell gtkmm swaylock swayidle kanshi wofi waybar" \
+    "ristretto xarchiver lightdm gvfs-afc gvfs-mtp gvfs-smb labwc-tweaks-qt wlr-randr " \
+    "xwayland-satellite swaylock labwc labwc-menu-generator foot kanshi noctalia " \
+    "xdg-desktop-portal xdg-desktop-portal-wlr playerctl nwg-look gtk-update-icon-cache " \
+    "wl-clipboard wlopm mpv geany grim slurp gtksourceview json-c yad waterfox " \
+    "gtk-layer-shell gtkmm pcmanfm wdisplays gparted iruka-xbps flatpak xdg-desktop-portal-gtk " \
+    "noto-fonts-emoji noto-fonts-cjk noto-fonts-ttf font-awesome dejavu-fonts-ttf liberation-fonts-ttf font-misc-misc terminus-font"
 
 #define NIRI_PACKAGES \
     "qt6-wayland-client ristretto xarchiver gvfs-afc gvfs-mtp gvfs-smb wlr-randr wdisplays " \
     "mate-polkit caja xwayland-satellite emptty niri noctalia foot xdg-desktop-portal " \
     "xdg-desktop-portal-gnome xdg-desktop-portal-wlr wl-clipboard mako wlsunset nwg-look " \
     "gtk-update-icon-cache wlopm mpv geany grim slurp gtksourceview json-c yad waterfox " \
-    "gtk-layer-shell gtkmm"
+    "gtk-layer-shell gtkmm gparted iruka-xbps flatpak xdg-desktop-portal-gtk " \
+    "noto-fonts-emoji noto-fonts-cjk noto-fonts-ttf font-awesome dejavu-fonts-ttf liberation-fonts-ttf font-misc-misc terminus-font"
 
 /* ------------------------------------------------------------------ *
  *  rootfs_ensure_dns                                                  *
@@ -306,10 +333,15 @@ void void_install_desktop_packages(AppData *app, const char *TARGETDIR, const ch
     if      (desktop && strcmp(desktop, "xfce")   == 0) pkgs = XFCE_PACKAGES;
     else if (desktop && strcmp(desktop, "niri")   == 0) pkgs = NIRI_PACKAGES;
     else if (desktop && strcmp(desktop, "kde")    == 0) pkgs = KDE_PACKAGES;
-    else if (desktop && strcmp(desktop, "icejwm") == 0) pkgs = ICEJWM_PACKAGES;
+    else if (desktop && strcmp(desktop, "icewm") == 0) pkgs = ICEWM_PACKAGES;
     else if (desktop && strcmp(desktop, "mate")   == 0) pkgs = MATE_PACKAGES;
     else if (desktop && strcmp(desktop, "labwc")  == 0) pkgs = LABWC_PACKAGES;
     else if (desktop && strcmp(desktop, "lxqt")   == 0) pkgs = LXQT_PACKAGES;
+    else if (desktop && strcmp(desktop, "i3")     == 0) pkgs = I3_PACKAGES;
+    else if (desktop && strcmp(desktop, "jwm")    == 0) pkgs = JWM_PACKAGES;
+    else if (desktop && strcmp(desktop, "lxde")   == 0) pkgs = LXDE_PACKAGES;
+    else if (desktop && strcmp(desktop, "cinnamon") == 0) pkgs = CINNAMON_PACKAGES;
+    else if (desktop && strcmp(desktop, "swayfx") == 0) pkgs = SWAYFX_PACKAGES;
     else {
         log_to_ui_printf(app, "ERROR: unknown desktop '%s' — skipping package install.",
                          desktop ? desktop : "(null)");
@@ -332,6 +364,8 @@ void void_enable_desktop_services(AppData *app, const char *TARGETDIR, const cha
     const char *dm = "lightdm";
     if (desktop && strcmp(desktop, "kde")  == 0) dm = "sddm";
     if (desktop && strcmp(desktop, "niri") == 0) dm = "emptty";
+    if (desktop && strcmp(desktop, "cinnamon") == 0) dm = "lightdm";
+    if (desktop && strcmp(desktop, "swayfx") == 0) dm = "emptty";
 
     void_ensure_core_packages(app, TARGETDIR);
 

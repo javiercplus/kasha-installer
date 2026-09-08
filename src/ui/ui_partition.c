@@ -239,33 +239,35 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
 
     // PRE-FILL IF EDITING
     if (edit_conf) {
-        gtk_widget_set_sensitive(GTK_WIDGET(combo_part), FALSE);
-        
         const char *short_dev = edit_conf->device;
         if (strncmp(short_dev, "/dev/", 5) == 0) short_dev += 5;
-        
+
+        /* Locate the current device so it gets preselected. The device combo
+         * is deliberately NOT locked: the user must be able to move a partition
+         * to another device when editing. */
         gint found_idx = -1;
-        
-        for (gint i = 0; i < 20; i++) {
+        GtkTreeModel *part_model = gtk_combo_box_get_model(GTK_COMBO_BOX(combo_part));
+        gint n_items = part_model ? gtk_tree_model_iter_n_children(part_model, NULL) : 0;
+        for (gint i = 0; i < n_items; i++) {
             gtk_combo_box_set_active(GTK_COMBO_BOX(combo_part), i);
             gchar *text = gtk_combo_box_text_get_active_text(combo_part);
             if (text) {
-                if (strcmp(text, short_dev) == 0) {
-                    found_idx = i;
-                    g_free(text);
-                    break;
-                }
+                if (strcmp(text, short_dev) == 0) { found_idx = i; g_free(text); break; }
                 g_free(text);
             } else {
                 break;
             }
         }
-        
-        if (found_idx >= 0) {
-            gtk_combo_box_set_active(GTK_COMBO_BOX(combo_part), found_idx);
-        } else {
-            gtk_combo_box_set_active(GTK_COMBO_BOX(combo_part), 0);
+
+        if (found_idx < 0) {
+            /* The configured device isn't in the scanned list (e.g. created by
+             * GParted or beyond the scanned range). Add it so it stays visible
+             * and selectable instead of silently defaulting to another device. */
+            gtk_combo_box_text_append_text(combo_part, short_dev);
+            found_idx = n_items; /* index of the freshly appended item */
         }
+        if (found_idx >= 0)
+            gtk_combo_box_set_active(GTK_COMBO_BOX(combo_part), found_idx);
         
         // FS
         if (strcmp(edit_conf->fstype, "ext4") == 0) gtk_combo_box_set_active(GTK_COMBO_BOX(combo_fs), 0);

@@ -87,21 +87,32 @@ void bootloader_setup_os_prober(AppData *app, const char *TARGETDIR, const char 
     run_sync(app, "echo 'GRUB_DISABLE_OS_PROBER=false' >> %s/etc/default/grub", TARGETDIR);
 
     // Mount other partitions so os-prober can detect them
-    log_to_ui(app, "Scanning for other operating systems...", 0.925);
+    log_to_ui(app, "Scanning for other operating systems (all disks)...", 0.925);
     run_sync(app, "mkdir -p /tmp/kasha_osprobe");
 
-    // Scan all partitions on the system for other OS
-    char probe_cmd[512];
+    /* Scan EVERY disk on the system, not just the target disk: the other OS
+     * (Windows, CachyOS, etc.) is frequently installed on a separate drive.
+     * Mounting all matching partitions read-only lets os-prober see them and
+     * add proper GRUB entries.
+     *
+     * btrfs is handled specially: we mount the default subvolume (subvol=@
+     * or whatever btrfs stamped as default) read-only so os-prober can read
+     * the kernel/initramfs paths inside it. */
+    char probe_cmd[1024];
     snprintf(probe_cmd, sizeof(probe_cmd),
-        "lsblk -rn -o NAME,FSTYPE /dev/%s 2>/dev/null | while read name fstype; do "
-        "  case \"$fstype\" in "
-        "    ntfs|ext4|ext3|btrfs|xfs) "
-        "      dev=\"/dev/$name\"; "
-        "      mp=\"/tmp/kasha_osprobe/$name\"; "
-        "      mkdir -p \"$mp\"; "
-        "      mount -o ro \"$dev\" \"$mp\" 2>/dev/null || true; "
-        "    ;; "
-        "  esac; "
+        "lsblk -rn -o NAME,FSTYPE,TYPE 2>/dev/null | "
+        "awk -v self=\"%s\" '$3 == \"part\" && $1 !~ (\"^\" self \"[0-9p]\") && "
+        "  $2 ~ /^(ntfs|ext4|ext3|btrfs|xfs)$/ {print $1, $2}' | "
+        "while read name fstype; do "
+        "  dev=\"/dev/$name\"; "
+        "  mp=\"/tmp/kasha_osprobe/$name\"; "
+        "  mkdir -p \"$mp\"; "
+        "  if [ \"$fstype\" = \"btrfs\" ]; then "
+        "    mount -o ro,subvol=@ \"$dev\" \"$mp\" 2>/dev/null || "
+        "    mount -o ro \"$dev\" \"$mp\" 2>/dev/null || true; "
+        "  else "
+        "    mount -o ro \"$dev\" \"$mp\" 2>/dev/null || true; "
+        "  fi; "
         "done", disk_name);
     system(probe_cmd);
 }

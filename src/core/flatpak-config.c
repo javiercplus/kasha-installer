@@ -29,7 +29,9 @@ void configure_flatpak_repo(AppData *app, const char *TARGETDIR) {
     }
 
     log_to_ui(app, "Initializing Flatpak system repo in target...", -1);
-
+     /* Erase BROKEN OSTree repo subdirectories */
+    run_sync(app, "rn -fr %s/var/lib/flatpak", TARGETDIR);
+    
     /* Create the required OSTree repo subdirectories */
     run_sync(app, "mkdir -p %s/var/lib/flatpak/repo/objects", TARGETDIR);
     run_sync(app, "mkdir -p %s/var/lib/flatpak/repo/tmp",     TARGETDIR);

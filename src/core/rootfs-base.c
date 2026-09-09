@@ -349,7 +349,7 @@ void void_install_desktop_packages(AppData *app, const char *TARGETDIR, const ch
     }
 
     log_to_ui_printf(app, "Installing packages for desktop: %s", desktop);
-    if (run_sync(app, "chroot %s bash -c 'xbps-install -Sy --repository=%s %s'",
+    if (run_sync(app, "chroot %s bash -c 'xbps-install -Sy --repository=https://github.com/Neko-Void-Linux/repo-neko/releases/download/stable --repository=%s %s'",
                  TARGETDIR, VOID_REPO, pkgs) != 0) {
         log_to_ui(app, "WARNING: desktop package installation reported errors — continuing.", -1.0);
     }

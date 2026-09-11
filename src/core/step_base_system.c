@@ -130,8 +130,29 @@ void install_base_initramfs(AppData *app, const char *TARGETDIR) {
     run_sync(app, "mkdir -p %s/etc/dracut.conf.d", TARGETDIR);
     run_sync(app, "echo 'hostonly=no' > %s/etc/dracut.conf.d/01-neko.conf", TARGETDIR);
     run_sync(app, "echo 'add_drivers+=\" ahci \"' >> %s/etc/dracut.conf.d/01-neko.conf", TARGETDIR);
+
+    /* If any partition uses LUKS, include the crypt and dm modules from the
+     * very first initramfs build so the kernel can unlock the root device. */
+    gboolean has_crypto = FALSE;
+    GSList *chk = app->part_config_list;
+    while(chk) {
+        if(((PartitionConfig*)chk->data)->encrypt) has_crypto = TRUE;
+        chk = chk->next;
+    }
+    if (has_crypto) {
+        run_sync(app, "echo 'add_dracutmodules+=\" crypt dm \"' >> %s/etc/dracut.conf.d/01-neko.conf", TARGETDIR);
+    }
+
     log_to_ui(app, "Rebuilding initramfs (generic, this can take a few minutes)...", 0.6);
-    run_sync(app, "chroot %s dracut --no-hostonly --add-drivers \"ahci\" --force", TARGETDIR);
+
+    /* Run depmod first so dracut can find kernel modules (modules.dep). */
+    run_sync(app, "chroot %s sh -c 'for kver in $(ls /usr/lib/modules/); do depmod -a \"$kver\"; done'", TARGETDIR);
+
+    /* Build initramfs for each installed kernel, specifying output path and
+     * kernel version explicitly to avoid the /boot/efi/Default/ path issue. */
+    run_sync(app, "chroot %s sh -c 'for kver in $(ls /usr/lib/modules/); do "
+             "dracut --no-hostonly --add-drivers \"ahci\" --force "
+             "/boot/initramfs-${kver}.img ${kver}; done'", TARGETDIR);
 
 #ifndef UNIVERSAL_BUILD
     /* --- Void Linux: reconfigure base packages with xbps-reconfigure --- */

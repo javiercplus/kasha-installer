@@ -139,15 +139,22 @@ void bootloader_cleanup_os_prober(AppData *app) {
 void bootloader_dracut_luks(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "Configuring dracut for LUKS...", 0.93);
     run_sync(app, "mkdir -p %s/etc/dracut.conf.d", TARGETDIR);
-    run_sync(app, "echo 'hostonly=yes' > %s/etc/dracut.conf.d/10-crypt.conf", TARGETDIR);
-    run_sync(app, "echo 'add_dracutmodules+=\" crypt \"' >> %s/etc/dracut.conf.d/10-crypt.conf", TARGETDIR);
+    /* Do NOT set hostonly=yes here — it conflicts with the hostonly=no in
+     * 01-neko.conf and produces a broken initramfs inside a chroot where
+     * /proc/cmdline refers to the live USB, not the installed system. */
+    run_sync(app, "echo 'add_dracutmodules+=\" crypt dm \"' > %s/etc/dracut.conf.d/10-crypt.conf", TARGETDIR);
 
     log_to_ui(app, "Regenerating initramfs with LUKS support...", 0.935);
+
+    /* Ensure modules.dep is up-to-date before dracut runs */
+    run_sync(app, "chroot %s sh -c 'for kver in $(ls /usr/lib/modules/); do depmod -a \"$kver\"; done'", TARGETDIR);
+
 #ifndef UNIVERSAL_BUILD
     /* --- Void Linux: install base-system-dracut and reconfigure with xbps --- */
     void_install_dracut_luks(app, TARGETDIR);
 #else
     /* --- Universal: regenerate initramfs directly with dracut --- */
-    run_sync(app, "chroot %s dracut --force 2>/dev/null || true", TARGETDIR);
+    run_sync(app, "chroot %s sh -c 'for kver in $(ls /usr/lib/modules/); do "
+             "dracut --no-hostonly --force /boot/initramfs-${kver}.img ${kver}; done'", TARGETDIR);
 #endif
 }

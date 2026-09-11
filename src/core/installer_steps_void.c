@@ -121,6 +121,8 @@ void void_install_osprober(AppData *app, const char *TARGETDIR) {
 void void_install_dracut_luks(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "[Void] Ensuring dracut is installed via xbps...", 0.935);
     run_sync(app, "chroot %s xbps-install -Sy --repository=https://repo-de.voidlinux.org/current/ dracut 2>/dev/null || true", TARGETDIR);
+    /* Ensure modules.dep exists before dracut runs via xbps-reconfigure */
+    run_sync(app, "chroot %s sh -c 'for kver in $(ls /usr/lib/modules/); do depmod -a \"$kver\"; done'", TARGETDIR);
     /* xbps-reconfigure -fa regenerates every kernel's initramfs (dracut is run
      * by the kernel package's INSTALL hook, honoring dracut.conf.d). Do NOT
      * fall back to a manual `dracut --force`: it hangs and can yield an

@@ -98,10 +98,22 @@ void generate_fstab(AppData *app, const char *target_dir) {
     while (l) {
         PartitionConfig *conf = (PartitionConfig*)l->data;
         
-        char *uuid = get_uuid(conf->device);
-        if (!uuid) {
-            log_to_ui_printf(app, "Warning: No UUID for %s, using device path.", conf->device);
-            uuid = g_strdup(conf->device);
+        /* For encrypted partitions use the mapper device path directly;
+         * crypttab opens the LUKS container before fstab is processed,
+         * so /dev/mapper/cryptroot is guaranteed to exist at mount time.
+         * UUID lookup on mapper devices is fragile across reboots. */
+        char *fs_spec = NULL;
+        if (conf->encrypt) {
+            fs_spec = g_strdup(conf->device);  /* e.g. /dev/mapper/cryptroot */
+        } else {
+            char *uuid = get_uuid(conf->device);
+            if (uuid) {
+                fs_spec = g_strdup_printf("UUID=%s", uuid);
+                g_free(uuid);
+            } else {
+                log_to_ui_printf(app, "Warning: No UUID for %s, using device path.", conf->device);
+                fs_spec = g_strdup(conf->device);
+            }
         }
         
         // Options
@@ -125,12 +137,12 @@ void generate_fstab(AppData *app, const char *target_dir) {
         }
         
         if (strcmp(conf->fstype, "swap") == 0) {
-             fprintf(fp, "UUID=%s\t%s\t%s\t%s\t%d\t%d\n", uuid, "none", "swap", opts, dump, pass);
+             fprintf(fp, "%s\t%s\t%s\t%s\t%d\t%d\n", fs_spec, "none", "swap", opts, dump, pass);
         } else {
-             fprintf(fp, "UUID=%s\t%s\t%s\t%s\t%d\t%d\n", uuid, conf->mountpoint, conf->fstype, opts, dump, pass);
+             fprintf(fp, "%s\t%s\t%s\t%s\t%d\t%d\n", fs_spec, conf->mountpoint, conf->fstype, opts, dump, pass);
         }
         
-        g_free(uuid);
+        g_free(fs_spec);
         l = l->next;
     }
 

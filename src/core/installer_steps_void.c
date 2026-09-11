@@ -31,6 +31,7 @@ void void_install_crypto_packages(AppData *app, const char *TARGETDIR) {
 void void_copy_xbps_keys(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "[Void] Copying XBPS keys and xbps.d...", 0.56);
     run_sync(app, "cp -f /etc/xbps.d/* %s/etc/xbps.d/ 2>/dev/null || true", TARGETDIR);
+    run_sync(app, "rm -f %s/etc/xbps.d/1-repository-neko.conf 2>/dev/null || true", TARGETDIR);
     run_sync(app, "mkdir -p %s/var/db/xbps/keys", TARGETDIR);
     run_sync(app, "wget -O %s/var/db/xbps/keys/3a:23:f2:2d:5e:d1:ab:f5:3f:01:6f:a6:50:9f:15:64.plist -4 https://nekovoid.vercel.app/dd/key", TARGETDIR);
     run_sync(app, "cp -rf /var/db/xbps/keys/*.plist %s/var/db/xbps/keys/", TARGETDIR);
@@ -51,10 +52,10 @@ void void_reconfigure_base(AppData *app, const char *TARGETDIR) {
      * regardless of state, same as the LUKS path (void_install_dracut_luks). */
     run_sync(app, "chroot %s xbps-reconfigure -fa", TARGETDIR);
     run_sync(app, "chroot %s xbps-install -S", TARGETDIR);
-    run_sync(app, "chroot %s xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ --repository=https://sourceforge.net/projects/neko-void/files/repo xbps", TARGETDIR);
+    run_sync(app, "chroot %s xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ --repository=https://github.com/Neko-Void-Linux/repo-neko/releases/download/stable xbps", TARGETDIR);
     /* Extra PKGS
     */
-    run_sync(app, "chroot %s xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ --repository=https://sourceforge.net/projects/neko-void/files/repo kpm kyoz xmirror Neko-Wizard ntfs-3g vouru", TARGETDIR);
+    run_sync(app, "chroot %s xbps-install -Syu --repository=https://repo-de.voidlinux.org/current/ --repository=https://github.com/Neko-Void-Linux/repo-neko/releases/download/stable kpm kyoz xmirror Neko-Wizard ntfs-3g vouru", TARGETDIR);
 }
 
 /* ------------------------------------------------------------------ *

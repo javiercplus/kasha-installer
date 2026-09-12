@@ -140,7 +140,7 @@ void install_base_initramfs(AppData *app, const char *TARGETDIR) {
         chk = chk->next;
     }
     if (has_crypto) {
-        run_sync(app, "echo 'add_dracutmodules+=\" crypt dm \"' >> %s/etc/dracut.conf.d/01-neko.conf", TARGETDIR);
+        run_sync(app, "echo 'add_dracutmodules+=\" crypt dm lvm \"' >> %s/etc/dracut.conf.d/01-neko.conf", TARGETDIR);
     }
 
     log_to_ui(app, "Rebuilding initramfs (generic, this can take a few minutes)...", 0.6);

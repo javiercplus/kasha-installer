@@ -102,7 +102,8 @@ int step_install_bootloader(AppData *app, const char *TARGETDIR, const char *dis
       chk = chk->next;
     }
 
-    /* 2. Configure GRUB for LUKS if needed */
+    /* 2. Configure GRUB for LUKS if needed (sets GRUB_ENABLE_CRYPTODISK,
+     *    rd.luks.uuid, generates volume.key) */
     if (has_crypto) {
         bootloader_config_luks(app, TARGETDIR);
     }
@@ -111,26 +112,28 @@ int step_install_bootloader(AppData *app, const char *TARGETDIR, const char *dis
     if (bootloader_install_grub(app, TARGETDIR, disk_path) != 0)
         return -1;
 
-    /* 4. Set up os-prober for dual boot */
+    /* 4. Configure dracut for LUKS and regenerate initramfs BEFORE
+     *    grub-mkconfig.  This is critical: grub-mkconfig reads the
+     *    initramfs to build menu entries; if the initramfs doesn't
+     *    contain the crypt/dm/lvm modules + volume.key + crypttab,
+     *    the generated GRUB config will reference a broken initramfs
+     *    and the system won't boot. */
+    if (has_crypto) {
+        bootloader_dracut_luks(app, TARGETDIR);
+    }
+
+    /* 5. Set up os-prober for dual boot */
     if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
         bootloader_setup_os_prober(app, TARGETDIR, disk_name);
     }
 
-    /* 5. Generate GRUB config */
-    /* Finalization: the initramfs was already regenerated (generically, per
-     * /etc/dracut.conf.d/01-neko.conf) — during step_install_base_system for
-     * the live-copy path, and by xbps-reconfigure -fa during the rootfs
-     * install. So grub-mkconfig always finds a valid initramfs. */
+    /* 6. Generate GRUB config — AFTER dracut has rebuilt the initramfs
+     *    with LUKS support, so grub-mkconfig picks up the correct one. */
     run_sync(app, "chroot %s grub-mkconfig -o /boot/grub/grub.cfg", TARGETDIR);
 
-    /* 6. Cleanup os-prober mounts */
+    /* 7. Cleanup os-prober mounts */
     if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
         bootloader_cleanup_os_prober(app);
-    }
-
-    /* 7. Configure dracut for LUKS and regenerate initramfs */
-    if (has_crypto) {
-        bootloader_dracut_luks(app, TARGETDIR);
     }
 
     return 0;

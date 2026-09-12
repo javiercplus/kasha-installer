@@ -20,8 +20,8 @@
  *  Install cryptsetup inside the chroot via xbps-install.            *
  * ------------------------------------------------------------------ */
 void void_install_crypto_packages(AppData *app, const char *TARGETDIR) {
-    log_to_ui(app, "[Void] Installing cryptsetup via xbps...", 0.55);
-    run_sync(app, "chroot %s xbps-install -Sy --repository=https://repo-de.voidlinux.org/current/ cryptsetup", TARGETDIR);
+    log_to_ui(app, "[Void] Installing cryptsetup and lvm2 via xbps...", 0.55);
+    run_sync(app, "chroot %s xbps-install -Sy --repository=https://repo-de.voidlinux.org/current/ cryptsetup lvm2", TARGETDIR);
 }
 
 /* ------------------------------------------------------------------ *

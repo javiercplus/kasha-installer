@@ -181,7 +181,7 @@ void generate_crypttab(AppData *app, const char *target_dir) {
     while(l) {
         PartitionConfig *conf = (PartitionConfig*)l->data;
         if (conf->encrypt && conf->luks_pass && conf->luks_uuid) {
-            fprintf(fp, "cryptroot UUID=%s none luks\n", conf->luks_uuid);
+            fprintf(fp, "cryptroot UUID=%s /boot/volume.key luks\n", conf->luks_uuid);
         }
         l = l->next;
     }

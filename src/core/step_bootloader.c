@@ -24,11 +24,38 @@ void bootloader_config_luks(AppData *app, const char *TARGETDIR) {
             log_to_ui_printf(app, "Setting GRUB LUKS UUID: %s", c->luks_uuid);
 
             // Enable cryptodisk in GRUB
-            run_sync(app, "sed -i 's/GRUB_ENABLE_CRYPTODISK=.*//' %s/etc/default/grub", TARGETDIR);
+            run_sync(app, "sed -i '/GRUB_ENABLE_CRYPTODISK/d' %s/etc/default/grub", TARGETDIR);
             run_sync(app, "echo 'GRUB_ENABLE_CRYPTODISK=y' >> %s/etc/default/grub", TARGETDIR);
 
-            // Set rd.luks.name for boot
-            run_sync(app, "sed -i 's|GRUB_CMDLINE_LINUX_DEFAULT=\"|GRUB_CMDLINE_LINUX_DEFAULT=\"rd.luks.name=%s=cryptroot |' %s/etc/default/grub", c->luks_uuid, TARGETDIR);
+            // Set rd.luks.uuid for dracut to find and unlock the LUKS device.
+            // Per the Void handbook: rd.luks.uuid=<UUID> tells the initramfs
+            // which device to unlock at boot.
+            run_sync(app, "sed -i 's|GRUB_CMDLINE_LINUX_DEFAULT=\"|GRUB_CMDLINE_LINUX_DEFAULT=\"rd.luks.uuid=%s |' %s/etc/default/grub", c->luks_uuid, TARGETDIR);
+
+            // Generate a random keyfile to avoid entering the passphrase twice
+            // (once for GRUB, once for the initramfs).  Per the Void handbook:
+            //   dd bs=1 count=64 if=/dev/urandom of=/boot/volume.key
+            //   cryptsetup luksAddKey /dev/sdXn /boot/volume.key
+            log_to_ui(app, "Generating LUKS volume key for auto-unlock...", 0.912);
+            run_sync(app, "dd bs=1 count=64 if=/dev/urandom of=%s/boot/volume.key 2>/dev/null", TARGETDIR);
+
+            // Add the key to the LUKS volume using a tempfile with the passphrase
+            if (c->luks_pass && c->original_device) {
+                char keyfile[64];
+                snprintf(keyfile, sizeof(keyfile), "/tmp/luks_addkey_XXXXXX");
+                int kfd = mkstemp(keyfile);
+                if (kfd >= 0) {
+                    write(kfd, c->luks_pass, strlen(c->luks_pass));
+                    close(kfd);
+                    run_sync(app, "cryptsetup luksAddKey --key-file=%s %s %s/boot/volume.key",
+                             keyfile, c->original_device, TARGETDIR);
+                    unlink(keyfile);
+                }
+            }
+
+            // Protect the keyfile and /boot directory
+            run_sync(app, "chmod 000 %s/boot/volume.key", TARGETDIR);
+            run_sync(app, "chmod -R g-rwx,o-rwx %s/boot", TARGETDIR);
         }
         f = f->next;
     }
@@ -139,10 +166,16 @@ void bootloader_cleanup_os_prober(AppData *app) {
 void bootloader_dracut_luks(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "Configuring dracut for LUKS...", 0.93);
     run_sync(app, "mkdir -p %s/etc/dracut.conf.d", TARGETDIR);
-    /* Do NOT set hostonly=yes here — it conflicts with the hostonly=no in
-     * 01-neko.conf and produces a broken initramfs inside a chroot where
-     * /proc/cmdline refers to the live USB, not the installed system. */
-    run_sync(app, "echo 'add_dracutmodules+=\" crypt dm \"' > %s/etc/dracut.conf.d/10-crypt.conf", TARGETDIR);
+
+    /* Per the Void handbook, dracut needs:
+     *   add_dracutmodules+=" crypt dm lvm "   — to handle LUKS + LVM
+     *   install_items+=" /boot/volume.key /etc/crypttab "
+     *                                         — so the initramfs can auto-unlock
+     *                                           the LUKS volume without asking
+     *                                           the passphrase a second time.
+     */
+    run_sync(app, "echo 'add_dracutmodules+=\" crypt dm lvm \"' > %s/etc/dracut.conf.d/10-crypt.conf", TARGETDIR);
+    run_sync(app, "echo 'install_items+=\" /boot/volume.key /etc/crypttab \"' >> %s/etc/dracut.conf.d/10-crypt.conf", TARGETDIR);
 
     log_to_ui(app, "Regenerating initramfs with LUKS support...", 0.935);
 

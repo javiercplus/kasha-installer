@@ -145,6 +145,23 @@ void refresh_partition_list_ui(AppData *app) {
     }
 }
 
+static void on_fs_combo_changed(GtkComboBox *combo, gpointer user_data) {
+    GtkEntry *entry_mp = GTK_ENTRY(user_data);
+    gchar *active_text = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(combo));
+
+    if (active_text && strcmp(active_text, "swap") == 0) {
+        gtk_widget_set_sensitive(GTK_WIDGET(entry_mp), FALSE);
+        gtk_entry_set_text(entry_mp, "[SWAP]");
+    } else {
+        gtk_widget_set_sensitive(GTK_WIDGET(entry_mp), TRUE);
+        const gchar *cur = gtk_entry_get_text(entry_mp);
+        if (!cur || strlen(cur) == 0 || strcmp(cur, "[SWAP]") == 0)
+            gtk_entry_set_text(entry_mp, "/");
+    }
+
+    g_free(active_text);
+}
+
 void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
     if (!app->selected_disk) {
         GtkWidget *err = gtk_message_dialog_new(GTK_WINDOW(app->window),
@@ -203,6 +220,8 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
     gtk_entry_set_text(GTK_ENTRY(entry_mp_w), "/");
     gtk_box_pack_start(GTK_BOX(h_mp), entry_mp_w, TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox_gen), h_mp, FALSE, FALSE, 0);
+    g_signal_connect(combo_fs, "changed", G_CALLBACK(on_fs_combo_changed), entry_mp_w);
+    on_fs_combo_changed(GTK_COMBO_BOX(combo_fs), entry_mp_w);
 
     // ... Format ...
     GtkCheckButton *chk_fmt = GTK_CHECK_BUTTON(gtk_check_button_new_with_label(get_part_loc("format_partition", app)));
@@ -277,7 +296,10 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
         else if (strcmp(edit_conf->fstype, "vfat") == 0) gtk_combo_box_set_active(GTK_COMBO_BOX(combo_fs), 4);
         else if (strcmp(edit_conf->fstype, "swap") == 0) gtk_combo_box_set_active(GTK_COMBO_BOX(combo_fs), 5);
 
-        gtk_entry_set_text(GTK_ENTRY(entry_mp_w), edit_conf->mountpoint);
+        if (strcmp(edit_conf->fstype, "swap") == 0)
+            gtk_entry_set_text(GTK_ENTRY(entry_mp_w), "[SWAP]");
+        else
+            gtk_entry_set_text(GTK_ENTRY(entry_mp_w), edit_conf->mountpoint);
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(chk_fmt), edit_conf->format);
         gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(chk_encrypt), edit_conf->encrypt);
         if (edit_conf->luks_pass) {
@@ -318,6 +340,7 @@ if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
             }
 
             gchar *full_dev = g_strdup_printf("/dev/%s", dev_short);
+            const gchar *stored_mp = (strcmp(fs, "swap") == 0) ? "[SWAP]" : mp;
 
             if (edit_conf) {
                 // UPDATE EXISTING
@@ -331,7 +354,7 @@ if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
                 edit_conf->device = g_strdup(full_dev);
                 edit_conf->original_device = g_strdup(full_dev);
                 edit_conf->fstype = g_strdup(fs);
-                edit_conf->mountpoint = g_strdup(mp);
+                edit_conf->mountpoint = g_strdup(stored_mp);
                 edit_conf->format = fmt;
                 edit_conf->encrypt = encrypt;
                 edit_conf->luks_pass = (encrypt && pass && strlen(pass) > 0) ? g_strdup(pass) : NULL;
@@ -339,11 +362,7 @@ if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
                 refresh_partition_list_ui(app);
             } else {
                 // ADD NEW
-                if (strcmp(fs, "swap") == 0) {
-                    add_partition_config(app, full_dev, fs, "[SWAP]", fmt, encrypt, pass);
-                } else {
-                    add_partition_config(app, full_dev, fs, mp, fmt, encrypt, pass);
-                }
+                add_partition_config(app, full_dev, fs, stored_mp, fmt, encrypt, pass);
                 g_free(full_dev);
             }
             

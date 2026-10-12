@@ -4,6 +4,7 @@
  */
 #include "neko_installer.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <dirent.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -102,7 +103,7 @@ void populate_defaults(AppData *app, const char *disk_name) {
        clears the partition list; we restore the mode afterwards) */
     InstallMode intended_mode = app->install_mode;
 
-    on_reset_partitions_clicked(NULL, app);
+    core_reset_partitions(app);
     
     char *p1 = get_partition_path(disk_name, 1);
     char *p2 = get_partition_path(disk_name, 2);
@@ -194,6 +195,41 @@ void remove_partition_config(AppData *app, PartitionConfig *conf) {
     g_free(conf->mountpoint);
     if(conf->luks_pass) g_free(conf->luks_pass);
     g_free(conf);
+}
+
+// Helper to add a new config to the list (UI refreshes its list after).
+void add_partition_config(AppData *app, const gchar *dev, const gchar *fs, const gchar *mp, gboolean fmt, gboolean encrypt, const gchar *pass) {
+    PartitionConfig *conf = g_new(PartitionConfig, 1);
+    conf->device = g_strdup(dev);
+    conf->original_device = g_strdup(dev);
+    conf->luks_uuid = NULL;
+    conf->fstype = g_strdup(fs);
+    conf->mountpoint = g_strdup(mp);
+    conf->format = fmt;
+    conf->encrypt = encrypt;
+    conf->luks_pass = (encrypt && pass) ? g_strdup(pass) : NULL;
+
+    app->part_config_list = g_slist_append(app->part_config_list, conf);
+}
+
+// Helper to clear the whole partition config list.
+void core_reset_partitions(AppData *app) {
+    if (app->part_config_list) {
+        GSList *l = app->part_config_list;
+        while (l != NULL) {
+            PartitionConfig *conf = (PartitionConfig *)l->data;
+            g_free(conf->device);
+            g_free(conf->fstype);
+            g_free(conf->mountpoint);
+            g_free(conf->original_device);
+            g_free(conf->luks_uuid);
+            if(conf->luks_pass) g_free(conf->luks_pass);
+            g_free(conf);
+            l = l->next;
+        }
+        g_slist_free(app->part_config_list);
+        app->part_config_list = NULL;
+    }
 }
 
 /* ------------------------------------------------------------------ *

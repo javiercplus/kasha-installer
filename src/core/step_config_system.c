@@ -103,7 +103,7 @@ void config_sys_keyboard(AppData *app, const char *TARGETDIR) {
     const char *x11_variant = "";
 
     // 1st priority: user-selected keyboard layout from UI
-    int kbd_active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_layout_combo));
+    int kbd_active = app->kbd_layout_active;
     if (kbd_active >= 0) {
         int kbd_count = 0;
         const KbdLayout *layouts = get_keyboard_layouts(&kbd_count);
@@ -113,7 +113,7 @@ void config_sys_keyboard(AppData *app, const char *TARGETDIR) {
         }
 
         // Get selected variant
-        int var_active = gtk_combo_box_get_active(GTK_COMBO_BOX(app->kbd_variant_combo));
+        int var_active = app->kbd_variant_active;
         if (var_active > 0 && kbd_active < kbd_count) {
             // variant index 0 = "Default" = empty string
             const KbdVariant *vars = layouts[kbd_active].variants;
@@ -126,14 +126,13 @@ void config_sys_keyboard(AppData *app, const char *TARGETDIR) {
         }
     } else {
         // 2nd priority: derive from country selection
-        gchar *country_name = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->country_combo));
+        const gchar *country_name = app->country_name;
         if (country_name && strlen(country_name) > 0) {
             const CountryInfo *ci = find_country_by_name(country_name);
             if (ci && ci->console_kmap && ci->x11_layout) {
                 console_kmap = ci->console_kmap;
                 x11_layout   = ci->x11_layout;
             }
-            g_free(country_name);
         }
     }
 
@@ -185,18 +184,13 @@ void config_sys_keyboard(AppData *app, const char *TARGETDIR) {
  *  Set /etc/localtime from the selected timezone area and city.      *
  * ------------------------------------------------------------------ */
 void config_sys_timezone(AppData *app, const char *TARGETDIR) {
-    char *tz_area = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->tz_area_combo));
-    char *tz_city = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(app->tz_city_combo));
+    const char *tz_area = app->tz_area;
+    const char *tz_city = app->tz_city;
 
     if (tz_area && tz_city) {
         log_to_ui(app, "Setting Timezone...", 0.78);
         run_sync(app, "ln -sf /usr/share/zoneinfo/%s/%s %s/etc/localtime", tz_area, tz_city, TARGETDIR);
-        g_free(tz_area);
-        g_free(tz_city);
     } else {
-        /* Ensure we free whichever pointer was allocated before defaulting to UTC */
-        if (tz_area) g_free(tz_area);
-        if (tz_city) g_free(tz_city);
         log_to_ui(app, "Timezone not selected, defaulting to UTC.", 0.78);
         run_sync(app, "ln -sf /usr/share/zoneinfo/UTC %s/etc/localtime", TARGETDIR);
     }
@@ -218,34 +212,8 @@ void config_sys_desktop_env(AppData *app, const char *TARGETDIR) {
      * When "local (default)" is checked nothing runs here: the live image
      * is copied as-is (see step_install_base_system).
      *
-     * The autologin configuration happens INSIDE the user-creation block
-     * further below, which runs AFTER this desktop install, so there is
-     * no risk of overwriting the autologin settings.
+     * The selected desktop string is set by the UI (app->selected_desktop).
      */
-    g_free(app->selected_desktop);
-    app->selected_desktop = NULL;
-    /* "local (default)" checked -> copy the live image as-is, no desktop
-     * install and no neko-desktops logic at all. */
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_local)))
-        app->selected_desktop = g_strdup("local");
-    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_xfce)))
-        app->selected_desktop = g_strdup("xfce");
-    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_niri)))
-        app->selected_desktop = g_strdup("niri");
-    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_kde)))
-        app->selected_desktop = g_strdup("kde");
-    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_icewm)))
-        app->selected_desktop = g_strdup("icewm");
-    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_i3)))
-        app->selected_desktop = g_strdup("i3");
-    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_jwm)))
-        app->selected_desktop = g_strdup("jwm");
-    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_mate)))
-        app->selected_desktop = g_strdup("mate");
-    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_labwc)))
-        app->selected_desktop = g_strdup("labwc");
-    else if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_lxqt)))
-        app->selected_desktop = g_strdup("lxqt");
 
     if (app->selected_desktop && strcmp(app->selected_desktop, "local") != 0) {
         log_to_ui_printf(app, "Installing desktop environment: %s", app->selected_desktop);
@@ -450,7 +418,7 @@ int config_sys_create_user(AppData *app, const char *TARGETDIR, const gchar *loc
 void config_sys_privileges(AppData *app, const char *TARGETDIR, const gchar *user_login) {
     if (strlen(user_login) == 0) return;
 
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->radio_priv_doas))) {
+    if (app->privilege_doas) {
         log_to_ui(app, "Configuring doas (lightweight privilege manager)...", 0.88);
 
         // 1. Prevent sudo from being pulled as a dependency

@@ -1,6 +1,7 @@
 
 # Object files
 *.o
+*.d
 
 # Build configuration stamp
 .build_config

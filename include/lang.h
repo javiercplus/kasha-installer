@@ -5,6 +5,10 @@
 #ifndef LANG_H
 #define LANG_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     const char *code;      // "en", "es", etc.
     const char *name;     // "English", "Español"
@@ -142,5 +146,10 @@ typedef struct {
 extern const LangInfo *get_lang(const char *code);
 extern const char **get_available_langs(void);
 extern int get_lang_count(void);
+extern void lang_init(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

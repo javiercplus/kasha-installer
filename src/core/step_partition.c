@@ -2,7 +2,11 @@
  * easy partition flowwwwww
  */
 #include "neko_installer.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
 int step_partitioning(AppData *app, const char *disk_name) {
     if (app->install_mode == INSTALL_MODE_MANUAL) return 0; // Skip if manual
 

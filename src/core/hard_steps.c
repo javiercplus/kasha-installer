@@ -25,7 +25,7 @@ int step_install_base_system(AppData *app, const char *TARGETDIR) {
      * bootstrap the base system from the downloadable rootfs
      * (src/core/rootfs-base.c) and install everything on top of it.
      */
-    if (!gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_desktop_local))) {
+    if (app->selected_desktop && strcmp(app->selected_desktop, "local") != 0) {
         return void_install_rootfs_base(app, TARGETDIR);
     }
 #endif

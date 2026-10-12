@@ -5,6 +5,10 @@
 #ifndef COUNTRY_DATA_H
 #define COUNTRY_DATA_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     const char *name;           // Country name (English)
     const char *locale;         // Default locale (e.g. "en_US.UTF-8")
@@ -33,5 +37,9 @@ typedef struct {
 
 const KbdLayout* get_keyboard_layouts(int *count);
 const KbdLayout* find_keyboard_layout(const char *layout_code);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

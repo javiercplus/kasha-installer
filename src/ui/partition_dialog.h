@@ -3,6 +3,7 @@
 
 #include <wx/wx.h>
 #include "neko_installer.h"
+#include "password_field.h"
 
 class PartitionDialog : public wxDialog {
 public:
@@ -18,8 +19,8 @@ private:
     wxTextCtrl *mountEntry_;
     wxCheckBox *formatCheck_;
     wxCheckBox *encryptCheck_;
-    wxTextCtrl *passEntry_;
-    wxTextCtrl *passConfirmEntry_;
+    PasswordField *passEntry_;
+    PasswordField *passConfirmEntry_;
 
     void OnFsChanged(wxCommandEvent &ev);
     void OnEncryptToggled(wxCommandEvent &ev);

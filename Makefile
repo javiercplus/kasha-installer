@@ -65,7 +65,8 @@ SRCS_ROOTFS = src/core/rootfs-base.c
 # C++ wxWidgets UI
 SRCS_UI = src/ui/wx_app.cpp \
           src/ui/wx_frame.cpp \
-          src/ui/partition_dialog.cpp
+          src/ui/partition_dialog.cpp \
+          src/ui/password_field.cpp
 
 ifneq ($(NO_DESKTOP_TAB),1)
 SRCS = $(SRCS_COMMON) $(SRCS_VOID) $(SRCS_DESKTOP) $(SRCS_ROOTFS) $(SRCS_UI)

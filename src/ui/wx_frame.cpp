@@ -118,7 +118,7 @@ void SetSizerEnabled(wxSizer *s, bool en) {
 
 MainFrame::MainFrame(AppData *app)
     : wxFrame(NULL, wxID_ANY, wxString::FromUTF8(get_loc("window_title", 0)),
-              wxDefaultPosition, wxSize(800, 480)),
+              wxDefaultPosition, wxSize(980, 640)),
       app_(app), pulseValue_(0) {
 
     app_->kbd_layout_active = 0;
@@ -131,7 +131,7 @@ MainFrame::MainFrame(AppData *app)
     app_->selected_desktop = g_strdup("local");
 #endif
 
-    SetMinSize(wxSize(640, 400));
+    SetMinSize(wxSize(760, 520));
     Centre();
 
     wxBoxSizer *root = new wxBoxSizer(wxVERTICAL);
@@ -177,6 +177,13 @@ MainFrame::MainFrame(AppData *app)
     PopulateKbdLayouts();
     PopulateKbdVariants();
     PopulateCountries();
+
+    // Default localization: United States -> en_US.UTF-8 / America/New_York / us
+    {
+        int usIdx = countryChoice_->FindString(wxT("United States"));
+        if (usIdx == wxNOT_FOUND && countryChoice_->GetCount() > 0) usIdx = 0;
+        if (usIdx != wxNOT_FOUND) countryChoice_->SetSelection(usIdx);
+    }
 
     HandleDiskSelection();
     HandleCountrySelection();
@@ -247,7 +254,9 @@ wxPanel *MainFrame::BuildWelcome() {
     h->Add(langChoice_);
     v->Add(h, wxSizerFlags().Centre().Border(wxTOP, 10));
 
-    p->SetSizer(v);
+    wxBoxSizer *pageOuter = new wxBoxSizer(wxVERTICAL);
+    pageOuter->Add(v, 1, wxEXPAND | wxALL, 18);
+    p->SetSizer(pageOuter);
     return p;
 }
 
@@ -270,7 +279,9 @@ wxPanel *MainFrame::BuildInstallType() {
     installTypeDesc_->Wrap(520);
     v->Add(installTypeDesc_, wxSizerFlags().Border(wxTOP, 5));
 
-    p->SetSizer(v);
+    wxBoxSizer *pageOuter = new wxBoxSizer(wxVERTICAL);
+    pageOuter->Add(v, 1, wxEXPAND | wxALL, 18);
+    p->SetSizer(pageOuter);
     return p;
 }
 
@@ -335,7 +346,9 @@ wxPanel *MainFrame::BuildPartitions() {
 
     SetSizerEnabled(installBox_, false);
 
-    p->SetSizer(v);
+    wxBoxSizer *pageOuter = new wxBoxSizer(wxVERTICAL);
+    pageOuter->Add(v, 1, wxEXPAND | wxALL, 18);
+    p->SetSizer(pageOuter);
     return p;
 }
 
@@ -353,7 +366,9 @@ wxPanel *MainFrame::BuildBootloader() {
     h->Add(grubChoice_, wxSizerFlags(1));
     v->Add(h, wxSizerFlags().Expand());
 
-    p->SetSizer(v);
+    wxBoxSizer *pageOuter = new wxBoxSizer(wxVERTICAL);
+    pageOuter->Add(v, 1, wxEXPAND | wxALL, 18);
+    p->SetSizer(pageOuter);
     return p;
 }
 
@@ -412,7 +427,9 @@ wxPanel *MainFrame::BuildSystem() {
     hKvar->Add(kbdVariantChoice_, wxSizerFlags(1));
     v->Add(hKvar, wxSizerFlags().Expand());
 
-    p->SetSizer(v);
+    wxBoxSizer *pageOuter = new wxBoxSizer(wxVERTICAL);
+    pageOuter->Add(v, 1, wxEXPAND | wxALL, 18);
+    p->SetSizer(pageOuter);
     return p;
 }
 
@@ -479,7 +496,9 @@ wxPanel *MainFrame::BuildDesktop() {
     desktopSelPanel_->Enable(false);
     v->Add(desktopSelPanel_, wxSizerFlags(1).Expand());
 
-    p->SetSizer(v);
+    wxBoxSizer *pageOuter = new wxBoxSizer(wxVERTICAL);
+    pageOuter->Add(v, 1, wxEXPAND | wxALL, 18);
+    p->SetSizer(pageOuter);
     return p;
 }
 #else
@@ -490,11 +509,9 @@ wxPanel *MainFrame::BuildUsers() {
     wxPanel *p = new wxPanel(notebook_);
     wxBoxSizer *v = new wxBoxSizer(wxVERTICAL);
 
-    auto addInput = [&](wxStaticText **lbl, wxTextCtrl **ent, const wxString &placeholder) {
+    auto addInput = [&](wxStaticText **lbl, PasswordField **ent, const wxString &placeholder) {
         *lbl = new wxStaticText(p, wxID_ANY, wxT(""));
-        *ent = new wxTextCtrl(p, wxID_ANY, wxT(""), wxDefaultPosition, wxDefaultSize,
-                              wxTE_PASSWORD);
-        (*ent)->SetHint(placeholder);
+        *ent = new PasswordField(p, placeholder);
         v->Add(*lbl, wxSizerFlags().Border(wxLEFT, 2));
         v->Add(*ent, wxSizerFlags().Expand().Border(wxBOTTOM, 8));
     };
@@ -517,7 +534,9 @@ wxPanel *MainFrame::BuildUsers() {
     autologinCheck_ = new wxCheckBox(p, wxID_ANY, wxT(""));
     v->Add(autologinCheck_, wxSizerFlags().Centre().Border(wxTOP, 10));
 
-    p->SetSizer(v);
+    wxBoxSizer *pageOuter = new wxBoxSizer(wxVERTICAL);
+    pageOuter->Add(v, 1, wxEXPAND | wxALL, 18);
+    p->SetSizer(pageOuter);
     return p;
 }
 
@@ -553,7 +572,9 @@ wxPanel *MainFrame::BuildSecurity() {
 
     doasRadio_->SetValue(true);
 
-    p->SetSizer(v);
+    wxBoxSizer *pageOuter = new wxBoxSizer(wxVERTICAL);
+    pageOuter->Add(v, 1, wxEXPAND | wxALL, 18);
+    p->SetSizer(pageOuter);
     return p;
 }
 
@@ -578,7 +599,9 @@ wxPanel *MainFrame::BuildInstall() {
     installBtn_->Enable(false);
     v->Add(installBtn_, wxSizerFlags().Expand());
 
-    p->SetSizer(v);
+    wxBoxSizer *pageOuter = new wxBoxSizer(wxVERTICAL);
+    pageOuter->Add(v, 1, wxEXPAND | wxALL, 18);
+    p->SetSizer(pageOuter);
     return p;
 }
 

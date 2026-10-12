@@ -71,10 +71,8 @@ PartitionDialog::PartitionDialog(wxWindow *parent, AppData *app, PartitionConfig
     encryptCheck_ = new wxCheckBox(encBox->GetStaticBox(), ID_ENCRYPT, loc(app, "encrypt_luks"));
     encBox->Add(encryptCheck_, wxSizerFlags().Border(wxALL, 5));
 
-    passEntry_ = new wxTextCtrl(encBox->GetStaticBox(), wxID_ANY, wxT(""),
-                                wxDefaultPosition, wxDefaultSize, wxTE_PASSWORD);
-    passConfirmEntry_ = new wxTextCtrl(encBox->GetStaticBox(), wxID_ANY, wxT(""),
-                                       wxDefaultPosition, wxDefaultSize, wxTE_PASSWORD);
+    passEntry_ = new PasswordField(encBox->GetStaticBox(), wxT("Encryption Password"));
+    passConfirmEntry_ = new PasswordField(encBox->GetStaticBox(), wxT("Confirm Password"));
     encBox->Add(passEntry_, wxSizerFlags().Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 5));
     encBox->Add(passConfirmEntry_, wxSizerFlags().Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, 5));
     passEntry_->Enable(false);

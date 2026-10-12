@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include "neko_installer.h"
+#include "password_field.h"
 
 struct DesktopOpt {
     wxCheckBox *chk;
@@ -93,11 +94,11 @@ private:
     wxStaticText *usernameLabel_;
     wxTextCtrl *usernameEntry_;
     wxStaticText *userPassLabel_;
-    wxTextCtrl *userPassEntry_;
+    PasswordField *userPassEntry_;
     wxStaticText *userConfirmLabel_;
-    wxTextCtrl *userPassConfirmEntry_;
+    PasswordField *userPassConfirmEntry_;
     wxStaticText *rootPassLabel_;
-    wxTextCtrl *rootPassEntry_;
+    PasswordField *rootPassEntry_;
     wxCheckBox *autologinCheck_;
 
     // Security

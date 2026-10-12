@@ -9,7 +9,10 @@
 #include <unistd.h>
 
 gboolean check_efi() {
-    if (access("/sys/firmware/efi/efivars", F_OK) == 0) {
+    /* The kernel only creates /sys/firmware/efi when the system was booted in
+     * UEFI mode. Checking the directory is more reliable than /sys/firmware/efi/
+     * efivars, which is absent when efivarfs is not mounted/supported. */
+    if (access("/sys/firmware/efi", F_OK) == 0) {
         return TRUE;
     }
     return FALSE;

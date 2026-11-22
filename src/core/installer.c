@@ -481,6 +481,10 @@ int run_sync(AppData *app, const char *fmt, ...) {
 }
 
 gboolean set_safe_password(AppData *app, const gchar *username, const gchar *password, const gchar *target_dir) {
+    char target_tmp_dir[256];
+    snprintf(target_tmp_dir, sizeof(target_tmp_dir), "%s/tmp", target_dir);
+    mkdir(target_tmp_dir, 01777);
+
     char target_tmp[256];
     snprintf(target_tmp, sizeof(target_tmp), "%s/tmp/.kasha_%s", target_dir, username);
     

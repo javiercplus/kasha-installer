@@ -788,8 +788,17 @@ menu_useraccount() {
 
 set_useraccount() {
     [ -z "$USERACCOUNT_DONE" ] && return
-    chroot $TARGETDIR useradd -m -G "$(get_option USERGROUPS)" \
-        -c "$(get_option USERNAME)" "$(get_option USERLOGIN)"
+    local _fullname
+    _fullname="$(get_option USERNAME | tr ':,' '  ')"
+    if [ -n "$_fullname" ]; then
+        chroot $TARGETDIR useradd -m -G "$(get_option USERGROUPS)" \
+            -c "$_fullname" "$(get_option USERLOGIN)" || \
+        chroot $TARGETDIR useradd -m -G "$(get_option USERGROUPS)" \
+            "$(get_option USERLOGIN)"
+    else
+        chroot $TARGETDIR useradd -m -G "$(get_option USERGROUPS)" \
+            "$(get_option USERLOGIN)"
+    fi
     echo "$(get_option USERLOGIN):$(get_option USERPASSWORD)" | \
         chroot $TARGETDIR chpasswd -c SHA512
 }
@@ -836,6 +845,19 @@ set_bootloader() {
 failed to install GRUB to $dev!\nCheck $LOG for errors." ${MSGBOXSIZE}
         DIE 1
     fi
+    # Ensure GRUB_DISABLE_OS_PROBER=false is set without duplicates
+    local _grub_default="$TARGETDIR/etc/default/grub"
+    mkdir -p "$TARGETDIR/etc/default"
+    touch "$_grub_default"
+    local _tot _cor
+    _tot=$(grep -c "GRUB_DISABLE_OS_PROBER" "$_grub_default" 2>/dev/null) || _tot=0
+    _cor=$(grep -c "^[[:space:]]*GRUB_DISABLE_OS_PROBER=false[[:space:]]*$" "$_grub_default" 2>/dev/null) || _cor=0
+    if [ "$_tot" -ne 1 ] || [ "$_cor" -ne 1 ]; then
+        sed -i -E '/^[#[:space:]]*GRUB_DISABLE_OS_PROBER/d' "$_grub_default"
+        [ -s "$_grub_default" ] && [ -n "$(tail -c 1 "$_grub_default")" ] && echo "" >> "$_grub_default"
+        echo "GRUB_DISABLE_OS_PROBER=false" >> "$_grub_default"
+    fi
+
     echo "Running grub-mkconfig on $TARGETDIR..." >$LOG
     chroot $TARGETDIR grub-mkconfig -o /boot/grub/grub.cfg >$LOG 2>&1
     if [ $? -ne 0 ]; then
@@ -1250,6 +1272,7 @@ install_packages() {
         else
             _grub="grub"
         fi
+        _grub="$_grub os-prober ntfs-3g"
     fi
 
     _syspkg="base-system"
@@ -1382,7 +1405,7 @@ Root partition not empty! Aborting..." ${MSGBOXSIZE}
         rm -f $TARGETDIR/etc/sddm.conf
         # Remove live user.
         echo "Removing $USERNAME live user from targetdir ..." >$LOG
-        chroot $TARGETDIR userdel -r $USERNAME >$LOG 2>&1
+        chroot $TARGETDIR userdel -rf $USERNAME >$LOG 2>&1
         rm -f $TARGETDIR/etc/sudoers.d/99-void-live
         sed -i "s,GETTY_ARGS=\"--noclear -a $USERNAME\",GETTY_ARGS=\"--noclear\",g" $TARGETDIR/etc/sv/agetty-tty1/conf
         TITLE="Check $LOG for details ..."

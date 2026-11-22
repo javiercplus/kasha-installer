@@ -122,7 +122,9 @@ int step_install_bootloader(AppData *app, const char *TARGETDIR, const char *dis
         bootloader_dracut_luks(app, TARGETDIR);
     }
 
-    /* 5. Set up os-prober for dual boot */
+    /* 5. Ensure os-prober is enabled and configured (mandatory check for dual boot in all modes) */
+    bootloader_ensure_os_prober(app, TARGETDIR);
+
     if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
         bootloader_setup_os_prober(app, TARGETDIR, disk_name);
     }

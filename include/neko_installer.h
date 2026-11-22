@@ -219,6 +219,7 @@ void on_disk_changed(GtkComboBox *widget, AppData *app);
 void on_country_changed(GtkComboBox *widget, AppData *app);
 void on_timezone_area_changed(GtkComboBox *widget, AppData *app);
 void on_kbd_layout_changed(GtkComboBox *widget, AppData *app);
+void on_insert_text_fullname(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data);
 void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data);
 void on_insert_text_hostname(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data);
 void launch_gparted(GtkWidget *widget, AppData *app);
@@ -288,6 +289,7 @@ void config_sys_autologin(AppData *app, const char *TARGETDIR, const gchar *user
 // step_bootloader.c  (helpers for step_install_bootloader)
 void bootloader_config_luks(AppData *app, const char *TARGETDIR);
 int  bootloader_install_grub(AppData *app, const char *TARGETDIR, const char *disk_path);
+void bootloader_ensure_os_prober(AppData *app, const char *TARGETDIR);
 void bootloader_setup_os_prober(AppData *app, const char *TARGETDIR, const char *disk_name);
 void bootloader_cleanup_os_prober(AppData *app);
 void bootloader_dracut_luks(AppData *app, const char *TARGETDIR);

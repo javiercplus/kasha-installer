@@ -373,6 +373,36 @@ void on_kbd_layout_changed(GtkComboBox *widget, AppData *app) {
     gtk_combo_box_set_active(GTK_COMBO_BOX(app->kbd_variant_combo), 0);
 }
 
+void on_insert_text_fullname(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data) {
+    /* Filter out characters forbidden in /etc/passwd GECOS comment field (-c):
+     * colons ':', commas ',', newlines/carriage returns, and control chars. */
+    if (new_text_length < 0)
+        new_text_length = (gint)strlen(new_text);
+
+    GString *filtered = g_string_sized_new(new_text_length);
+    const gchar *p = new_text;
+    const gchar *end = new_text + new_text_length;
+
+    while (p < end && *p) {
+        gunichar ch = g_utf8_get_char_validated(p, end - p);
+        if (ch == (gunichar)-1 || ch == (gunichar)-2)
+            break;
+        if (ch >= 0x20 && ch != ':' && ch != ',' && ch != 0x7f) {
+            g_string_append_unichar(filtered, ch);
+        }
+        p = g_utf8_next_char(p);
+    }
+
+    g_signal_stop_emission_by_name(editable, "insert-text");
+
+    if (filtered->len > 0) {
+        g_signal_handlers_block_by_func(editable, on_insert_text_fullname, data);
+        gtk_editable_insert_text(editable, filtered->str, (gint)filtered->len, position);
+        g_signal_handlers_unblock_by_func(editable, on_insert_text_fullname, data);
+    }
+    g_string_free(filtered, TRUE);
+}
+
 void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data) {
     /* Convert entire input to lowercase first */
     gchar *lower_text = g_utf8_strdown(new_text, new_text_length);

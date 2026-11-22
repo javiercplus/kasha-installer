@@ -346,6 +346,7 @@ void build_ui(AppData *app) {
 
     // Full Name
     gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Full Name:", &app->user_fullname_entry, &app->lbl_fullname), FALSE, FALSE, 0);
+    g_signal_connect(app->user_fullname_entry, "insert-text", G_CALLBACK(on_insert_text_fullname), NULL);
 
     // Username
     gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Username:", &app->user_login_entry, &app->lbl_username), FALSE, FALSE, 0);

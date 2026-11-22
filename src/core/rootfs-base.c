@@ -54,7 +54,7 @@ static const char BASE_PACKAGES[] =
     "base-system linux-firmware linux-firmware-amd linux-firmware-intel "
     "linux-mainline linux-mainline-headers dkms dnsmasq iptables tlp tlp-pd tlp-rdw "
     "intel-ucode at-spi2-core yad git inetutils qemu-ga upower open-vm-tools "
-    "spice-vdagent elogind bash-completion cryptsetup dbus dialog grub mdadm nano rtkit "
+    "spice-vdagent elogind bash-completion cryptsetup dbus dialog grub os-prober ntfs-3g mdadm nano rtkit "
     "xdo xsetroot xinit Neko-Wizard neko-icons neko-themes neko-backgrounds xtools tmux xmirror "
     "7zip p7zip unrar zip xxd xz btop fastfetch curl wget xdg-user-dirs xdg-utils ethtool "
     "iproute2 lvm2 polkit udisks2 eudev void-docs-browse xtools-minimal openssh chrony "

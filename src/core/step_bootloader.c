@@ -135,20 +135,46 @@ int bootloader_install_grub(AppData *app, const char *TARGETDIR, const char *dis
 }
 
 /* ------------------------------------------------------------------ *
- *  bootloader_setup_os_prober                                         *
- *  Install os-prober, mount other partitions for detection.          *
+ *  bootloader_ensure_os_prober                                        *
+ *  Ensure os-prober is enabled (GRUB_DISABLE_OS_PROBER=false)        *
+ *  with a strict check so the line is mandatory and never duplicated.*
  * ------------------------------------------------------------------ */
-void bootloader_setup_os_prober(AppData *app, const char *TARGETDIR, const char *disk_name) {
+void bootloader_ensure_os_prober(AppData *app, const char *TARGETDIR) {
+    log_to_ui(app, "Checking GRUB OS-prober configuration...", 0.92);
+
 #ifndef UNIVERSAL_BUILD
-    /* --- Void Linux: install os-prober and ntfs-3g via xbps --- */
+    /* Void Linux: make sure os-prober and ntfs-3g packages are installed */
     void_install_osprober(app, TARGETDIR);
 #else
     log_to_ui(app, "[Universal] os-prober/ntfs-3g must be pre-installed in the base image.", 0.92);
 #endif
 
-    // Ensure GRUB_DISABLE_OS_PROBER is not set to true
-    run_sync(app, "sed -i '/GRUB_DISABLE_OS_PROBER/d' %s/etc/default/grub", TARGETDIR);
-    run_sync(app, "echo 'GRUB_DISABLE_OS_PROBER=false' >> %s/etc/default/grub", TARGETDIR);
+    /* Check if GRUB_DISABLE_OS_PROBER=false is already uniquely configured.
+     * If missing, commented out, set to true, or duplicated, remove all existing
+     * occurrences and append exactly one GRUB_DISABLE_OS_PROBER=false line. */
+    char check_cmd[1024];
+    snprintf(check_cmd, sizeof(check_cmd),
+        "sh -c '"
+        "GRUB_FILE=\"%s/etc/default/grub\"; "
+        "mkdir -p \"%s/etc/default\"; "
+        "touch \"$GRUB_FILE\"; "
+        "TOT=$(grep -c \"GRUB_DISABLE_OS_PROBER\" \"$GRUB_FILE\" 2>/dev/null) || TOT=0; "
+        "COR=$(grep -c \"^[[:space:]]*GRUB_DISABLE_OS_PROBER=false[[:space:]]*$\" \"$GRUB_FILE\" 2>/dev/null) || COR=0; "
+        "if [ \"$TOT\" -ne 1 ] || [ \"$COR\" -ne 1 ]; then "
+        "  sed -i -E \"/^[#[:space:]]*GRUB_DISABLE_OS_PROBER/d\" \"$GRUB_FILE\"; "
+        "  [ -s \"$GRUB_FILE\" ] && [ -n \"$(tail -c 1 \"$GRUB_FILE\")\" ] && echo \"\" >> \"$GRUB_FILE\"; "
+        "  echo \"GRUB_DISABLE_OS_PROBER=false\" >> \"$GRUB_FILE\"; "
+        "fi'",
+        TARGETDIR, TARGETDIR);
+    run_sync(app, "%s", check_cmd);
+}
+
+/* ------------------------------------------------------------------ *
+ *  bootloader_setup_os_prober                                         *
+ *  Mount other partitions so os-prober can detect them.               *
+ * ------------------------------------------------------------------ */
+void bootloader_setup_os_prober(AppData *app, const char *TARGETDIR, const char *disk_name) {
+    (void)TARGETDIR;
 
     // Mount other partitions so os-prober can detect them
     log_to_ui(app, "Scanning for other operating systems (all disks)...", 0.925);

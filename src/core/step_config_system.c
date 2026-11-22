@@ -26,10 +26,14 @@ void config_sys_remove_live_user(AppData *app, const char *TARGETDIR) {
 #endif
 
     // REMOVE LIVE USER FIRST (before creating new user to avoid UID conflicts)
+    // Use -f (--force) because /proc is bind-mounted from the live host where
+    // 'anon' (UID 1000) is actively running the live session. Without -f,
+    // userdel refuses to delete 'anon' and leaves UID 1000 occupied.
     log_to_ui(app, "Removing live user (anon) from target system...", 0.72);
-    if (run_sync(app, "chroot %s userdel anon 2>/dev/null", TARGETDIR) != 0) {
+    if (run_sync(app, "chroot %s userdel -rf anon 2>/dev/null || chroot %s userdel -f anon 2>/dev/null", TARGETDIR, TARGETDIR) != 0) {
         log_to_ui(app, "WARNING: userdel anon failed, forcing removal...", 0.72);
     }
+    run_sync(app, "chroot %s groupdel anon 2>/dev/null || true", TARGETDIR);
     run_sync(app, "rm -rf %s/home/anon 2>/dev/null || true", TARGETDIR);
     run_sync(app, "rm -f %s/var/spool/mail/anon 2>/dev/null || true", TARGETDIR);
     run_sync(app, "rm -f %s/etc/sudoers.d/99-void-live 2>/dev/null || true", TARGETDIR);
@@ -341,28 +345,58 @@ int config_sys_create_user(AppData *app, const char *TARGETDIR, const gchar *loc
         log_to_ui_printf(app, "Using groups: %s", valid_groups);
 
         // Step 3: Create the user
+        // Sanitize user_fullname for useradd -c (GECOS field cannot contain ':', ',', or control/newline chars)
         gchar *safe_fullname = NULL;
         if (user_fullname && strlen(user_fullname) > 0) {
-            safe_fullname = g_shell_quote(user_fullname);
+            gchar *clean_fullname = g_strdup(user_fullname);
+            for (gchar *p = clean_fullname; *p; p++) {
+                unsigned char c = (unsigned char)*p;
+                if (c < 0x20 || c == 0x7f || c == ':' || c == ',') {
+                    *p = ' ';
+                }
+            }
+            g_strstrip(clean_fullname);
+            if (strlen(clean_fullname) > 0) {
+                safe_fullname = g_shell_quote(clean_fullname);
+            }
+            g_free(clean_fullname);
         }
 
-        gchar *useradd_cmd = NULL;
-        if (safe_fullname) {
-            useradd_cmd = g_strdup_printf(
-                "chroot %s useradd -m -c %s -G %s -s /bin/bash %s",
-                TARGETDIR, safe_fullname, valid_groups, user_login);
+        // If a group with the same name as user_login already exists, pass -g <user_login>
+        // so useradd does not abort with exit code 9 ("group name already in use").
+        // Otherwise pass -U to create the user's primary group.
+        gchar *grp_opt = NULL;
+        if (run_sync(app, "chroot %s getent group %s > /dev/null 2>/dev/null", TARGETDIR, user_login) == 0) {
+            grp_opt = g_strdup_printf("-g %s", user_login);
         } else {
-            useradd_cmd = g_strdup_printf(
-                "chroot %s useradd -m -G %s -s /bin/bash %s",
-                TARGETDIR, valid_groups, user_login);
+            grp_opt = g_strdup("-U");
         }
 
+        int add_rc = 0;
+        if (safe_fullname) {
+            add_rc = run_sync(app,
+                "chroot %s useradd -m %s -c %s -G %s -s /bin/bash %s",
+                TARGETDIR, grp_opt, safe_fullname, valid_groups, user_login);
+            if (add_rc != 0) {
+                log_to_ui(app, "WARNING: useradd with -c failed, retrying without -c and applying comment via usermod...", -1.0);
+                add_rc = run_sync(app,
+                    "chroot %s useradd -m %s -G %s -s /bin/bash %s",
+                    TARGETDIR, grp_opt, valid_groups, user_login);
+                if (add_rc == 0) {
+                    run_sync(app, "chroot %s usermod -c %s %s 2>/dev/null || true",
+                             TARGETDIR, safe_fullname, user_login);
+                }
+            }
+        } else {
+            add_rc = run_sync(app,
+                "chroot %s useradd -m %s -G %s -s /bin/bash %s",
+                TARGETDIR, grp_opt, valid_groups, user_login);
+        }
+
+        g_free(grp_opt);
         g_free(safe_fullname);
 
-        log_to_ui(app, useradd_cmd, -1);
-        int add_result = system(useradd_cmd);
-        g_free(useradd_cmd);
-        if (WEXITSTATUS(add_result) != 0) {
+        if (add_rc != 0) {
             log_to_ui(app, "ERROR: useradd failed! Aborting configuration.", 0.0);
             return -1;
         }

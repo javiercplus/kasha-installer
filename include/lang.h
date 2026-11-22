@@ -66,6 +66,12 @@ typedef struct {
     const char *password;
     const char *confirm;
     const char *autologin;
+    const char *same_root_pass;
+    const char *ph_fullname;
+    const char *ph_username;
+    const char *ph_password;
+    const char *ph_confirm;
+    const char *ph_root_pass;
     
     // Install
     const char *install_btn;

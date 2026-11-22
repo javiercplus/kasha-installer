@@ -73,7 +73,10 @@ static const char* validate_tab(AppData *app, guint page_num) {
             const gchar *username  = gtk_entry_get_text(GTK_ENTRY(app->user_login_entry));
             const gchar *password  = gtk_entry_get_text(GTK_ENTRY(app->user_pass_entry));
             const gchar *confirm   = gtk_entry_get_text(GTK_ENTRY(app->user_pass_confirm_entry));
-            const gchar *root_pass = gtk_entry_get_text(GTK_ENTRY(app->root_pass_entry));
+            gboolean same_root     = app->chk_same_root_pass &&
+                                     gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_same_root_pass));
+            const gchar *root_pass = same_root ? password
+                                               : gtk_entry_get_text(GTK_ENTRY(app->root_pass_entry));
 
             if (!username || strlen(username) == 0)
                 return get_loc("val_username", lang);
@@ -401,6 +404,59 @@ void on_insert_text_fullname(GtkEditable *editable, gchar *new_text, gint new_te
         g_signal_handlers_unblock_by_func(editable, on_insert_text_fullname, data);
     }
     g_string_free(filtered, TRUE);
+}
+
+void on_fullname_changed(GtkEditable *editable, AppData *app) {
+    if (!app || !app->user_login_entry || app->username_manual) return;
+
+    const gchar *fullname = gtk_entry_get_text(GTK_ENTRY(editable));
+    GString *slug = g_string_new("");
+
+    if (fullname) {
+        for (const gchar *p = fullname; *p; p = g_utf8_next_char(p)) {
+            gunichar ch = g_unichar_tolower(g_utf8_get_char(p));
+            if (g_unichar_isspace(ch)) {
+                if (slug->len > 0) break;
+                continue;
+            }
+            if (ch >= 'a' && ch <= 'z') {
+                g_string_append_unichar(slug, ch);
+            } else if ((ch >= '0' && ch <= '9') && slug->len > 0) {
+                g_string_append_unichar(slug, ch);
+            }
+        }
+    }
+
+    app->syncing_username = TRUE;
+    gtk_entry_set_text(GTK_ENTRY(app->user_login_entry), slug->str);
+    app->syncing_username = FALSE;
+    g_string_free(slug, TRUE);
+}
+
+void on_username_changed(GtkEditable *editable, AppData *app) {
+    if (!app || app->syncing_username) return;
+    const gchar *text = gtk_entry_get_text(GTK_ENTRY(editable));
+    app->username_manual = (text && strlen(text) > 0);
+}
+
+void on_user_pass_changed(GtkEditable *editable, AppData *app) {
+    if (!app || !app->root_pass_entry || !app->chk_same_root_pass) return;
+    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_same_root_pass))) {
+        const gchar *pass = gtk_entry_get_text(GTK_ENTRY(editable));
+        gtk_entry_set_text(GTK_ENTRY(app->root_pass_entry), pass ? pass : "");
+    }
+}
+
+void on_same_root_pass_toggled(GtkToggleButton *toggle, AppData *app) {
+    if (!app) return;
+    gboolean same = gtk_toggle_button_get_active(toggle);
+    if (app->root_pass_box) {
+        gtk_widget_set_visible(app->root_pass_box, !same);
+    }
+    if (same && app->user_pass_entry && app->root_pass_entry) {
+        const gchar *pass = gtk_entry_get_text(GTK_ENTRY(app->user_pass_entry));
+        gtk_entry_set_text(GTK_ENTRY(app->root_pass_entry), pass ? pass : "");
+    }
 }
 
 void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data) {

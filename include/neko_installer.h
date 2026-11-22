@@ -53,11 +53,15 @@ typedef struct {
     // Tab 4: Users
     GtkWidget *root_pass_entry;
     GtkWidget *root_pass_confirm_entry;
+    GtkWidget *root_pass_box;
+    GtkWidget *chk_same_root_pass;
     GtkWidget *user_login_entry;
     GtkWidget *user_fullname_entry;
     GtkWidget *user_pass_entry;
     GtkWidget *user_pass_confirm_entry;
     GtkWidget *autologin_check;
+    gboolean username_manual;
+    gboolean syncing_username;
 
     // Tab 5: Privilege Manager
     GtkWidget *radio_priv_sudo;
@@ -220,6 +224,10 @@ void on_country_changed(GtkComboBox *widget, AppData *app);
 void on_timezone_area_changed(GtkComboBox *widget, AppData *app);
 void on_kbd_layout_changed(GtkComboBox *widget, AppData *app);
 void on_insert_text_fullname(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data);
+void on_fullname_changed(GtkEditable *editable, AppData *app);
+void on_username_changed(GtkEditable *editable, AppData *app);
+void on_user_pass_changed(GtkEditable *editable, AppData *app);
+void on_same_root_pass_toggled(GtkToggleButton *toggle, AppData *app);
 void on_insert_text_username(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data);
 void on_insert_text_hostname(GtkEditable *editable, gchar *new_text, gint new_text_length, gint *position, gpointer data);
 void launch_gparted(GtkWidget *widget, AppData *app);

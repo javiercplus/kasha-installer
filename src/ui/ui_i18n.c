@@ -60,6 +60,12 @@ const char* get_loc(const char *key, int lang) {
     if (strcmp(key, "password") == 0) return li->password;
     if (strcmp(key, "confirm") == 0) return li->confirm;
     if (strcmp(key, "autologin") == 0) return li->autologin;
+    if (strcmp(key, "same_root_pass") == 0) return li->same_root_pass;
+    if (strcmp(key, "ph_fullname") == 0) return li->ph_fullname;
+    if (strcmp(key, "ph_username") == 0) return li->ph_username;
+    if (strcmp(key, "ph_password") == 0) return li->ph_password;
+    if (strcmp(key, "ph_confirm") == 0) return li->ph_confirm;
+    if (strcmp(key, "ph_root_pass") == 0) return li->ph_root_pass;
 
     if (strcmp(key, "install_btn") == 0) return li->install_btn;
     if (strcmp(key, "reboot_btn") == 0) return li->reboot_btn;
@@ -197,6 +203,12 @@ void update_ui_language(AppData *app) {
     if(app->lbl_user_pass) gtk_label_set_text(GTK_LABEL(app->lbl_user_pass), get_loc("password", lang));
     if(app->lbl_user_confirm) gtk_label_set_text(GTK_LABEL(app->lbl_user_confirm), get_loc("confirm", lang));
     if(app->chk_autologin) gtk_button_set_label(GTK_BUTTON(app->chk_autologin), get_loc("autologin", lang));
+    if(app->chk_same_root_pass) gtk_button_set_label(GTK_BUTTON(app->chk_same_root_pass), get_loc("same_root_pass", lang));
+    if(app->user_fullname_entry) gtk_entry_set_placeholder_text(GTK_ENTRY(app->user_fullname_entry), get_loc("ph_fullname", lang));
+    if(app->user_login_entry) gtk_entry_set_placeholder_text(GTK_ENTRY(app->user_login_entry), get_loc("ph_username", lang));
+    if(app->user_pass_entry) gtk_entry_set_placeholder_text(GTK_ENTRY(app->user_pass_entry), get_loc("ph_password", lang));
+    if(app->user_pass_confirm_entry) gtk_entry_set_placeholder_text(GTK_ENTRY(app->user_pass_confirm_entry), get_loc("ph_confirm", lang));
+    if(app->root_pass_entry) gtk_entry_set_placeholder_text(GTK_ENTRY(app->root_pass_entry), get_loc("ph_root_pass", lang));
 
     // Privilege Manager
     if(app->lbl_priv_title) gtk_label_set_markup(GTK_LABEL(app->lbl_priv_title),

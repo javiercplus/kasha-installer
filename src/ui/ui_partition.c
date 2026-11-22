@@ -3,6 +3,7 @@
  * Partition Dialog and List Management
  */
 #include "neko_installer.h"
+#include "ui_internal.h"
 #include "lang.h"
 #include <stdio.h>
 #include <dirent.h>
@@ -239,15 +240,13 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
     gtk_widget_set_sensitive(vbox_pass, FALSE);
     gtk_widget_set_margin_start(vbox_pass, 20);
     
-    GtkWidget *entry_pass = gtk_entry_new();
-    gtk_entry_set_placeholder_text(GTK_ENTRY(entry_pass), "Encryption Password");
-    gtk_entry_set_visibility(GTK_ENTRY(entry_pass), FALSE);
-    gtk_box_pack_start(GTK_BOX(vbox_pass), entry_pass, FALSE, FALSE, 0);
+    GtkWidget *entry_pass = NULL;
+    GtkWidget *pass_box = create_password_entry_box(&entry_pass, "Encryption Password");
+    gtk_box_pack_start(GTK_BOX(vbox_pass), pass_box, FALSE, FALSE, 0);
 
-    GtkWidget *entry_pass_conf = gtk_entry_new();
-    gtk_entry_set_placeholder_text(GTK_ENTRY(entry_pass_conf), "Confirm Password");
-    gtk_entry_set_visibility(GTK_ENTRY(entry_pass_conf), FALSE);
-    gtk_box_pack_start(GTK_BOX(vbox_pass), entry_pass_conf, FALSE, FALSE, 0);
+    GtkWidget *entry_pass_conf = NULL;
+    GtkWidget *pass_conf_box = create_password_entry_box(&entry_pass_conf, "Confirm Password");
+    gtk_box_pack_start(GTK_BOX(vbox_pass), pass_conf_box, FALSE, FALSE, 0);
 
     gtk_box_pack_start(GTK_BOX(vbox_enc), vbox_pass, FALSE, FALSE, 0);
 

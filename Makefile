@@ -102,7 +102,7 @@ $(TARGET): $(OBJS)
 	$(CC) $(OBJS) -o $(TARGET) $(LIBS)
 
 # Compile .c -> .o (normal build, without -DUNIVERSAL_BUILD)
-%.o: %.c include/neko_installer.h include/lang.h include/country_data.h
+%.o: %.c include/neko_installer.h include/lang.h include/country_data.h include/users_img.h
 	$(CC) $(CFLAGS) $(DESKTOP_FLAG) -c $< -o $@
 
 # --- Universal build (without xbps / Void Linux) ---

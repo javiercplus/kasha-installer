@@ -551,9 +551,12 @@ gpointer install_thread(gpointer data) {
     }
 
     const gchar *disk_name = app->selected_disk;
-    const gchar *root_pass = gtk_entry_get_text(GTK_ENTRY(app->root_pass_entry));
     const gchar *user_login = gtk_entry_get_text(GTK_ENTRY(app->user_login_entry));
     const gchar *user_pass = gtk_entry_get_text(GTK_ENTRY(app->user_pass_entry));
+    gboolean same_root = app->chk_same_root_pass &&
+                         gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_same_root_pass));
+    const gchar *root_pass = same_root ? user_pass
+                                       : gtk_entry_get_text(GTK_ENTRY(app->root_pass_entry));
     const gchar *user_fullname = gtk_entry_get_text(GTK_ENTRY(app->user_fullname_entry));
     const gchar *raw_hostname = gtk_entry_get_text(GTK_ENTRY(app->hostname_entry));
     /* validate_and_normalize_hostname always returns a heap pointer — must be freed. */

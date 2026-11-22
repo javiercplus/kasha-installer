@@ -18,6 +18,8 @@ GtkWidget* create_welcome_page(AppData *app);
 /* ui_widgets.c */
 GtkWidget* create_form_row(const gchar *label_text, GtkWidget **entry_ptr, GtkWidget **label_ptr);
 GtkWidget* create_vertical_input(const gchar *label_text, GtkWidget **entry_ptr, GtkWidget **label_ptr);
+GtkWidget* create_password_entry_box(GtkWidget **entry_ptr, const gchar *placeholder);
+GtkWidget* create_vertical_password_input(const gchar *label_text, GtkWidget **entry_ptr, GtkWidget **label_ptr);
 
 /* ui_desktop.c */
 #ifdef HAS_DESKTOP_TAB

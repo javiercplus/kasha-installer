@@ -2,9 +2,40 @@
 #include "ui_internal.h"
 #include "lang.h"
 #include "country_data.h"
+#include "users_img.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static gboolean on_draw_user_image(GtkWidget *widget, cairo_t *cr, gpointer data) {
+    GdkPixbuf *pixbuf = GDK_PIXBUF(data);
+    if (!pixbuf) return FALSE;
+
+    int alloc_w = gtk_widget_get_allocated_width(widget);
+    int alloc_h = gtk_widget_get_allocated_height(widget);
+    int img_w = gdk_pixbuf_get_width(pixbuf);
+    int img_h = gdk_pixbuf_get_height(pixbuf);
+    if (alloc_w <= 1 || alloc_h <= 1 || img_w <= 0 || img_h <= 0) return FALSE;
+
+    double scale_x = (double)alloc_w / (double)img_w;
+    double scale_y = (double)alloc_h / (double)img_h;
+    double scale = (scale_x < scale_y) ? scale_x : scale_y;
+
+    double draw_w = img_w * scale;
+    double draw_h = img_h * scale;
+    double offset_x = (alloc_w - draw_w) / 2.0;
+    double offset_y = alloc_h - draw_h;
+
+    cairo_save(cr);
+    cairo_translate(cr, offset_x, offset_y);
+    cairo_scale(cr, scale, scale);
+    gdk_cairo_set_source_pixbuf(cr, pixbuf, 0, 0);
+    cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_GOOD);
+    cairo_paint(cr);
+    cairo_restore(cr);
+    return FALSE;
+}
+
 //custom themes
 void build_ui(AppData *app) {
     load_custom_css();
@@ -339,37 +370,94 @@ void build_ui(AppData *app) {
     #endif
 
     // --- TAB 5/6: USERS ---
-    GtkWidget *page_user = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_container_set_border_width(GTK_CONTAINER(page_user), 10);
+    GtkWidget *page_user = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
     gtk_widget_set_vexpand(page_user, TRUE);
 
+    // Grid of 2 homogeneous columns: form occupies left column (50%), image occupies right column (50%)
+    GtkWidget *user_grid = gtk_grid_new();
+    gtk_grid_set_column_homogeneous(GTK_GRID(user_grid), TRUE);
+    gtk_grid_set_column_spacing(GTK_GRID(user_grid), 16);
+    gtk_widget_set_hexpand(user_grid, TRUE);
+    gtk_widget_set_vexpand(user_grid, TRUE);
+
+    GtkWidget *user_img_area = gtk_drawing_area_new();
+    gtk_widget_set_hexpand(user_img_area, TRUE);
+    gtk_widget_set_vexpand(user_img_area, TRUE);
+    gtk_widget_set_margin_top(user_img_area, 6);
+
+    {
+        GdkPixbufLoader *loader = gdk_pixbuf_loader_new();
+        if (gdk_pixbuf_loader_write(loader, users_img_png, users_img_png_len, NULL)) {
+            gdk_pixbuf_loader_close(loader, NULL);
+            GdkPixbuf *pixbuf = gdk_pixbuf_loader_get_pixbuf(loader);
+            if (pixbuf) {
+                g_object_set_data_full(G_OBJECT(user_img_area), "pixbuf",
+                                       g_object_ref(pixbuf), g_object_unref);
+                g_signal_connect(user_img_area, "draw",
+                                 G_CALLBACK(on_draw_user_image), pixbuf);
+            }
+        }
+        g_object_unref(loader);
+    }
+
+    GtkWidget *user_form_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 6);
+    gtk_widget_set_hexpand(user_form_box, TRUE);
+    gtk_widget_set_vexpand(user_form_box, TRUE);
+    gtk_widget_set_valign(user_form_box, GTK_ALIGN_CENTER);
+    gtk_widget_set_margin_start(user_form_box, 16);
+    gtk_widget_set_margin_end(user_form_box, 8);
+    gtk_widget_set_margin_top(user_form_box, 12);
+    gtk_widget_set_margin_bottom(user_form_box, 12);
+
+    app->username_manual = FALSE;
+    app->syncing_username = FALSE;
 
     // Full Name
-    gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Full Name:", &app->user_fullname_entry, &app->lbl_fullname), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(user_form_box), create_vertical_input("Full name", &app->user_fullname_entry, &app->lbl_fullname), FALSE, FALSE, 0);
+    gtk_entry_set_placeholder_text(GTK_ENTRY(app->user_fullname_entry), "e.g. Gon");
     g_signal_connect(app->user_fullname_entry, "insert-text", G_CALLBACK(on_insert_text_fullname), NULL);
+    g_signal_connect(app->user_fullname_entry, "changed", G_CALLBACK(on_fullname_changed), app);
 
     // Username
-    gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Username:", &app->user_login_entry, &app->lbl_username), FALSE, FALSE, 0);
+    gtk_box_pack_start(GTK_BOX(user_form_box), create_vertical_input("Username", &app->user_login_entry, &app->lbl_username), FALSE, FALSE, 0);
+    gtk_entry_set_placeholder_text(GTK_ENTRY(app->user_login_entry), "e.g. gon");
     g_signal_connect(app->user_login_entry, "insert-text", G_CALLBACK(on_insert_text_username), NULL);
+    g_signal_connect(app->user_login_entry, "changed", G_CALLBACK(on_username_changed), app);
 
     // Password
-    gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Password:", &app->user_pass_entry, &app->lbl_user_pass), FALSE, FALSE, 0);
-    gtk_entry_set_visibility(GTK_ENTRY(app->user_pass_entry), FALSE);
+    gtk_box_pack_start(GTK_BOX(user_form_box), create_vertical_password_input("Password", &app->user_pass_entry, &app->lbl_user_pass), FALSE, FALSE, 0);
+    gtk_entry_set_placeholder_text(GTK_ENTRY(app->user_pass_entry), "Enter a password");
+    g_signal_connect(app->user_pass_entry, "changed", G_CALLBACK(on_user_pass_changed), app);
 
     // Confirm
-    gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Confirm:", &app->user_pass_confirm_entry, &app->lbl_user_confirm), FALSE, FALSE, 0);
-    gtk_entry_set_visibility(GTK_ENTRY(app->user_pass_confirm_entry), FALSE);
+    gtk_box_pack_start(GTK_BOX(user_form_box), create_vertical_password_input("Confirm password", &app->user_pass_confirm_entry, &app->lbl_user_confirm), FALSE, FALSE, 0);
+    gtk_entry_set_placeholder_text(GTK_ENTRY(app->user_pass_confirm_entry), "Repeat password");
 
-    // Root Password
-    gtk_box_pack_start(GTK_BOX(page_user), create_vertical_input("Root Password:", &app->root_pass_entry, &app->lbl_root_pass), FALSE, FALSE, 0);
-    gtk_entry_set_visibility(GTK_ENTRY(app->root_pass_entry), FALSE);
+    // Same password for root checkbox (checked by default)
+    app->chk_same_root_pass = gtk_check_button_new_with_label("Use the same password for the administrator (root) account");
+    gtk_widget_set_halign(app->chk_same_root_pass, GTK_ALIGN_START);
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->chk_same_root_pass), TRUE);
+    g_signal_connect(app->chk_same_root_pass, "toggled", G_CALLBACK(on_same_root_pass_toggled), app);
+    gtk_box_pack_start(GTK_BOX(user_form_box), app->chk_same_root_pass, FALSE, FALSE, 2);
+
+    // Root Password (hidden by default while chk_same_root_pass is checked)
+    app->root_pass_box = create_vertical_password_input("Root password", &app->root_pass_entry, &app->lbl_root_pass);
+    gtk_entry_set_placeholder_text(GTK_ENTRY(app->root_pass_entry), "Administrator password");
+    gtk_widget_show_all(app->root_pass_box);
+    gtk_widget_set_no_show_all(app->root_pass_box, TRUE);
+    gtk_widget_set_visible(app->root_pass_box, FALSE);
+    gtk_box_pack_start(GTK_BOX(user_form_box), app->root_pass_box, FALSE, FALSE, 0);
 
     // Autologin
-    app->autologin_check = gtk_check_button_new_with_label("Enable Auto-Login");
+    app->autologin_check = gtk_check_button_new_with_label("Enable auto-login");
     app->chk_autologin = app->autologin_check;
-    gtk_widget_set_halign(app->autologin_check, GTK_ALIGN_CENTER);
+    gtk_widget_set_halign(app->autologin_check, GTK_ALIGN_START);
     gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->autologin_check), FALSE);
-    gtk_box_pack_start(GTK_BOX(page_user), app->autologin_check, FALSE, FALSE, 10);
+    gtk_box_pack_start(GTK_BOX(user_form_box), app->autologin_check, FALSE, FALSE, 2);
+
+    gtk_grid_attach(GTK_GRID(user_grid), user_form_box, 0, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(user_grid), user_img_area, 1, 0, 1, 1);
+    gtk_box_pack_start(GTK_BOX(page_user), user_grid, TRUE, TRUE, 0);
 
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_user, gtk_label_new("Users"));
 

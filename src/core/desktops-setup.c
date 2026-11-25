@@ -61,6 +61,7 @@ static int ensure_chroot_dns(AppData *app, const char *TARGETDIR) {
  * C before/after the copy.
  */
 void install_desktop(AppData *app, const char *TARGETDIR, const char *desktop_type) {
+<<<<<<< HEAD
     log_to_ui_printf(app, "Installing desktop environment: %s", desktop_type);
 
     /* Network/DNS must work inside the chroot for xbps-install and git. */
@@ -108,6 +109,12 @@ void install_desktop(AppData *app, const char *TARGETDIR, const char *desktop_ty
     void_enable_desktop_services(app, TARGETDIR, desktop_type);
 
     log_to_ui_printf(app, "Desktop '%s' installed successfully.", desktop_type);
+=======
+    log_to_ui(app, "INSTALLING DESKTOP", 0.935);
+    run_sync(app, "chroot %s bash -c 'xbps-install -S git bash'", TARGETDIR);
+    run_sync(app, "chroot %s bash -c 'git clone https://github.com/Neko-Void-Linux/neko-desktops.git /tmp/desktops'", TARGETDIR);
+    run_sync(app, "chroot %s bash -c 'cd /tmp/desktops && chmod +x desktop-set.sh && ./desktop-set.sh %s'", TARGETDIR, desktop_type);
+>>>>>>> bf16d3464eb7bf32b6cf1e1e67bd672b0ff2203e
 }
 
 void void_xfce(AppData *app, const char *TARGETDIR) {

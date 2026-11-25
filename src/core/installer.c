@@ -322,6 +322,7 @@ gchar *validate_and_normalize_hostname(const gchar *raw_hostname) {
     }
 
     return hostname; /* heap-allocated via g_strdup above */
+<<<<<<< HEAD
 }
 
 /* ------------------------------------------------------------------ *
@@ -404,6 +405,8 @@ static gboolean capture_flush_cb(gpointer data) {
 static void ensure_capture_flush(AppData *app) {
     if (capture_flush_id) return;
     capture_flush_id = g_timeout_add(100, capture_flush_cb, app);
+=======
+>>>>>>> bf16d3464eb7bf32b6cf1e1e67bd672b0ff2203e
 }
 
 int run_sync(AppData *app, const char *fmt, ...) {
@@ -567,8 +570,12 @@ gpointer install_thread(gpointer data) {
 
     if (!root_pass || strlen(root_pass) < 1) { 
         stop_progress_pulse(app);
+<<<<<<< HEAD
         log_to_ui(app, get_loc("error_root_password", app->current_lang), 0.0); 
         set_ui_failed(app, "error_root_password");
+=======
+        log_to_ui(app, "Error: Root password missing.", 0.0); 
+>>>>>>> bf16d3464eb7bf32b6cf1e1e67bd672b0ff2203e
         goto fail_cleanup;
     }
     
@@ -584,43 +591,67 @@ gpointer install_thread(gpointer data) {
     }
     if (!r) {
         stop_progress_pulse(app);
+<<<<<<< HEAD
         log_to_ui(app, get_loc("error_no_root", app->current_lang), 0.0);
         set_ui_failed(app, "error_no_root");
+=======
+        log_to_ui(app, "ERROR: Root partition not configured.", 0.0);
+>>>>>>> bf16d3464eb7bf32b6cf1e1e67bd672b0ff2203e
         goto fail_cleanup;
     }
 
     if (step_partitioning(app, disk_name) != 0) {
         stop_progress_pulse(app);
+<<<<<<< HEAD
         log_to_ui(app, get_loc("error_partitioning_failed", app->current_lang), 0.0);
         set_ui_failed(app, "error_partitioning_failed");
+=======
+        log_to_ui(app, "ERROR: Partitioning failed!", 0.0);
+>>>>>>> bf16d3464eb7bf32b6cf1e1e67bd672b0ff2203e
         goto fail_cleanup;
     }
 
     if (step_format_and_mount(app, TARGETDIR) != 0) {
         stop_progress_pulse(app);
+<<<<<<< HEAD
         log_to_ui(app, get_loc("error_format_failed", app->current_lang), 0.0);
         set_ui_failed(app, "error_format_failed");
+=======
+        log_to_ui(app, "ERROR: Format and mount failed!", 0.0);
+>>>>>>> bf16d3464eb7bf32b6cf1e1e67bd672b0ff2203e
         goto fail_cleanup;
     }
     
     if (step_install_base_system(app, TARGETDIR) != 0) {
         stop_progress_pulse(app);
+<<<<<<< HEAD
         log_to_ui(app, get_loc("error_base_system_failed", app->current_lang), 0.0);
         set_ui_failed(app, "error_base_system_failed");
+=======
+        log_to_ui(app, "ERROR: Base system installation failed!", 0.0);
+>>>>>>> bf16d3464eb7bf32b6cf1e1e67bd672b0ff2203e
         goto fail_cleanup;
     }
     
     if (step_configure_system(app, TARGETDIR, hostname, locale, root_pass, user_login, user_fullname, user_pass, autologin_enabled) != 0) {
         stop_progress_pulse(app);
+<<<<<<< HEAD
         log_to_ui(app, get_loc("error_system_config_failed", app->current_lang), 0.0);
         set_ui_failed(app, "error_system_config_failed");
+=======
+        log_to_ui(app, "ERROR: System configuration failed!", 0.0);
+>>>>>>> bf16d3464eb7bf32b6cf1e1e67bd672b0ff2203e
         goto fail_cleanup;
     }
     
     if (step_install_bootloader(app, TARGETDIR, disk_name) != 0) {
         stop_progress_pulse(app);
+<<<<<<< HEAD
         log_to_ui(app, get_loc("error_bootloader_failed", app->current_lang), 0.0);
         set_ui_failed(app, "error_bootloader_failed");
+=======
+        log_to_ui(app, "ERROR: Bootloader installation failed!", 0.0);
+>>>>>>> bf16d3464eb7bf32b6cf1e1e67bd672b0ff2203e
         goto fail_cleanup;
     }
 

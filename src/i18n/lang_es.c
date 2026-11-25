@@ -51,6 +51,7 @@ static const LangInfo lang_es = {
     .timezone = "Zona horaria",
     
     // Users
+<<<<<<< HEAD
     .root_pass = "Contraseña root",
     .user_account = "Cuenta de usuario",
     .fullname = "Nombre completo",
@@ -64,6 +65,15 @@ static const LangInfo lang_es = {
     .ph_password = "Ingresa una contraseña",
     .ph_confirm = "Repite la contraseña",
     .ph_root_pass = "Contraseña de administrador",
+=======
+    .root_pass = "Contraseña Root:",
+    .user_account = "Cuenta de Usuario:",
+    .fullname = "Nombre Completo:",
+    .username = "Usuario:",
+    .password = "Contraseña:",
+    .confirm = "Confirmar:",
+    .autologin = "Inicio de Sesión Automático",
+>>>>>>> bf16d3464eb7bf32b6cf1e1e67bd672b0ff2203e
     
     // Install
     .install_btn = "Iniciar Instalación",

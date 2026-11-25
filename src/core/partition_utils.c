@@ -99,25 +99,32 @@ char* get_partition_path(const char *disk, int part_num) {
 
 void populate_defaults(AppData *app, const char *disk_name) {
     /* Save the intended mode BEFORE reset (on_reset_partitions_clicked
-       clears the partition list; we restore the mode afterwards) */
+       clears the partition list; we restore the mode afterwards).
+       If install_mode is currently MANUAL (e.g. startup or switching disks),
+       sync it from the Installation Type radio buttons. */
     InstallMode intended_mode = app->install_mode;
+    if (intended_mode == INSTALL_MODE_MANUAL) {
+        if (app->radio_alongside &&
+            gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->radio_alongside))) {
+            intended_mode = INSTALL_MODE_DUAL_BOOT;
+        } else {
+            intended_mode = INSTALL_MODE_ERASE;
+        }
+    }
 
     on_reset_partitions_clicked(NULL, app);
-    
-    char *p1 = get_partition_path(disk_name, 1);
-    char *p2 = get_partition_path(disk_name, 2);
-    
+
     if (intended_mode == INSTALL_MODE_DUAL_BOOT) {
         // Dual boot: detect and reuse existing EFI partition
         if (app->detected_efi_partition) {
             g_free(app->detected_efi_partition);
             app->detected_efi_partition = NULL;
         }
-        
+
         if (app->is_efi) {
             // Look for existing EFI partition on the disk
             char *existing_efi = find_efi_partition(disk_name);
-            
+
             if (existing_efi && validate_efi_partition(app, existing_efi)) {
                 // Reuse existing EFI — do NOT format
                 app->detected_efi_partition = g_strdup(existing_efi);
@@ -129,23 +136,20 @@ void populate_defaults(AppData *app, const char *disk_name) {
                 add_partition_config(app, "/dev/NEW_EFI", "vfat", "/boot/efi", TRUE, FALSE, NULL);
             }
         }
-        
+
         // Root partition in free space (device resolved at install time)
         add_partition_config(app, "/dev/NEW", "ext4", "/", TRUE, FALSE, NULL);
         app->install_mode = INSTALL_MODE_DUAL_BOOT;
     } else {
-        // Clean install (erase)
+        // Clean install (erase): partitions will be created fresh by step_partitioning
         if (app->is_efi) {
-            add_partition_config(app, p1, "vfat", "/boot/efi", TRUE, FALSE, NULL);
-            add_partition_config(app, p2, "ext4", "/", TRUE, FALSE, NULL);
+            add_partition_config(app, "/dev/NEW_EFI", "vfat", "/boot/efi", TRUE, FALSE, NULL);
+            add_partition_config(app, "/dev/NEW", "ext4", "/", TRUE, FALSE, NULL);
         } else {
-            add_partition_config(app, p1, "ext4", "/", TRUE, FALSE, NULL);
+            add_partition_config(app, "/dev/NEW", "ext4", "/", TRUE, FALSE, NULL);
         }
         app->install_mode = INSTALL_MODE_ERASE;
     }
-    
-    g_free(p1);
-    g_free(p2);
 }
 
 void get_partition_fstype(const char *device_path, char *out_type, size_t max_len) {

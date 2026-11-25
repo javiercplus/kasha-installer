@@ -131,7 +131,10 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
                 if (strcmp(conf->fstype, "ext4") == 0) fs_cmd = "mkfs.ext4 -F";
                 else if (strcmp(conf->fstype, "btrfs") == 0) fs_cmd = "mkfs.btrfs -f";
                 else if (strcmp(conf->fstype, "xfs") == 0) fs_cmd = "mkfs.xfs -f";
-                else if (strcmp(conf->fstype, "f2fs") == 0) fs_cmd = "mkfs.f2fs -f";
+                else if (strcmp(conf->fstype, "f2fs") == 0) {
+                    run_sync(app, "modprobe f2fs 2>/dev/null || true");
+                    fs_cmd = "mkfs.f2fs -f";
+                }
 
                 if (fs_cmd) {
                     if (run_sync(app, "%s %s", fs_cmd, conf->device) != 0) {
@@ -139,6 +142,10 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
                         return -1;
                     }
                 }
+            }
+
+            if (strcmp(conf->fstype, "f2fs") == 0) {
+                run_sync(app, "modprobe f2fs 2>/dev/null || true");
             }
 
             log_to_ui_printf(app, "Mounting Root %s...", conf->device);
@@ -188,7 +195,10 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
                 if (strcmp(conf->fstype, "ext4") == 0) fs_cmd = "mkfs.ext4 -F";
                 else if (strcmp(conf->fstype, "btrfs") == 0) fs_cmd = "mkfs.btrfs -f";
                 else if (strcmp(conf->fstype, "xfs") == 0) fs_cmd = "mkfs.xfs -f";
-                else if (strcmp(conf->fstype, "f2fs") == 0) fs_cmd = "mkfs.f2fs -f";
+                else if (strcmp(conf->fstype, "f2fs") == 0) {
+                    run_sync(app, "modprobe f2fs 2>/dev/null || true");
+                    fs_cmd = "mkfs.f2fs -f";
+                }
                 else if (strcmp(conf->fstype, "vfat") == 0) fs_cmd = "mkfs.vfat -F32";
                 else if (strcmp(conf->fstype, "swap") == 0) fs_cmd = "mkswap";
 
@@ -204,6 +214,9 @@ int step_format_and_mount(AppData *app, const char *TARGETDIR) {
             if (strcmp(conf->fstype, "swap") == 0) {
                 run_sync(app, "swapon %s", conf->device);
             } else {
+                if (strcmp(conf->fstype, "f2fs") == 0) {
+                    run_sync(app, "modprobe f2fs 2>/dev/null || true");
+                }
                 gchar *target_path = g_strdup_printf("%s%s", TARGETDIR, conf->mountpoint);
                 run_sync(app, "mkdir -p %s", target_path);
                 log_to_ui_printf(app, "Mounting %s...", conf->mountpoint);

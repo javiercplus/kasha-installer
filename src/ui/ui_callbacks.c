@@ -41,6 +41,19 @@ static const char* validate_tab(AppData *app, guint page_num) {
                 PartitionConfig *cfg = (PartitionConfig *)l->data;
                 if (cfg->mountpoint && strcmp(cfg->mountpoint, "/") == 0)
                     has_root = TRUE;
+
+                /* Reject duplicate assignments to the same concrete device
+                 * (multiple /dev/NEW placeholders are valid and get separate slots). */
+                if (cfg->device &&
+                    strcmp(cfg->device, "/dev/NEW") != 0 &&
+                    strcmp(cfg->device, "/dev/NEW_EFI") != 0) {
+                    for (GSList *l2 = l->next; l2; l2 = l2->next) {
+                        PartitionConfig *other = (PartitionConfig *)l2->data;
+                        if (other->device && strcmp(cfg->device, other->device) == 0) {
+                            return "Two mount points cannot use the same existing partition. Select 'NEW' or a different partition.";
+                        }
+                    }
+                }
                 l = l->next;
             }
             if (!has_root)
@@ -187,6 +200,24 @@ void on_disk_changed(GtkComboBox *widget, AppData *app) {
 
         char *ntfs_part = find_ntfs_partition(app->selected_disk);
         
+        // Reset manual checkbox when switching disks so defaults match Installation Type
+        if (app->chk_manual_partitions &&
+            gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_manual_partitions))) {
+            g_signal_handlers_block_by_func(app->chk_manual_partitions, on_manual_check_toggled, app);
+            gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->chk_manual_partitions), FALSE);
+            g_signal_handlers_unblock_by_func(app->chk_manual_partitions, on_manual_check_toggled, app);
+            gtk_widget_set_sensitive(app->btn_part_add, FALSE);
+            gtk_widget_set_sensitive(app->btn_part_edit, TRUE);
+            gtk_widget_set_sensitive(app->btn_part_del, FALSE);
+            gtk_widget_set_sensitive(app->btn_part_reset, FALSE);
+        }
+        if (app->radio_alongside &&
+            gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->radio_alongside))) {
+            app->install_mode = INSTALL_MODE_DUAL_BOOT;
+        } else {
+            app->install_mode = INSTALL_MODE_ERASE;
+        }
+
         if (ntfs_part) {
             app->detected_ntfs_partition = ntfs_part;
             
@@ -201,11 +232,11 @@ void on_disk_changed(GtkComboBox *widget, AppData *app) {
             gtk_dialog_run(GTK_DIALOG(dialog));
             gtk_widget_destroy(dialog);
             
-            // Populate defaults for Erase mode anyway
+            // Populate defaults anyway
             populate_defaults(app, app->selected_disk);
             
         } else {
-            // No NTFS -> Default Erase
+            // No NTFS -> Populate defaults for active installation type
             populate_defaults(app, app->selected_disk);
         }
         
@@ -571,9 +602,17 @@ void launch_gparted(GtkWidget *widget, AppData *app) {
     g_free(cmd);
 }
 
+static void set_partition_buttons_sensitivity(AppData *app, gboolean manual) {
+    gtk_widget_set_sensitive(app->frame_install_parts, TRUE);
+    gtk_widget_set_sensitive(app->btn_part_add, manual);
+    gtk_widget_set_sensitive(app->btn_part_edit, TRUE);
+    gtk_widget_set_sensitive(app->btn_part_del, manual);
+    gtk_widget_set_sensitive(app->btn_part_reset, manual);
+}
+
 void on_manual_check_toggled(GtkToggleButton *toggle, AppData *app) {
     gboolean manual = gtk_toggle_button_get_active(toggle);
-    gtk_widget_set_sensitive(app->frame_install_parts, manual);
+    set_partition_buttons_sensitivity(app, manual);
     
     if (manual) {
         // Switching to manual mode
@@ -595,6 +634,15 @@ void on_install_type_changed(GtkToggleButton *toggle, AppData *app) {
     if (!gtk_toggle_button_get_active(toggle)) return;
     
     int lang = app->current_lang;
+
+    // Switching installation type resets manual partitioning so UI & mode stay in sync
+    if (app->chk_manual_partitions &&
+        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_manual_partitions))) {
+        g_signal_handlers_block_by_func(app->chk_manual_partitions, on_manual_check_toggled, app);
+        gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->chk_manual_partitions), FALSE);
+        g_signal_handlers_unblock_by_func(app->chk_manual_partitions, on_manual_check_toggled, app);
+        set_partition_buttons_sensitivity(app, FALSE);
+    }
     
     if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->radio_clean_install))) {
         app->install_mode = INSTALL_MODE_ERASE;

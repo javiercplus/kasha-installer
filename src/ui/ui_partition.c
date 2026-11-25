@@ -196,9 +196,22 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
     
     GtkComboBoxText *combo_part = GTK_COMBO_BOX_TEXT(gtk_combo_box_text_new());
     populate_partitions_combo(combo_part, app->selected_disk);
+    /* Always offer NEW placeholder(s) so users in manual mode can also add/edit
+     * partitions that do not exist on disk yet (step_partitioning will create them). */
+    gtk_combo_box_text_append_text(combo_part, "NEW");
+    if (app->is_efi) {
+        gtk_combo_box_text_append_text(combo_part, "NEW_EFI");
+    }
     
     gtk_box_pack_start(GTK_BOX(h_dev), GTK_WIDGET(combo_part), TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox_gen), h_dev, FALSE, FALSE, 0);
+
+    gboolean is_manual = (app->chk_manual_partitions &&
+                          gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_manual_partitions)));
+    gboolean editing_auto_root = (edit_conf && !is_manual && edit_conf->mountpoint &&
+                                  strcmp(edit_conf->mountpoint, "/") == 0);
+    gboolean editing_auto_efi = (edit_conf && !is_manual && edit_conf->mountpoint &&
+                                 strcmp(edit_conf->mountpoint, "/boot/efi") == 0);
 
     // ... Filesystem ...
     GtkWidget *h_fs = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 5);
@@ -208,8 +221,10 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
     gtk_combo_box_text_append_text(combo_fs, "btrfs");
     gtk_combo_box_text_append_text(combo_fs, "xfs");
     gtk_combo_box_text_append_text(combo_fs, "f2fs");
-    gtk_combo_box_text_append_text(combo_fs, "vfat");
-    gtk_combo_box_text_append_text(combo_fs, "swap"); 
+    if (!editing_auto_root) {
+        gtk_combo_box_text_append_text(combo_fs, "vfat");
+        gtk_combo_box_text_append_text(combo_fs, "swap");
+    }
     gtk_combo_box_set_active(GTK_COMBO_BOX(combo_fs), 0);
     gtk_box_pack_start(GTK_BOX(h_fs), GTK_WIDGET(combo_fs), TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox_gen), h_fs, FALSE, FALSE, 0);
@@ -305,8 +320,39 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
             gtk_entry_set_text(GTK_ENTRY(entry_pass), edit_conf->luks_pass);
             gtk_entry_set_text(GTK_ENTRY(entry_pass_conf), edit_conf->luks_pass);
         }
+
+        /* In auto-partitioning mode, keep device and mount point fixed so the user
+         * can safely customize the root filesystem (e.g. f2fs, btrfs, xfs) or LUKS
+         * encryption without breaking automatic partition creation. */
+        if (!is_manual) {
+            gtk_widget_set_sensitive(GTK_WIDGET(combo_part), FALSE);
+            gtk_widget_set_sensitive(entry_mp_w, FALSE);
+            gtk_widget_set_sensitive(GTK_WIDGET(chk_fmt), FALSE);
+            if (editing_auto_efi) {
+                gtk_widget_set_sensitive(GTK_WIDGET(combo_fs), FALSE);
+                gtk_widget_set_sensitive(GTK_WIDGET(chk_encrypt), FALSE);
+            }
+        }
     } else {
-        gtk_combo_box_set_active(GTK_COMBO_BOX(combo_part), 0);
+        /* When adding a new entry, preselect the first partition not already
+         * assigned in part_config_list (falling back to NEW if all existing
+         * partitions are already used). */
+        GtkTreeModel *part_model = gtk_combo_box_get_model(GTK_COMBO_BOX(combo_part));
+        gint n_items = part_model ? gtk_tree_model_iter_n_children(part_model, NULL) : 0;
+        gint pick_idx = 0;
+        for (gint i = 0; i < n_items; i++) {
+            gtk_combo_box_set_active(GTK_COMBO_BOX(combo_part), i);
+            gchar *text = gtk_combo_box_text_get_active_text(combo_part);
+            if (!text) continue;
+            gboolean is_placeholder = (strcmp(text, "NEW") == 0 || strcmp(text, "NEW_EFI") == 0);
+            if (is_placeholder || !find_config_by_device(app, text)) {
+                pick_idx = i;
+                g_free(text);
+                break;
+            }
+            g_free(text);
+        }
+        gtk_combo_box_set_active(GTK_COMBO_BOX(combo_part), pick_idx);
     }
 
     gtk_widget_show_all(dialog);
@@ -332,9 +378,10 @@ if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
              return;
          }
          else if (dev_short && mp && strlen(mp) > 0) {
-            // Only switch to manual mode if the manual partitioning checkbox is active
-            if (app->chk_manual_partitions &&
-                gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_manual_partitions))) {
+            // Only switch to manual mode if the manual checkbox is active
+            // AND the selected device is not a NEW auto-partition placeholder.
+            gboolean is_new_dev = (strcmp(dev_short, "NEW") == 0 || strcmp(dev_short, "NEW_EFI") == 0);
+            if (is_manual && !is_new_dev) {
                 app->install_mode = INSTALL_MODE_MANUAL;
             }
 
@@ -352,12 +399,14 @@ if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
                 
                 edit_conf->device = g_strdup(full_dev);
                 edit_conf->original_device = g_strdup(full_dev);
+                edit_conf->luks_uuid = NULL;
                 edit_conf->fstype = g_strdup(fs);
                 edit_conf->mountpoint = g_strdup(stored_mp);
                 edit_conf->format = fmt;
                 edit_conf->encrypt = encrypt;
                 edit_conf->luks_pass = (encrypt && pass && strlen(pass) > 0) ? g_strdup(pass) : NULL;
                 
+                g_free(full_dev);
                 refresh_partition_list_ui(app);
             } else {
                 // ADD NEW
@@ -367,8 +416,6 @@ if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
             
             g_free(dev_short); 
             g_free(fs);
-            
-            if (edit_conf) refresh_partition_list_ui(app);
         }
     }
     gtk_widget_destroy(dialog);
@@ -402,10 +449,23 @@ void on_edit_partition_clicked(GtkWidget *widget, gpointer user_data) {
     GtkTreeIter iter;
     
     if (gtk_tree_selection_get_selected(sel, &model, &iter)) {
-        gchar *dev;
-        gtk_tree_model_get(model, &iter, 0, &dev, -1);
-        
-        PartitionConfig *conf = find_config_by_device(app, dev);
+        GtkTreePath *path = gtk_tree_model_get_path(model, &iter);
+        PartitionConfig *conf = NULL;
+        if (path) {
+            gint *indices = gtk_tree_path_get_indices(path);
+            if (indices) {
+                conf = (PartitionConfig *)g_slist_nth_data(app->part_config_list, (guint)indices[0]);
+            }
+            gtk_tree_path_free(path);
+        }
+        if (!conf) {
+            gchar *dev = NULL;
+            gtk_tree_model_get(model, &iter, 0, &dev, -1);
+            if (dev) {
+                conf = find_config_by_device(app, dev);
+                g_free(dev);
+            }
+        }
         if (conf) {
             show_partition_dialog(app, conf);
         } else {
@@ -413,7 +473,6 @@ void on_edit_partition_clicked(GtkWidget *widget, gpointer user_data) {
             conf = (PartitionConfig*)app->part_config_list->data;
             show_partition_dialog(app, conf);
         }
-        g_free(dev);
     } else {
         // Edit first partition in the list
         if (app->part_config_list) {
@@ -431,16 +490,28 @@ void on_delete_partition_clicked(GtkWidget *widget, gpointer user_data) {
     GtkTreeIter iter;
     
     if (gtk_tree_selection_get_selected(sel, &model, &iter)) {
-        gchar *dev;
-        gtk_tree_model_get(model, &iter, 0, &dev, -1);
-        
-        PartitionConfig *conf = find_config_by_device(app, dev);
+        GtkTreePath *path = gtk_tree_model_get_path(model, &iter);
+        PartitionConfig *conf = NULL;
+        if (path) {
+            gint *indices = gtk_tree_path_get_indices(path);
+            if (indices) {
+                conf = (PartitionConfig *)g_slist_nth_data(app->part_config_list, (guint)indices[0]);
+            }
+            gtk_tree_path_free(path);
+        }
+        if (!conf) {
+            gchar *dev = NULL;
+            gtk_tree_model_get(model, &iter, 0, &dev, -1);
+            if (dev) {
+                conf = find_config_by_device(app, dev);
+                g_free(dev);
+            }
+        }
         if (conf) {
             // Don't change install_mode — respect the user's radio button selection
             gtk_list_store_remove(GTK_LIST_STORE(model), &iter);
             remove_partition_config(app, conf);
         }
-        g_free(dev);
     }
 }
 

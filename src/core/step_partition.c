@@ -3,8 +3,85 @@
  */
 #include "neko_installer.h"
 #include <string.h>
+#include <unistd.h>
+
+static gboolean is_new_placeholder(const char *dev) {
+    return dev && (strcmp(dev, "/dev/NEW") == 0 || strcmp(dev, "/dev/NEW_EFI") == 0);
+}
+
+static gboolean partition_needs_creation(const PartitionConfig *cfg) {
+    if (!cfg || !cfg->device) return TRUE;
+    if (is_new_placeholder(cfg->device)) return TRUE;
+    return (access(cfg->device, F_OK) != 0);
+}
+
+static gboolean has_missing_or_new_partitions(AppData *app) {
+    for (GSList *l = app->part_config_list; l; l = l->next) {
+        PartitionConfig *cfg = (PartitionConfig *)l->data;
+        if (partition_needs_creation(cfg)) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+static gboolean has_preserved_existing_partition(AppData *app) {
+    for (GSList *l = app->part_config_list; l; l = l->next) {
+        PartitionConfig *cfg = (PartitionConfig *)l->data;
+        if (cfg && !partition_needs_creation(cfg) && !cfg->format) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/* Priority order for creating partitions in Clean Install (ERASE):
+ * 0 = /boot/efi, 1 = /boot, 2 = swap, 3 = /, 4 = other (/home, /var, ...)
+ * The very last partition in this order receives the remaining free space. */
+static int erase_part_order(const PartitionConfig *cfg) {
+    if (!cfg) return 4;
+    if (cfg->mountpoint && strcmp(cfg->mountpoint, "/boot/efi") == 0) return 0;
+    if (cfg->mountpoint && strcmp(cfg->mountpoint, "/boot") == 0) return 1;
+    if (cfg->fstype && strcmp(cfg->fstype, "swap") == 0) return 2;
+    if (cfg->mountpoint && strcmp(cfg->mountpoint, "/") == 0) return 3;
+    return 4;
+}
+
+static gint compare_erase_order(gconstpointer a, gconstpointer b) {
+    return erase_part_order((const PartitionConfig *)a) -
+           erase_part_order((const PartitionConfig *)b);
+}
+
+/* Check if partition number `part_num` currently exists on `disk_name`. */
+static gboolean partition_slot_exists(const char *disk_name, const char *sep, int part_num) {
+    char check_cmd[160];
+    snprintf(check_cmd, sizeof(check_cmd),
+             "lsblk -rn -o NAME /dev/%s 2>/dev/null | grep -q '^%s%s%d$'",
+             disk_name, disk_name, sep, part_num);
+    return (system(check_cmd) == 0);
+}
+
 int step_partitioning(AppData *app, const char *disk_name) {
-    if (app->install_mode == INSTALL_MODE_MANUAL) return 0; // Skip if manual
+    if (app->install_mode == INSTALL_MODE_MANUAL) {
+        if (has_missing_or_new_partitions(app)) {
+            /* One or more configured partitions do not exist on disk (either
+             * /dev/NEW* placeholders or explicit paths like /dev/sdc2 that have
+             * not been created yet). Adapt the target disk's partition table so
+             * those partitions are actually created before formatting! */
+            gboolean alongside_selected = (app->radio_alongside &&
+                gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->radio_alongside)));
+
+            if (alongside_selected || has_preserved_existing_partition(app)) {
+                app->install_mode = INSTALL_MODE_DUAL_BOOT;
+                log_to_ui(app, "Missing partition(s) detected — adapting partition table (preserving existing data)...", 0.14);
+            } else {
+                app->install_mode = INSTALL_MODE_ERASE;
+                log_to_ui(app, "Missing partition(s) detected — creating partition table on selected disk...", 0.14);
+            }
+        } else {
+            return 0; // Genuine manual mode: all configured partitions already exist
+        }
+    }
 
     log_to_ui(app, "Partitioning Disk...", 0.15);
 
@@ -35,12 +112,40 @@ int step_partitioning(AppData *app, const char *disk_name) {
     "cryptsetup close /dev/mapper/$(lsblk -rn -o NAME /dev/$p 2>/dev/null | head -1) 2>/dev/null; "
     "done || true", disk_name, disk_name);
 
+    /* If DUAL_BOOT was chosen on a completely blank disk (no partition table),
+     * sfdisk -a would fail because there is no table to append to — create a
+     * fresh partition table with ERASE instead. */
+    if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
+        char *pt_check = get_disk_partition_table_type(disk_name);
+        if (!pt_check || strcmp(pt_check, "unknown") == 0) {
+            log_to_ui(app, "No existing partition table found on disk — creating a new partition table...", 0.145);
+            app->install_mode = INSTALL_MODE_ERASE;
+        }
+        g_free(pt_check);
+    }
+
     if (app->install_mode == INSTALL_MODE_ERASE) {
         // ===== CLEAN INSTALL: ERASE / CREATE NEW TABLE =====
 
         // Wipe old filesystem signatures from the entire disk
         log_to_ui(app, "Wiping old signatures from disk...", 0.14);
         run_sync(app, "wipefs -af %s 2>/dev/null || true", disk_dev);
+
+        /* Build an ordered list of all configured partitions so sfdisk creates
+         * the exact layout configured by the user (e.g. EFI + root, or EFI +
+         * swap + root, or EFI + root + /home). */
+        GSList *ordered = g_slist_copy(app->part_config_list);
+        ordered = g_slist_sort(ordered, compare_erase_order);
+
+        glong disk_mb = get_partition_size_mb(disk_dev);
+        if (disk_mb < 0) disk_mb = 0;
+
+        guint total_parts = g_slist_length(ordered);
+        guint extra_data_parts = 0;
+        for (GSList *o = ordered; o; o = o->next) {
+            PartitionConfig *c = (PartitionConfig *)o->data;
+            if (erase_part_order(c) == 4) extra_data_parts++;
+        }
 
         char cmd_buf[256];
         snprintf(cmd_buf, sizeof(cmd_buf), "sfdisk --wipe always %s", disk_dev);
@@ -50,15 +155,57 @@ int step_partitioning(AppData *app, const char *disk_name) {
             if (app->is_efi) fprintf(sf, "label: gpt\n");
             else fprintf(sf, "label: dos\n");
 
-            if (app->is_efi) {
-                fprintf(sf, ",512M,U\n"); // ESP
-                fprintf(sf, ",,L\n"); // Root (Rest)
-            } else {
-                fprintf(sf, ",,L,*\n"); // Root – MBR Boot Flag
+            guint idx = 0;
+            for (GSList *o = ordered; o; o = o->next) {
+                PartitionConfig *cfg = (PartitionConfig *)o->data;
+                gboolean is_last = (idx == total_parts - 1);
+                int kind = erase_part_order(cfg);
+
+                if (kind == 0) {
+                    /* EFI System Partition */
+                    if (is_last) fprintf(sf, ",,U\n");
+                    else fprintf(sf, ",512M,U\n");
+                } else if (kind == 1) {
+                    /* Separate /boot */
+                    if (is_last) fprintf(sf, ",,L\n");
+                    else fprintf(sf, ",1024M,L\n");
+                } else if (kind == 2) {
+                    /* Swap partition */
+                    glong swap_mb = 4096;
+                    if (disk_mb > 0 && swap_mb > disk_mb / 8) swap_mb = disk_mb / 8;
+                    if (swap_mb < 512) swap_mb = 512;
+                    if (is_last) fprintf(sf, ",,S\n");
+                    else fprintf(sf, ",%ldM,S\n", swap_mb);
+                } else if (kind == 3) {
+                    /* Root (/) */
+                    const char *boot_flag = (!app->is_efi) ? ",*" : "";
+                    if (is_last) {
+                        fprintf(sf, ",,L%s\n", boot_flag);
+                    } else {
+                        /* Leave remaining space for /home or extra partitions */
+                        glong root_mb = (disk_mb > 0) ? (disk_mb * 2) / 5 : 20480;
+                        if (root_mb < 10240) root_mb = 10240;
+                        if (disk_mb > 0 && root_mb > disk_mb - 4096) root_mb = disk_mb / 2;
+                        fprintf(sf, ",%ldM,L%s\n", root_mb, boot_flag);
+                    }
+                } else {
+                    /* Extra partition (/home, /var, etc.) */
+                    if (is_last) {
+                        fprintf(sf, ",,L\n");
+                    } else {
+                        glong share_mb = (disk_mb > 0 && extra_data_parts > 0)
+                            ? (disk_mb / 2) / (glong)extra_data_parts
+                            : 10240;
+                        if (share_mb < 2048) share_mb = 2048;
+                        fprintf(sf, ",%ldM,L\n", share_mb);
+                    }
+                }
+                idx++;
             }
 
             int sfdisk_ret = pclose(sf);
             if (sfdisk_ret != 0) {
+                g_slist_free(ordered);
                 log_to_ui_printf(app, "ERROR: sfdisk failed (exit code %d)! "
                 "Disk may be busy or have I/O errors.", WEXITSTATUS(sfdisk_ret));
                 return -1;
@@ -69,34 +216,29 @@ int step_partitioning(AppData *app, const char *disk_name) {
             run_sync(app, "udevadm settle --timeout=10 2>/dev/null || sleep 2");
             sleep(1);
         } else {
+            g_slist_free(ordered);
             log_to_ui(app, "ERROR: Could not execute sfdisk!", 0.0);
             return -1;
         }
 
-        // Assign device paths for clean install
-        GSList *l = app->part_config_list;
+        // Assign real device paths matching the exact creation order
         const char *sep = "";
         int len = strlen(disk_name);
         if (g_ascii_isdigit(disk_name[len-1])) sep = "p";
 
-        while(l) {
-            PartitionConfig *cfg = (PartitionConfig*)l->data;
+        int part_num = 1;
+        for (GSList *o = ordered; o; o = o->next) {
+            PartitionConfig *cfg = (PartitionConfig *)o->data;
             g_free(cfg->device);
-
-            if (app->is_efi) {
-                if (strcmp(cfg->mountpoint, "/boot/efi") == 0) {
-                    cfg->device = g_strdup_printf("/dev/%s%s1", disk_name, sep);
-                } else {
-                    cfg->device = g_strdup_printf("/dev/%s%s2", disk_name, sep);
-                }
-            } else {
-                cfg->device = g_strdup_printf("/dev/%s%s1", disk_name, sep);
-            }
-            l = l->next;
+            g_free(cfg->original_device);
+            cfg->device = g_strdup_printf("/dev/%s%s%d", disk_name, sep, part_num);
+            cfg->original_device = g_strdup(cfg->device);
+            part_num++;
         }
+        g_slist_free(ordered);
 
         // Verify partition device nodes were actually created
-        l = app->part_config_list;
+        GSList *l = app->part_config_list;
         while(l) {
             PartitionConfig *cfg = (PartitionConfig*)l->data;
             int tries = 0;
@@ -116,12 +258,41 @@ int step_partitioning(AppData *app, const char *disk_name) {
         }
 
     } else if (app->install_mode == INSTALL_MODE_DUAL_BOOT) {
-        // ===== DUAL BOOT: Resize existing partition if needed, then create new =====
+        // ===== DUAL BOOT: Resize existing partition if needed, then create missing/new partitions =====
+        /* Collect every entry in part_config_list that does not exist on disk yet */
+        GSList *to_create = NULL;
         gboolean has_existing_efi = (app->detected_efi_partition != NULL);
-        gboolean need_new_efi = (app->is_efi && !has_existing_efi);
+        gboolean need_new_efi = FALSE;
+        gboolean need_new_swap = FALSE;
+        gboolean need_new_root = FALSE;
 
-        if (has_existing_efi) {
+        for (GSList *chk = app->part_config_list; chk; chk = chk->next) {
+            PartitionConfig *cfg = (PartitionConfig *)chk->data;
+            if (cfg->mountpoint && strcmp(cfg->mountpoint, "/boot/efi") == 0) {
+                if (partition_needs_creation(cfg)) {
+                    need_new_efi = TRUE;
+                    has_existing_efi = FALSE;
+                    to_create = g_slist_append(to_create, cfg);
+                } else {
+                    has_existing_efi = TRUE;
+                }
+            } else if (partition_needs_creation(cfg)) {
+                if (cfg->fstype && strcmp(cfg->fstype, "swap") == 0) need_new_swap = TRUE;
+                if (cfg->mountpoint && strcmp(cfg->mountpoint, "/") == 0) need_new_root = TRUE;
+                to_create = g_slist_append(to_create, cfg);
+            }
+        }
+        to_create = g_slist_sort(to_create, compare_erase_order);
+        guint create_count = g_slist_length(to_create);
+
+        if (has_existing_efi && app->detected_efi_partition) {
             log_to_ui_printf(app, "Reusing existing EFI partition: %s", app->detected_efi_partition);
+        }
+
+        if (create_count == 0) {
+            g_slist_free(to_create);
+            log_to_ui(app, "All configured partitions already exist on disk.", 0.18);
+            return 0;
         }
 
         // --- MBR validation: check partition table type and slot availability ---
@@ -133,8 +304,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
 
         if (is_mbr) {
             int primary_count = get_mbr_primary_count(disk_name);
-            int slots_needed = 1; // root partition
-            if (need_new_efi) slots_needed++;
+            int slots_needed = (int)create_count;
 
             // Check if an extended partition already exists (types 5, f or 85)
             char check_ext_cmd[256];
@@ -152,6 +322,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
                                      "Cannot add %d more partitions safely. Please use GParted to delete or "
                                      "convert a primary partition to 'Extended' before dual-booting.", slots_needed);
                     g_free(pt_type);
+                    g_slist_free(to_create);
                     return -1;
                 }
                 log_to_ui(app, "MBR limit reached: Will create Logical partition(s) inside Extended.", 0.155);
@@ -162,8 +333,9 @@ int step_partitioning(AppData *app, const char *disk_name) {
 
         // Step 1: Check if there's already enough free space
         glong free_space_mb = get_disk_free_space_mb(disk_name);
-        glong min_needed_mb = 7 * 1024; // 7GB minimum for Neko-Void root
+        glong min_needed_mb = need_new_root ? (7 * 1024) : 1024; // 7GB minimum for Neko-Void root
         if (need_new_efi) min_needed_mb += 512;
+        if (need_new_swap) min_needed_mb += 2048;
 
         log_to_ui_printf(app, "Free space on disk: %ld MB, needed: %ld MB",
                          free_space_mb, min_needed_mb);
@@ -179,6 +351,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
                           "Please free up space manually using GParted or "
                           "your existing OS disk management tool before trying "
                           "dual boot installation.", 0.0);
+                g_slist_free(to_create);
                 return -1;
             }
 
@@ -202,6 +375,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
                                          "Please free up space manually using GParted or "
                                          "your existing OS disk management tool.", resize_target);
                         g_free(resize_target);
+                        g_slist_free(to_create);
                         return -1;
                     }
                     // btrfs: estimate minimum as 50% of current size
@@ -215,6 +389,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
                                          "ERROR: Cannot determine minimum size for %s (%s). "
                                          "Please free up space manually.", resize_target, target_fstype);
                         g_free(resize_target);
+                        g_slist_free(to_create);
                         return -1;
                     }
             }
@@ -231,6 +406,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
                                  resize_target, part_size,
                                  min_needed_mb + min_size + safety_margin);
                 g_free(resize_target);
+                g_slist_free(to_create);
                 return -1;
             }
 
@@ -254,6 +430,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
                     new_partition_size) != 0) {
                 log_to_ui(app, "ERROR: Partition resize failed!", 0.0);
                 g_free(resize_target);
+                g_slist_free(to_create);
                 return -1;
             }
             g_free(resize_target);
@@ -262,49 +439,68 @@ int step_partitioning(AppData *app, const char *disk_name) {
             log_to_ui(app, "Sufficient free space found, skipping resize.", 0.16);
         }
 
-        // Step 2: Count existing partitions BEFORE adding new ones
-        char count_cmd[256];
-        snprintf(count_cmd, sizeof(count_cmd),
-                 "lsblk -rn -o NAME /dev/%s | grep -v '^%s$' | wc -l",
-                 disk_name, disk_name);
-        FILE *fp_count = popen(count_cmd, "r");
-        int existing_part_count = 0;
-        if (fp_count) {
-            char count_buf[16];
-            if (fgets(count_buf, sizeof(count_buf), fp_count)) {
-                existing_part_count = atoi(count_buf);
+        // Step 2: Determine the free partition slot numbers BEFORE running sfdisk -a
+        const char *sep = "";
+        int len = strlen(disk_name);
+        if (g_ascii_isdigit(disk_name[len-1])) sep = "p";
+
+        int *assigned_slots = g_new0(int, create_count);
+        int next_slot = (use_logical && is_mbr) ? 5 : 1;
+        for (guint i = 0; i < create_count; i++) {
+            while (partition_slot_exists(disk_name, sep, next_slot)) {
+                next_slot++;
             }
-            pclose(fp_count);
+            assigned_slots[i] = next_slot++;
         }
-        log_to_ui_printf(app, "Existing partitions on disk: %d", existing_part_count);
 
         // Step 3: Create new partition(s) in the free space (now guaranteed to exist)
+        glong post_resize_free_mb = get_disk_free_space_mb(disk_name);
         char cmd_buf2[256];
         snprintf(cmd_buf2, sizeof(cmd_buf2), "sfdisk -a %s", disk_dev);
         log_to_ui_printf(app, "Running: %s", cmd_buf2);
         FILE *sf = popen(cmd_buf2, "w");
         if (sf) {
-            if (need_new_efi) {
-                log_to_ui(app, "Creating new EFI partition...", 0.18);
-                if (use_logical && is_mbr) {
-                    fprintf(sf, ",512M,L\n"); // Logical EFI (fallback if forced)
-                } else {
-                    fprintf(sf, ",512M,U\n"); // Primary EFI (ESP)
-                }
-            }
+            guint idx = 0;
+            for (GSList *o = to_create; o; o = o->next) {
+                PartitionConfig *cfg = (PartitionConfig *)o->data;
+                gboolean is_last = (idx == create_count - 1);
+                int kind = erase_part_order(cfg);
 
-            // Root partition: explicit MBR type 83 for a primary, generic
-            // Linux ('L') for a logical partition or for GPT.
-            if (use_logical && is_mbr) {
-                fprintf(sf, ",,L\n"); // Logical Linux inside the extended partition
-            } else if (is_mbr) {
-                fprintf(sf, ",,83\n"); // Primary Linux (type 83)
-            } else {
-                fprintf(sf, ",,L\n"); // GPT: Linux filesystem
+                if (kind == 0) {
+                    log_to_ui(app, "Creating new EFI partition...", 0.18);
+                    if (use_logical && is_mbr) {
+                        fprintf(sf, ",512M,L\n");
+                    } else {
+                        fprintf(sf, ",512M,U\n");
+                    }
+                } else if (kind == 1) {
+                    if (is_last) fprintf(sf, ",,L\n");
+                    else fprintf(sf, ",1024M,L\n");
+                } else if (kind == 2) {
+                    glong swap_mb = 2048;
+                    if (post_resize_free_mb > 0 && swap_mb > post_resize_free_mb / 6) {
+                        swap_mb = post_resize_free_mb / 6;
+                        if (swap_mb < 512) swap_mb = 512;
+                    }
+                    if (is_last) fprintf(sf, ",,S\n");
+                    else fprintf(sf, ",%ldM,S\n", swap_mb);
+                } else {
+                    const char *ptype = (use_logical && is_mbr) ? "L" : (is_mbr ? "83" : "L");
+                    if (is_last) {
+                        fprintf(sf, ",,%s\n", ptype);
+                    } else {
+                        glong part_mb = (post_resize_free_mb > 0) ? (post_resize_free_mb / 2) : 16384;
+                        if (part_mb < 2048) part_mb = 2048;
+                        fprintf(sf, ",%ldM,%s\n", part_mb, ptype);
+                    }
+                }
+                idx++;
             }
 
             int sfdisk_ret = pclose(sf);
             if (sfdisk_ret != 0) {
+                g_free(assigned_slots);
+                g_slist_free(to_create);
                 log_to_ui_printf(app, "ERROR: sfdisk failed (exit code %d)! "
                 "Disk may be busy or have I/O errors.", WEXITSTATUS(sfdisk_ret));
                 return -1;
@@ -315,69 +511,39 @@ int step_partitioning(AppData *app, const char *disk_name) {
             run_sync(app, "udevadm settle --timeout=10 2>/dev/null || sleep 2");
             sleep(1);
         } else {
+            g_free(assigned_slots);
+            g_slist_free(to_create);
             log_to_ui(app, "ERROR: Could not execute sfdisk!", 0.0);
             return -1;
         }
 
-        // Step 4: Assign device paths for dual boot partitions
-        const char *sep = "";
-        int len = strlen(disk_name);
-        if (g_ascii_isdigit(disk_name[len-1])) sep = "p";
-
-        int new_part_base = existing_part_count + 1;
-
-        // CRITICAL FOR MBR: logical partitions ALWAYS start at number 5
-        if (use_logical && is_mbr) {
-            int log_part = 5;
-            char check_cmd[128];
-            snprintf(check_cmd, sizeof(check_cmd),
-                     "lsblk -rn -o NAME /dev/%s 2>/dev/null | grep -q '^%s%s%d$'",
-                     disk_name, disk_name, sep, log_part);
-            while (system(check_cmd) == 0) {
-                log_part++;
-                snprintf(check_cmd, sizeof(check_cmd),
-                         "lsblk -rn -o NAME /dev/%s 2>/dev/null | grep -q '^%s%s%d$'",
-                         disk_name, disk_name, sep, log_part);
-            }
-            new_part_base = log_part;
-            log_to_ui_printf(app, "Using logical partition numbering, starting at: %d", new_part_base);
-        }
-
-        GSList *l = app->part_config_list;
-        while(l) {
-            PartitionConfig *cfg = (PartitionConfig*)l->data;
-
-            if (strcmp(cfg->mountpoint, "/boot/efi") == 0) {
+        // Step 4: Assign newly created device paths to the corresponding configs
+        int root_part_num = -1;
+        {
+            guint idx = 0;
+            for (GSList *o = to_create; o; o = o->next) {
+                PartitionConfig *cfg = (PartitionConfig *)o->data;
                 g_free(cfg->device);
-                if (has_existing_efi) {
-                    cfg->device = g_strdup(app->detected_efi_partition);
-                } else {
-                    cfg->device = g_strdup_printf("/dev/%s%s%d",
-                                                  disk_name, sep, new_part_base);
+                g_free(cfg->original_device);
+                cfg->device = g_strdup_printf("/dev/%s%s%d", disk_name, sep, assigned_slots[idx]);
+                cfg->original_device = g_strdup(cfg->device);
+                if (cfg->mountpoint && strcmp(cfg->mountpoint, "/") == 0) {
+                    root_part_num = assigned_slots[idx];
                 }
-            } else if (strcmp(cfg->mountpoint, "/") == 0) {
-                g_free(cfg->device);
-                if (need_new_efi) {
-                    cfg->device = g_strdup_printf("/dev/%s%s%d",
-                                                  disk_name, sep, new_part_base + 1);
-                } else {
-                    cfg->device = g_strdup_printf("/dev/%s%s%d",
-                                                  disk_name, sep, new_part_base);
-                }
+                idx++;
             }
-            l = l->next;
         }
+        g_free(assigned_slots);
+        g_slist_free(to_create);
 
         // Step 5: Set boot flag on root partition for MBR/Legacy
-        if (!app->is_efi) {
-            // Find the root partition number
-            int root_part_num = need_new_efi ? new_part_base + 1 : new_part_base;
+        if (!app->is_efi && root_part_num > 0) {
             log_to_ui_printf(app, "Setting boot flag on partition %d (MBR/Legacy)...", root_part_num);
             run_sync(app, "sfdisk --activate %s %d 2>/dev/null || true", disk_dev, root_part_num);
         }
 
         // Verify partition device nodes were actually created
-        l = app->part_config_list;
+        GSList *l = app->part_config_list;
         while(l) {
             PartitionConfig *cfg = (PartitionConfig*)l->data;
             int tries = 0;

@@ -374,10 +374,12 @@ char* find_largest_resizable_partition(const char *disk_name) {
         char name[64] = {0}, fstype[32] = {0};
         sscanf(line, "%63s %31s", name, fstype);
 
-        /* Only consider resizable filesystems (ext, ntfs, btrfs, xfs) */
+        /* Only consider shrinkable filesystems (ext2/3/4, ntfs, btrfs).
+         * XFS is deliberately excluded: it can only grow (xfs_growfs), never
+         * shrink, so picking it for dual-boot would abort the install. */
         if (strcmp(fstype, "ext4") != 0 && strcmp(fstype, "ext3") != 0 &&
             strcmp(fstype, "ext2") != 0 && strcmp(fstype, "ntfs") != 0 &&
-            strcmp(fstype, "btrfs") != 0 && strcmp(fstype, "xfs") != 0) {
+            strcmp(fstype, "btrfs") != 0) {
             continue;
         }
 

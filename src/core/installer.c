@@ -120,6 +120,26 @@ void generate_fstab(AppData *app, const char *target_dir) {
             }
         }
         
+        /* Detect the filesystem actually present on the block device instead of
+         * trusting conf->fstype blindly: a reused (non-formatted) partition may
+         * hold e.g. XFS while the UI left the combo at its "ext4" default.
+         * Writing ext4 + pass=1 there makes runit stage 1 run fsck.ext4 on an
+         * XFS root and drop into the emergency shell. */
+        gchar *fstype = NULL;
+        if (strcmp(conf->fstype, "swap") != 0) {
+            char real_fs[64] = {0};
+            get_partition_fstype(conf->device, real_fs, sizeof(real_fs));
+            g_strstrip(real_fs);
+            if (strlen(real_fs) > 0) {
+                if (strcmp(real_fs, conf->fstype) != 0) {
+                    log_to_ui_printf(app, "fstab: %s is %s on disk (configured as %s), using %s.",
+                                     conf->device, real_fs, conf->fstype, real_fs);
+                }
+                fstype = g_strdup(real_fs);
+            }
+        }
+        if (!fstype) fstype = g_strdup(conf->fstype);
+
         // Options
         const char *opts = "defaults";
         int dump = 0;
@@ -127,25 +147,28 @@ void generate_fstab(AppData *app, const char *target_dir) {
         
         if (strcmp(conf->mountpoint, "/") == 0) {
             // btrfs, xfs, f2fs have their own check mechanisms, pass=0
-            if (strcmp(conf->fstype, "btrfs") == 0 || strcmp(conf->fstype, "xfs") == 0 || strcmp(conf->fstype, "f2fs") == 0) {
+            if (strcmp(fstype, "btrfs") == 0 || strcmp(fstype, "xfs") == 0 || strcmp(fstype, "f2fs") == 0) {
                 pass = 0;
             } else {
                 pass = 1;
             }
-        } else if (strcmp(conf->fstype, "swap") == 0) {
+        } else if (strcmp(fstype, "swap") == 0) {
             opts = "sw";
             pass = 0;
-        } else if (strcmp(conf->fstype, "vfat") == 0 || strcmp(conf->fstype, "fat32") == 0) {
+        } else if (strcmp(fstype, "btrfs") == 0 || strcmp(fstype, "xfs") == 0 || strcmp(fstype, "f2fs") == 0) {
+            pass = 0;
+        } else if (strcmp(fstype, "vfat") == 0 || strcmp(fstype, "fat32") == 0) {
             opts = "umask=0077";
             pass = 2;
         }
         
-        if (strcmp(conf->fstype, "swap") == 0) {
+        if (strcmp(fstype, "swap") == 0) {
              fprintf(fp, "%s\t%s\t%s\t%s\t%d\t%d\n", fs_spec, "none", "swap", opts, dump, pass);
         } else {
-             fprintf(fp, "%s\t%s\t%s\t%s\t%d\t%d\n", fs_spec, conf->mountpoint, conf->fstype, opts, dump, pass);
+             fprintf(fp, "%s\t%s\t%s\t%s\t%d\t%d\n", fs_spec, conf->mountpoint, fstype, opts, dump, pass);
         }
         
+        g_free(fstype);
         g_free(fs_spec);
         l = l->next;
     }

@@ -163,6 +163,57 @@ static void on_fs_combo_changed(GtkComboBox *combo, gpointer user_data) {
     g_free(active_text);
 }
 
+/* When adding a new entry and the user picks an existing partition, preselect
+ * the filesystem actually present on it so reusing a partition without
+ * formatting doesn't silently record the wrong type (e.g. ext4 over XFS). */
+static void on_part_combo_changed(GtkComboBox *combo, gpointer user_data) {
+    GtkComboBox *combo_fs = GTK_COMBO_BOX(user_data);
+    gchar *dev_short = gtk_combo_box_text_get_active_text(GTK_COMBO_BOX_TEXT(combo));
+    if (!dev_short) return;
+
+    if (strcmp(dev_short, "NEW") == 0 || strcmp(dev_short, "NEW_EFI") == 0) {
+        g_free(dev_short);
+        return;
+    }
+
+    gchar *dev_full = (strncmp(dev_short, "/dev/", 5) == 0)
+                      ? g_strdup(dev_short)
+                      : g_strdup_printf("/dev/%s", dev_short);
+    char real_fs[64] = {0};
+    get_partition_fstype(dev_full, real_fs, sizeof(real_fs));
+    g_strstrip(real_fs);
+
+    static const char *known_fs[] = { "ext4", "btrfs", "xfs", "f2fs", "vfat", "swap", NULL };
+    gboolean known = FALSE;
+    for (int k = 0; known_fs[k]; k++) {
+        if (strcmp(real_fs, known_fs[k]) == 0) { known = TRUE; break; }
+    }
+
+    if (known) {
+        /* Match by text rather than by fixed index, so it stays correct even
+         * if the set of entries in combo_fs changes. */
+        GtkTreeModel *model = gtk_combo_box_get_model(combo_fs);
+        GtkTreeIter iter;
+        gint idx = 0;
+        gboolean valid = model ? gtk_tree_model_get_iter_first(model, &iter) : FALSE;
+        while (valid) {
+            gchar *text = NULL;
+            gtk_tree_model_get(model, &iter, 0, &text, -1);
+            if (text && strcmp(text, real_fs) == 0) {
+                gtk_combo_box_set_active(combo_fs, idx);
+                g_free(text);
+                break;
+            }
+            g_free(text);
+            idx++;
+            valid = gtk_tree_model_iter_next(model, &iter);
+        }
+    }
+
+    g_free(dev_full);
+    g_free(dev_short);
+}
+
 void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
     if (!app->selected_disk) {
         GtkWidget *err = gtk_message_dialog_new(GTK_WINDOW(app->window),
@@ -353,6 +404,12 @@ void show_partition_dialog(AppData *app, PartitionConfig *edit_conf) {
             g_free(text);
         }
         gtk_combo_box_set_active(GTK_COMBO_BOX(combo_part), pick_idx);
+
+        /* Keep combo_fs in sync with the real filesystem of the selected
+         * existing partition (connected after the scan loop above to avoid
+         * running lsblk for every probed entry). */
+        g_signal_connect(combo_part, "changed", G_CALLBACK(on_part_combo_changed), combo_fs);
+        on_part_combo_changed(GTK_COMBO_BOX(combo_part), combo_fs);
     }
 
     gtk_widget_show_all(dialog);

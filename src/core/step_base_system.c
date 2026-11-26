@@ -130,6 +130,9 @@ void install_base_initramfs(AppData *app, const char *TARGETDIR) {
     run_sync(app, "mkdir -p %s/etc/dracut.conf.d", TARGETDIR);
     run_sync(app, "echo 'hostonly=no' > %s/etc/dracut.conf.d/01-neko.conf", TARGETDIR);
     run_sync(app, "echo 'add_drivers+=\" ahci \"' >> %s/etc/dracut.conf.d/01-neko.conf", TARGETDIR);
+    /* Always ship XFS support so a root on XFS can be mounted from the
+     * initramfs even on kernel variants where xfs is built as a module. */
+    run_sync(app, "echo 'add_drivers+=\" xfs \"' >> %s/etc/dracut.conf.d/01-neko.conf", TARGETDIR);
 
     /* If any partition uses LUKS, include the crypt and dm modules from the
      * very first initramfs build so the kernel can unlock the root device. */
@@ -151,7 +154,7 @@ void install_base_initramfs(AppData *app, const char *TARGETDIR) {
     /* Build initramfs for each installed kernel, specifying output path and
      * kernel version explicitly to avoid the /boot/efi/Default/ path issue. */
     run_sync(app, "chroot %s sh -c 'for kver in $(ls /usr/lib/modules/); do "
-             "dracut --no-hostonly --add-drivers \"ahci\" --force "
+             "dracut --no-hostonly --add-drivers \"ahci xfs\" --force "
              "/boot/initramfs-${kver}.img ${kver}; done'", TARGETDIR);
 
 #ifndef UNIVERSAL_BUILD

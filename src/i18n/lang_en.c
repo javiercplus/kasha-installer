@@ -19,10 +19,11 @@ static const LangInfo lang_en = {
     
     // Install Type
     .install_type_title = "Select installation type:",
-    .clean_install = "Clean Install (erase entire disk)",
-    .install_alongside = "Install alongside another OS (resize)",
-    .clean_install_desc = "All data on the selected disk will be erased and partitions will be created automatically.",
-    .alongside_desc = "The existing partition will be resized to create free space for the new system.",
+    .clean_install = "Erase disk and install",
+    .install_alongside = "Install alongside / Keep existing data",
+    .clean_install_desc = "Wipes all partitions and data on the selected disk, creating a fresh layout automatically.",
+    .alongside_desc = "Keeps existing OS and data intact. Uses free space or shrinks an existing partition if needed.",
+    .manual_desc = "Manual mode: using the exact partition table configured below.",
     
     // Partitions
     .disk = "Disk:",

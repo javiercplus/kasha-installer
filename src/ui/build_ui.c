@@ -82,17 +82,17 @@ void build_ui(AppData *app) {
     pango_attr_list_unref(attrs);
     gtk_box_pack_start(GTK_BOX(page_install_type), app->lbl_install_type_title, FALSE, FALSE, 0);
 
-    app->radio_clean_install = gtk_radio_button_new_with_label(NULL, "Clean Install (erase entire disk)");
+    app->radio_clean_install = gtk_radio_button_new_with_label(NULL, "Erase disk and install");
     gtk_box_pack_start(GTK_BOX(page_install_type), app->radio_clean_install, FALSE, FALSE, 0);
 
     app->radio_alongside = gtk_radio_button_new_with_label_from_widget(
-        GTK_RADIO_BUTTON(app->radio_clean_install), "Install alongside another OS (resize)");
+        GTK_RADIO_BUTTON(app->radio_clean_install), "Install alongside / Keep existing data");
     gtk_box_pack_start(GTK_BOX(page_install_type), app->radio_alongside, FALSE, FALSE, 0);
 
     // Default install mode matches the default active radio button (Clean Install)
     app->install_mode = INSTALL_MODE_ERASE;
 
-    app->lbl_install_type_desc = gtk_label_new("All data on the selected disk will be erased and partitions will be created automatically.");
+    app->lbl_install_type_desc = gtk_label_new("Wipes all partitions and data on the selected disk, creating a fresh layout automatically.");
     gtk_label_set_xalign(GTK_LABEL(app->lbl_install_type_desc), 0.0);
     gtk_label_set_line_wrap(GTK_LABEL(app->lbl_install_type_desc), TRUE);
     gtk_widget_set_margin_top(app->lbl_install_type_desc, 5);
@@ -195,14 +195,10 @@ void build_ui(AppData *app) {
     gtk_container_add(GTK_CONTAINER(scrolled), app->mount_list);
     gtk_box_pack_start(GTK_BOX(vbox_install_parts), scrolled, TRUE, TRUE, 0);
 
-    // Start with manual mode DISABLED (auto-partitioning default):
-    // Keep the partition list and Edit button sensitive so the user can change
-    // filesystem (e.g. ext4 -> f2fs/btrfs/xfs) or enable LUKS without leaving auto mode.
-    gtk_widget_set_sensitive(app->frame_install_parts, TRUE);
-    gtk_widget_set_sensitive(app->btn_part_add, FALSE);
-    gtk_widget_set_sensitive(app->btn_part_edit, TRUE);
-    gtk_widget_set_sensitive(app->btn_part_del, FALSE);
-    gtk_widget_set_sensitive(app->btn_part_reset, FALSE);
+    // Start with manual mode DISABLED (auto-partitioning default): the
+    // partition list is a read-only preview of the automatic layout and the
+    // Installation Type radio buttons drive it.
+    set_partition_buttons_sensitivity(app, FALSE);
 
     gtk_notebook_append_page(GTK_NOTEBOOK(app->notebook), page_disk, gtk_label_new("Partitions"));
 

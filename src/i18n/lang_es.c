@@ -19,10 +19,11 @@ static const LangInfo lang_es = {
     
     // Install Type
     .install_type_title = "Seleccione el tipo de instalación:",
-    .clean_install = "Instalación Limpia (borrar todo el disco)",
-    .install_alongside = "Instalar junto a otro SO (redimensionar)",
-    .clean_install_desc = "Se borrará todo el contenido del disco y se crearán las particiones automáticamente.",
-    .alongside_desc = "Se redimensionará la partición existente para crear espacio libre.",
+    .clean_install = "Borrar disco e instalar",
+    .install_alongside = "Instalar junto a otro SO / Conservar datos",
+    .clean_install_desc = "Elimina todas las particiones y datos del disco seleccionado y crea un esquema nuevo automáticamente.",
+    .alongside_desc = "Conserva intactos el SO y los datos existentes. Usa el espacio libre o reduce una partición existente si es necesario.",
+    .manual_desc = "Modo manual: se usará exactamente la tabla de particiones configurada abajo.",
     
     // Partitions
     .disk = "Disco:",

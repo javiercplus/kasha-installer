@@ -189,6 +189,7 @@ char* find_efi_partition(const char *disk_name);
 gboolean validate_efi_partition(AppData *app, const char *efi_device);
 char* get_partition_path(const char *disk, int part_num);
 void populate_defaults(AppData *app, const char *disk_name);
+gboolean has_separate_unencrypted_boot(AppData *app);
 void get_partition_fstype(const char *device_path, char *out_type, size_t max_len);
 PartitionConfig* find_config_by_device(AppData *app, const gchar *device);
 void remove_partition_config(AppData *app, PartitionConfig *conf);
@@ -236,6 +237,8 @@ void on_popup_reboot(GtkDialog *dialog, gint response_id, gpointer user_data);
 void on_lang_toggled(GtkWidget *widget, AppData *app);
 void on_manual_check_toggled(GtkToggleButton *toggle, AppData *app);
 void on_install_type_changed(GtkToggleButton *toggle, AppData *app);
+void update_install_type_desc(AppData *app);
+void set_partition_buttons_sensitivity(AppData *app, gboolean manual);
 #ifdef HAS_DESKTOP_TAB
 void on_local_default_toggled(GtkToggleButton *toggle, AppData *app);
 void on_desktop_selected(GtkToggleButton *toggle, AppData *app);

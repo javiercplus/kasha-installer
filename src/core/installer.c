@@ -204,11 +204,18 @@ void generate_crypttab(AppData *app, const char *target_dir) {
     fprintf(fp, "# /etc/crypttab: encrypted block devices\n");
     fprintf(fp, "# <mapper name> <device> <key file> <options>\n\n");
     
+    /* With a separate, unencrypted /boot there is no keyfile (it would sit in
+     * clear text on /boot): use "none" so dracut prompts for the passphrase.
+     * With /boot inside the encrypted root, keep the /boot/volume.key keyfile
+     * so the passphrase is only typed once (in GRUB). */
+    gboolean unencrypted_boot = has_separate_unencrypted_boot(app);
+    const char *key_file = unencrypted_boot ? "none" : "/boot/volume.key";
+
     l = app->part_config_list;
     while(l) {
         PartitionConfig *conf = (PartitionConfig*)l->data;
         if (conf->encrypt && conf->luks_pass && conf->luks_uuid) {
-            fprintf(fp, "cryptroot UUID=%s /boot/volume.key luks\n", conf->luks_uuid);
+            fprintf(fp, "cryptroot UUID=%s %s luks\n", conf->luks_uuid, key_file);
         }
         l = l->next;
     }

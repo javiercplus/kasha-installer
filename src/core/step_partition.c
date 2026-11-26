@@ -265,6 +265,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
         gboolean need_new_efi = FALSE;
         gboolean need_new_swap = FALSE;
         gboolean need_new_root = FALSE;
+        gboolean need_new_boot = FALSE;
 
         for (GSList *chk = app->part_config_list; chk; chk = chk->next) {
             PartitionConfig *cfg = (PartitionConfig *)chk->data;
@@ -279,6 +280,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
             } else if (partition_needs_creation(cfg)) {
                 if (cfg->fstype && strcmp(cfg->fstype, "swap") == 0) need_new_swap = TRUE;
                 if (cfg->mountpoint && strcmp(cfg->mountpoint, "/") == 0) need_new_root = TRUE;
+                if (cfg->mountpoint && strcmp(cfg->mountpoint, "/boot") == 0) need_new_boot = TRUE;
                 to_create = g_slist_append(to_create, cfg);
             }
         }
@@ -336,6 +338,7 @@ int step_partitioning(AppData *app, const char *disk_name) {
         glong min_needed_mb = need_new_root ? (7 * 1024) : 1024; // 7GB minimum for Neko-Void root
         if (need_new_efi) min_needed_mb += 512;
         if (need_new_swap) min_needed_mb += 2048;
+        if (need_new_boot) min_needed_mb += 1024;
 
         log_to_ui_printf(app, "Free space on disk: %ld MB, needed: %ld MB",
                          free_space_mb, min_needed_mb);

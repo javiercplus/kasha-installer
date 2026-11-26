@@ -19,10 +19,11 @@ static const LangInfo lang_ja = {
 
     // Install Type
     .install_type_title = "インストールタイプを選択:",
-    .clean_install = "クリーンインストール (ディスクを消去)",
-    .install_alongside = "他のOSと一緒にインストール (リサイズ)",
-    .clean_install_desc = "選択したディスクのすべてのデータが消去され、パーティションが自動的に作成されます。",
-    .alongside_desc = "既存のパーティションをリサイズして新しいシステムの空き領域を作成します。",
+    .clean_install = "ディスクを消去してインストール",
+    .install_alongside = "共存インストール / 既存データを保持",
+    .clean_install_desc = "選択したディスクのすべてのパーティションとデータを消去し、新しい構成を自動的に作成します。",
+    .alongside_desc = "既存のOSとデータはそのまま保持されます。空き領域を使用し、必要に応じて既存のパーティションを縮小します。",
+    .manual_desc = "手動モード: 下で設定したパーティション構成をそのまま使用します。",
 
     // Partitions
     .disk = "ディスク:",

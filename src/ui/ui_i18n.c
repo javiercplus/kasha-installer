@@ -40,6 +40,7 @@ const char* get_loc(const char *key, int lang) {
     if (strcmp(key, "install_alongside") == 0) return li->install_alongside;
     if (strcmp(key, "clean_install_desc") == 0) return li->clean_install_desc;
     if (strcmp(key, "alongside_desc") == 0) return li->alongside_desc;
+    if (strcmp(key, "manual_desc") == 0) return li->manual_desc;
     if (strcmp(key, "manual_partitioning") == 0) return li->manual_partitioning;
     if (strcmp(key, "existing_parts") == 0) return li->existing_parts;
     if (strcmp(key, "install_parts") == 0) return li->install_parts;
@@ -161,7 +162,7 @@ void update_ui_language(AppData *app) {
     if(app->lbl_install_type_title) gtk_label_set_text(GTK_LABEL(app->lbl_install_type_title), get_loc("install_type_title", lang));
     if(app->radio_clean_install) gtk_button_set_label(GTK_BUTTON(app->radio_clean_install), get_loc("clean_install", lang));
     if(app->radio_alongside) gtk_button_set_label(GTK_BUTTON(app->radio_alongside), get_loc("install_alongside", lang));
-    if(app->lbl_install_type_desc) gtk_label_set_text(GTK_LABEL(app->lbl_install_type_desc), get_loc("clean_install_desc", lang));
+    update_install_type_desc(app);
 
     // Disks
     if(app->lbl_disk_title) gtk_label_set_text(GTK_LABEL(app->lbl_disk_title), get_loc("disk_title", lang));

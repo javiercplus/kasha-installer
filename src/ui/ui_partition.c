@@ -478,14 +478,24 @@ if (encrypt && (strlen(pass) < 1 || strcmp(pass, pass_conf) != 0)) {
     gtk_widget_destroy(dialog);
 }
 
+/* Editing the table is only allowed in manual mode; in auto mode it is a
+ * read-only preview. The widgets are insensitive already, this is a safety net
+ * for any other path (keyboard shortcuts, programmatic activation...). */
+static gboolean manual_partitioning_active(AppData *app) {
+    return app->chk_manual_partitions &&
+           gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_manual_partitions));
+}
+
 void on_add_partition_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
+    if (!manual_partitioning_active((AppData *)user_data)) return;
     show_partition_dialog((AppData *)user_data, NULL);
 }
 
 void on_edit_partition_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
+    if (!manual_partitioning_active(app)) return;
     
     if (!app->selected_disk) {
         GtkWidget *err = gtk_message_dialog_new(GTK_WINDOW(app->window),
@@ -542,6 +552,7 @@ void on_edit_partition_clicked(GtkWidget *widget, gpointer user_data) {
 void on_delete_partition_clicked(GtkWidget *widget, gpointer user_data) {
     (void)widget;
     AppData *app = (AppData *)user_data;
+    if (!manual_partitioning_active(app)) return;
     GtkTreeSelection *sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(app->mount_list));
     GtkTreeModel *model;
     GtkTreeIter iter;
@@ -585,6 +596,8 @@ void on_reset_partitions_clicked(GtkWidget *widget, AppData *app) {
         while (l != NULL) {
             PartitionConfig *conf = (PartitionConfig *)l->data;
             g_free(conf->device);
+            g_free(conf->original_device);
+            g_free(conf->luks_uuid);
             g_free(conf->fstype);
             g_free(conf->mountpoint);
             if(conf->luks_pass) g_free(conf->luks_pass);

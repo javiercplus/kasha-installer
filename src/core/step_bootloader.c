@@ -17,20 +17,38 @@
 void bootloader_config_luks(AppData *app, const char *TARGETDIR) {
     log_to_ui(app, "Configuring GRUB for LUKS...", 0.91);
 
+    /* Separate plain /boot: GRUB reads kernel + initramfs straight from it,
+     * so it never has to unlock anything and no keyfile must be created
+     * (it would live unencrypted on /boot and auto-unlock root). dracut
+     * asks for the passphrase instead (rd.luks.uuid + crypttab "none"). */
+    gboolean unencrypted_boot = has_separate_unencrypted_boot(app);
+    if (unencrypted_boot) {
+        log_to_ui(app, "Separate unencrypted /boot detected: passphrase will be asked by the initramfs.", 0.911);
+    }
+
     GSList *f = app->part_config_list;
     while(f) {
         PartitionConfig *c = (PartitionConfig*)f->data;
         if (c->encrypt && strcmp(c->mountpoint, "/") == 0 && c->luks_uuid) {
             log_to_ui_printf(app, "Setting GRUB LUKS UUID: %s", c->luks_uuid);
 
-            // Enable cryptodisk in GRUB
             run_sync(app, "sed -i '/GRUB_ENABLE_CRYPTODISK/d' %s/etc/default/grub", TARGETDIR);
-            run_sync(app, "echo 'GRUB_ENABLE_CRYPTODISK=y' >> %s/etc/default/grub", TARGETDIR);
+            if (!unencrypted_boot) {
+                // /boot lives inside the encrypted root: GRUB must unlock it
+                run_sync(app, "echo 'GRUB_ENABLE_CRYPTODISK=y' >> %s/etc/default/grub", TARGETDIR);
+            }
 
             // Set rd.luks.uuid for dracut to find and unlock the LUKS device.
             // Per the Void handbook: rd.luks.uuid=<UUID> tells the initramfs
             // which device to unlock at boot.
             run_sync(app, "sed -i 's|GRUB_CMDLINE_LINUX_DEFAULT=\"|GRUB_CMDLINE_LINUX_DEFAULT=\"rd.luks.uuid=%s |' %s/etc/default/grub", c->luks_uuid, TARGETDIR);
+
+            if (unencrypted_boot) {
+                // Make sure no stale keyfile is left on the plain /boot
+                run_sync(app, "rm -f %s/boot/volume.key", TARGETDIR);
+                f = f->next;
+                continue;
+            }
 
             // Generate a random keyfile to avoid entering the passphrase twice
             // (once for GRUB, once for the initramfs).  Per the Void handbook:
@@ -238,7 +256,14 @@ void bootloader_dracut_luks(AppData *app, const char *TARGETDIR) {
      *                                           the passphrase a second time.
      */
     run_sync(app, "echo 'add_dracutmodules+=\" crypt dm lvm \"' > %s/etc/dracut.conf.d/10-crypt.conf", TARGETDIR);
-    run_sync(app, "echo 'install_items+=\" /boot/volume.key /etc/crypttab \"' >> %s/etc/dracut.conf.d/10-crypt.conf", TARGETDIR);
+    if (has_separate_unencrypted_boot(app)) {
+        /* Plain /boot: never embed a keyfile — the initramfs sits unencrypted
+         * on /boot, so the key would unlock root for anyone. Ship only
+         * crypttab (key "none") and let dracut prompt for the passphrase. */
+        run_sync(app, "echo 'install_items+=\" /etc/crypttab \"' >> %s/etc/dracut.conf.d/10-crypt.conf", TARGETDIR);
+    } else {
+        run_sync(app, "echo 'install_items+=\" /boot/volume.key /etc/crypttab \"' >> %s/etc/dracut.conf.d/10-crypt.conf", TARGETDIR);
+    }
 
     log_to_ui(app, "Regenerating initramfs with LUKS support...", 0.935);
 

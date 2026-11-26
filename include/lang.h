@@ -22,6 +22,7 @@ typedef struct {
     const char *install_alongside;
     const char *clean_install_desc;
     const char *alongside_desc;
+    const char *manual_desc;
     
     // Partitions
     const char *disk;

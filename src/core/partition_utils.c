@@ -97,6 +97,19 @@ char* get_partition_path(const char *disk, int part_num) {
     }
 }
 
+/* TRUE when the layout has its own /boot partition that is NOT encrypted.
+ * In that case GRUB reads kernel + initramfs from plain /boot, so no keyfile
+ * may be stored there (it would be readable in clear and auto-unlock root):
+ * the passphrase is asked by dracut at boot instead. */
+gboolean has_separate_unencrypted_boot(AppData *app) {
+    for (GSList *l = app->part_config_list; l; l = l->next) {
+        PartitionConfig *c = (PartitionConfig *)l->data;
+        if (c && c->mountpoint && strcmp(c->mountpoint, "/boot") == 0 && !c->encrypt)
+            return TRUE;
+    }
+    return FALSE;
+}
+
 void populate_defaults(AppData *app, const char *disk_name) {
     /* Save the intended mode BEFORE reset (on_reset_partitions_clicked
        clears the partition list; we restore the mode afterwards).
@@ -112,7 +125,34 @@ void populate_defaults(AppData *app, const char *disk_name) {
         }
     }
 
+    /* Remember any user customization of "/" (filesystem, LUKS) before the
+     * reset wipes the list, so switching between ERASE and DUAL_BOOT (or
+     * leaving manual mode) doesn't silently drop encryption or the chosen
+     * filesystem. A disk change clears the list beforehand (on_disk_changed),
+     * so in that case nothing is carried over. */
+    gchar *root_fs = g_strdup("ext4");
+    gboolean root_encrypt = FALSE;
+    gchar *root_pass = NULL;
+    for (GSList *l = app->part_config_list; l; l = l->next) {
+        PartitionConfig *c = (PartitionConfig *)l->data;
+        if (!c->mountpoint || strcmp(c->mountpoint, "/") != 0) continue;
+        if (c->fstype && (strcmp(c->fstype, "ext4") == 0 || strcmp(c->fstype, "btrfs") == 0 ||
+                          strcmp(c->fstype, "xfs") == 0 || strcmp(c->fstype, "f2fs") == 0)) {
+            g_free(root_fs);
+            root_fs = g_strdup(c->fstype);
+        }
+        root_encrypt = c->encrypt;
+        if (c->encrypt && c->luks_pass) root_pass = g_strdup(c->luks_pass);
+        break;
+    }
+
     on_reset_partitions_clicked(NULL, app);
+
+    /* LUKS root on a non-ext4 filesystem (xfs, btrfs, f2fs): GRUB can't
+     * reliably read /boot from inside such an encrypted volume (e.g. its xfs
+     * module chokes on bigtime/inobtcount/nrext64), so give the kernel and
+     * initramfs their own plain 1 GiB ext4 /boot partition. */
+    gboolean need_plain_boot = (root_encrypt && strcmp(root_fs, "ext4") != 0);
 
     if (intended_mode == INSTALL_MODE_DUAL_BOOT) {
         // Dual boot: detect and reuse existing EFI partition
@@ -137,19 +177,26 @@ void populate_defaults(AppData *app, const char *disk_name) {
             }
         }
 
+        // Separate unencrypted /boot when required (1024M, created by step_partitioning)
+        if (need_plain_boot)
+            add_partition_config(app, "/dev/NEW", "ext4", "/boot", TRUE, FALSE, NULL);
+
         // Root partition in free space (device resolved at install time)
-        add_partition_config(app, "/dev/NEW", "ext4", "/", TRUE, FALSE, NULL);
+        add_partition_config(app, "/dev/NEW", root_fs, "/", TRUE, root_encrypt, root_pass);
         app->install_mode = INSTALL_MODE_DUAL_BOOT;
     } else {
         // Clean install (erase): partitions will be created fresh by step_partitioning
         if (app->is_efi) {
             add_partition_config(app, "/dev/NEW_EFI", "vfat", "/boot/efi", TRUE, FALSE, NULL);
-            add_partition_config(app, "/dev/NEW", "ext4", "/", TRUE, FALSE, NULL);
-        } else {
-            add_partition_config(app, "/dev/NEW", "ext4", "/", TRUE, FALSE, NULL);
         }
+        if (need_plain_boot)
+            add_partition_config(app, "/dev/NEW", "ext4", "/boot", TRUE, FALSE, NULL);
+        add_partition_config(app, "/dev/NEW", root_fs, "/", TRUE, root_encrypt, root_pass);
         app->install_mode = INSTALL_MODE_ERASE;
     }
+
+    g_free(root_fs);
+    g_free(root_pass);
 }
 
 void get_partition_fstype(const char *device_path, char *out_type, size_t max_len) {

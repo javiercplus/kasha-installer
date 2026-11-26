@@ -206,11 +206,13 @@ void on_disk_changed(GtkComboBox *widget, AppData *app) {
             g_signal_handlers_block_by_func(app->chk_manual_partitions, on_manual_check_toggled, app);
             gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(app->chk_manual_partitions), FALSE);
             g_signal_handlers_unblock_by_func(app->chk_manual_partitions, on_manual_check_toggled, app);
-            gtk_widget_set_sensitive(app->btn_part_add, FALSE);
-            gtk_widget_set_sensitive(app->btn_part_edit, TRUE);
-            gtk_widget_set_sensitive(app->btn_part_del, FALSE);
-            gtk_widget_set_sensitive(app->btn_part_reset, FALSE);
+            set_partition_buttons_sensitivity(app, FALSE);
         }
+
+        /* A different physical disk invalidates every previous choice:
+         * drop the whole configuration (including root fs / LUKS settings)
+         * so populate_defaults() below starts from pristine defaults. */
+        on_reset_partitions_clicked(NULL, app);
         if (app->radio_alongside &&
             gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->radio_alongside))) {
             app->install_mode = INSTALL_MODE_DUAL_BOOT;
@@ -602,12 +604,41 @@ void launch_gparted(GtkWidget *widget, AppData *app) {
     g_free(cmd);
 }
 
-static void set_partition_buttons_sensitivity(AppData *app, gboolean manual) {
-    gtk_widget_set_sensitive(app->frame_install_parts, TRUE);
-    gtk_widget_set_sensitive(app->btn_part_add, manual);
-    gtk_widget_set_sensitive(app->btn_part_edit, TRUE);
-    gtk_widget_set_sensitive(app->btn_part_del, manual);
-    gtk_widget_set_sensitive(app->btn_part_reset, manual);
+/* Refresh the descriptive text under the Installation Type radios so it always
+ * reflects what will actually happen to the disk (manual > erase > alongside). */
+void update_install_type_desc(AppData *app) {
+    if (!app->lbl_install_type_desc) return;
+    int lang = app->current_lang;
+    const char *key;
+    if (app->chk_manual_partitions &&
+        gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->chk_manual_partitions))) {
+        key = "manual_desc";
+    } else if (app->radio_alongside &&
+               gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->radio_alongside))) {
+        key = "alongside_desc";
+    } else {
+        key = "clean_install_desc";
+    }
+    gtk_label_set_text(GTK_LABEL(app->lbl_install_type_desc), get_loc(key, lang));
+}
+
+/* Auto mode  (manual == FALSE): the partition table is a read-only preview of
+ *   the automatic layout; Add/Edit/Delete/Reset and the list itself are locked,
+ *   and the Installation Type radios decide the layout.
+ * Manual mode (manual == TRUE): the table is fully editable and the radios are
+ *   locked so they can't overwrite the hand-made configuration. */
+void set_partition_buttons_sensitivity(AppData *app, gboolean manual) {
+    if (app->frame_install_parts) gtk_widget_set_sensitive(app->frame_install_parts, TRUE);
+    if (app->mount_list)     gtk_widget_set_sensitive(app->mount_list, manual);
+    if (app->btn_part_add)   gtk_widget_set_sensitive(app->btn_part_add, manual);
+    if (app->btn_part_edit)  gtk_widget_set_sensitive(app->btn_part_edit, manual);
+    if (app->btn_part_del)   gtk_widget_set_sensitive(app->btn_part_del, manual);
+    if (app->btn_part_reset) gtk_widget_set_sensitive(app->btn_part_reset, manual);
+
+    if (app->radio_clean_install) gtk_widget_set_sensitive(app->radio_clean_install, !manual);
+    if (app->radio_alongside)     gtk_widget_set_sensitive(app->radio_alongside, !manual);
+
+    update_install_type_desc(app);
 }
 
 void on_manual_check_toggled(GtkToggleButton *toggle, AppData *app) {
@@ -632,8 +663,6 @@ void on_manual_check_toggled(GtkToggleButton *toggle, AppData *app) {
 void on_install_type_changed(GtkToggleButton *toggle, AppData *app) {
     // Only react when a radio is activated (not deactivated)
     if (!gtk_toggle_button_get_active(toggle)) return;
-    
-    int lang = app->current_lang;
 
     // Switching installation type resets manual partitioning so UI & mode stay in sync
     if (app->chk_manual_partitions &&
@@ -646,13 +675,13 @@ void on_install_type_changed(GtkToggleButton *toggle, AppData *app) {
     
     if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(app->radio_clean_install))) {
         app->install_mode = INSTALL_MODE_ERASE;
-        gtk_label_set_text(GTK_LABEL(app->lbl_install_type_desc), get_loc("clean_install_desc", lang));
     } else {
         app->install_mode = INSTALL_MODE_DUAL_BOOT;
-        gtk_label_set_text(GTK_LABEL(app->lbl_install_type_desc), get_loc("alongside_desc", lang));
     }
+    update_install_type_desc(app);
     
-    // Re-populate defaults if a disk is selected
+    // Re-populate defaults if a disk is selected. populate_defaults() keeps the
+    // user's root customizations (filesystem / LUKS) across ERASE <-> DUAL_BOOT.
     if (app->selected_disk) {
         populate_defaults(app, app->selected_disk);
         refresh_partition_list_ui(app);
